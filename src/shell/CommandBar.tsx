@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useStore } from "zustand";
 import { useActiveTerminal } from "@/canvas/activeTerminal";
 import { useCanvas } from "@/canvas/canvasStore";
 import { isGroup } from "@/canvas/groups";
-import { Button } from "@/components/ui/button";
 import { AGENTS } from "@/agents/catalog";
 import { CommandInput } from "@/agents/CommandInput";
 import { HINT_KEY, historyStore } from "@/agents/history";
-import { activeTarget, selectionChips, selectionTargets, targetAgents, type Target } from "@/agents/targets";
+import { activeTarget, broadcastAgents, selectionChips, selectionTargets, targetAgents, type Target } from "@/agents/targets";
 import { useMessages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
 import { terminalOf, useNodes } from "@/store/nodes";
@@ -34,6 +33,27 @@ export function CommandBar() {
   useEffect(() => {
     if (projectId) void historyStore.getState().load(projectId);
   }, [projectId]);
+
+  // The tip waits for the saved commands and for the saved dismissal: neither flashes it up and takes it back.
+  const [dismissed, setDismissed] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getSetting<boolean>(HINT_KEY).then(
+      (saved) => alive && setDismissed(saved === true),
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+  // A command in the history, sent now or before, is a send: the tip has done its work, here and for good.
+  const historyLoaded = useStore(historyStore, (s) => s.loaded);
+  const sent = useStore(historyStore, (s) => s.loaded && s.entries.length > 0);
+  useEffect(() => {
+    if (!sent || dismissed !== false) return;
+    setDismissed(true);
+    void setSetting(HINT_KEY, true).catch(() => undefined);
+  }, [sent, dismissed]);
 
   const agents = useMemo(
     () =>
@@ -70,16 +90,20 @@ export function CommandBar() {
     [nothingSelected, activeName, active, selectedIds, frames, agents],
   );
 
+  // With two agents or more there is someone to address as a group (`@all` leaves a Fleet out); an empty field says how, until the first send.
+  const tip = dismissed === false && historyLoaded && !sent && broadcastAgents(agents).length >= 2;
+
   return (
     // A panel round enough (rounded-xl, 16) to hold Send's 8px corner 8px in from its own (16 = 8 + 8).
-    <div data-command-bar className="dp-glass-strong pointer-events-auto flex min-h-12 w-[680px] max-w-[calc(100vw-360px)] items-end gap-2 rounded-xl py-2 pl-3 pr-2">
+    // The field draws no ring of its own (outline-none), so the bar shows the keyboard's place: the shared accent ring, while the field has the focus.
+    <div data-command-bar className="dp-glass-strong pointer-events-auto flex min-h-12 w-[680px] max-w-[calc(100vw-360px)] items-end gap-2 rounded-xl py-2 pl-3 pr-2 has-[textarea:focus-visible]:ring-2 has-[textarea:focus-visible]:ring-dp-accent/70">
       {/* The prompt sits at the foot of the bar, centred on Send, however tall the field grows. */}
       <ChevronRight className="mb-2 size-4 shrink-0 text-dp-text-3" aria-hidden />
       <CommandInput
         agents={agents}
         groups={groups}
         fallback={fallback}
-        placeholder={activeName ? t.placeholderTo(activeName) : t.placeholder}
+        placeholder={tip ? t.tip : activeName ? t.placeholderTo(activeName) : t.placeholder}
         // The name stays generic: the active terminal's chip can be removed or replaced, the name would then lie.
         label={t.placeholder}
         emptyHint={t.emptyHint}
@@ -87,43 +111,6 @@ export function CommandBar() {
         autoTargets={autoTargets}
         fromSelection={!nothingSelected}
       />
-    </div>
-  );
-}
-
-/** The hint "Try @all run the tests", above the chips until dismissed. */
-export function CommandHint() {
-  const t = useMessages(shellMessages).commandBar;
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    getSetting<boolean>(HINT_KEY).then(
-      (dismissed) => alive && setShown(dismissed !== true),
-      () => undefined,
-    );
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  if (!shown) return null;
-  return (
-    // rounded-lg (12), 4 in: its ✕ (icon-xs) is 8 round.
-    <div className="dp-glass-strong pointer-events-auto flex items-center gap-2 rounded-lg py-1 pl-3 pr-1 text-xs text-dp-text-2">
-      {t.hint}
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        aria-label={t.hideHint}
-        onClick={() => {
-          setShown(false);
-          void setSetting(HINT_KEY, true).catch(() => undefined);
-        }}
-        className="text-dp-text-2 hover:text-dp-text"
-      >
-        <X className="size-3" />
-      </Button>
     </div>
   );
 }

@@ -15,15 +15,14 @@ import { ROLES } from "./roles";
 export type PanelState = "working" | "waiting" | "active" | "idle" | "stopped";
 
 /**
- * What the panel's filters show, in their order. `active`: the live agents, the ones the title bar's
- * "N active" counts (`live`), so the counter opens on as many rows; an agent resting on its report is under
- * `done`, not here. `done`: not working and not waiting:
- * reported done, finished its turn (idle) or its process ended (stopped). A starting agent or a busy
- * console (state `active`) shows under `all` alone.
+ * What the panel's filters show, in their order. `done` (read "Ready", the state table's word; the id is kept, a
+ * saved choice names it): not working and not waiting: reported done, finished its turn (idle) or its process ended
+ * (stopped). A starting agent, one whose activity is not known yet or a busy console (state `active`) shows under
+ * `all` alone.
  */
-export type PanelFilter = "all" | "active" | "waiting" | "working" | "done";
+export type PanelFilter = "all" | "waiting" | "working" | "done";
 
-export const PANEL_FILTERS: readonly { id: PanelFilter; label: string }[] = (["all", "active", "waiting", "working", "done"] as const).map(
+export const PANEL_FILTERS: readonly { id: PanelFilter; label: string }[] = (["all", "waiting", "working", "done"] as const).map(
   (id) => ({
     id,
     get label() {
@@ -33,9 +32,8 @@ export const PANEL_FILTERS: readonly { id: PanelFilter; label: string }[] = (["a
 );
 
 /** Whether an agent shows under `filter` (the Fleets' section filters with the agents). */
-export const inFilter = (agent: Pick<PanelAgent, "state" | "live">, filter: PanelFilter): boolean => {
+export const inFilter = (agent: Pick<PanelAgent, "state">, filter: PanelFilter): boolean => {
   if (filter === "all") return true;
-  if (filter === "active") return agent.live;
   return filter === "done" ? agent.state === "idle" || agent.state === "stopped" : agent.state === filter;
 };
 
@@ -44,8 +42,6 @@ export interface PanelAgent {
   name: string;
   agent: AgentId;
   state: PanelState;
-  /** An agent whose process runs with its agent in it and that has not reported (`isLive`, never a plain shell): what "N active" counts. */
-  live: boolean;
   /** Since when the agent is in its state (running agents only). */
   since?: number;
 }
@@ -56,9 +52,12 @@ export interface PanelSection {
   name: string;
   color: string | null;
   agents: PanelAgent[];
-  /** The section's agents and those at work whatever the filter: its header says what the group's canvas label says. */
+  /** The section's agents and those in each state whatever the filter: its header says what the group's canvas label says. */
   members: number;
   working: number;
+  waiting: number;
+  /** At rest: its turn over or its report in (`idle`). */
+  ready: number;
 }
 
 /**
@@ -92,7 +91,13 @@ export function panelSections(
   filter: PanelFilter,
 ): PanelSection[] {
   const shown = (all: readonly PanelAgent[]) => all.filter((a) => inFilter(a, filter));
-  const totals = (all: readonly PanelAgent[]) => ({ members: all.length, working: all.filter((a) => a.state === "working").length });
+  const totals = (all: readonly PanelAgent[]) => ({
+    members: all.length,
+    working: all.filter((a) => a.state === "working").length,
+    waiting: all.filter((a) => a.state === "waiting").length,
+    // A plain shell console is no agent: the group label does not count it at rest either.
+    ready: all.filter((a) => a.state === "idle" && a.agent !== "shell").length,
+  });
   const inGroups = new Set<string>();
   const sections: PanelSection[] = [];
   for (const frame of frames) {
@@ -112,10 +117,10 @@ export function panelSections(
   return sections;
 }
 
-export function filterCounts(agents: readonly Pick<PanelAgent, "state" | "live">[]): Record<PanelFilter, number> {
-  const counts: Record<PanelFilter, number> = { all: agents.length, active: 0, waiting: 0, working: 0, done: 0 };
+export function filterCounts(agents: readonly Pick<PanelAgent, "state">[]): Record<PanelFilter, number> {
+  const counts: Record<PanelFilter, number> = { all: agents.length, waiting: 0, working: 0, done: 0 };
   for (const a of agents) {
-    for (const filter of ["active", "waiting", "working", "done"] as const) if (inFilter(a, filter)) counts[filter]++;
+    for (const filter of ["waiting", "working", "done"] as const) if (inFilter(a, filter)) counts[filter]++;
   }
   return counts;
 }

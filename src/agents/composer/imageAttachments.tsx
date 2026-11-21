@@ -86,7 +86,7 @@ export function ImageChips({
             aria-label={t.remove(t.image(i + 1))}
             onMouseDown={onMouseDown}
             onClick={() => onRemove(image)}
-            className="size-4 rounded-sm text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
+            className="relative size-4 rounded-sm text-dp-text-2 after:absolute after:-inset-1 hover:text-dp-text"
           >
             <X className="size-3" />
           </Button>

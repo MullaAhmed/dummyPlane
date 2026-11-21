@@ -85,3 +85,14 @@ it("cuts a long branch shorter on a window too narrow for it beside the command 
   expect(branch.className).toContain("min-[1150px]:max-w-[150px]");
   expect(branch.className).toContain("truncate");
 });
+
+it("tells the palette's Git window (Ctrl+Shift+B) which folder is a repository, and that none is once it is gone", async () => {
+  gitWindowStore.setState({ repo: null });
+  await act(async () => root.render(<GitChip />));
+  expect(gitWindowStore.getState().repo).toBe("C:/code/api");
+  await act(async () => root.render(null));
+  expect(gitWindowStore.getState().repo).toBeNull();
+  status = null;
+  await act(async () => root.render(<GitChip />));
+  expect(gitWindowStore.getState().repo).toBeNull();
+});

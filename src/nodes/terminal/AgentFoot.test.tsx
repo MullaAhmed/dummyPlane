@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import type { Links } from "@/agents/wires";
 import type { TerminalPayload } from "@/nodes/types";
@@ -10,7 +11,9 @@ import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
+import { relaunchTerminal } from "./registry";
 import { TerminalNode } from "./TerminalNode";
+import { tabTo } from "@/components/ui/tabTo";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./useTerminalHost", () => ({ useTerminalHost: () => undefined }));
@@ -40,6 +43,9 @@ async function show(payload: TerminalPayload = batman, links: Record<string, Lin
 
 beforeEach(() => {
   mockIPC(() => undefined);
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
+  vi.mocked(relaunchTerminal).mockClear();
 });
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -90,8 +96,8 @@ describe("the status line under an agent's terminal", () => {
 
   it("tells no time it does not know: a stopped process is not dated", async () => {
     await show();
-    // Only its state, then Link, always at the end of the line.
-    expect(statusLine().textContent).toBe("StoppedLink");
+    // Only its state, then the router and Link, always at the end of the line.
+    expect(statusLine().textContent).toBe("StoppedRouterLink");
     expect(linkButton()!.textContent).toBe("Link");
     expect(statusLine().querySelector("[data-status]")!.getAttribute("data-status")).toBe("stopped");
   });
@@ -122,6 +128,85 @@ describe("the status line under an agent's terminal", () => {
   });
 });
 
+describe("the model router's switch, beside Link", () => {
+  const router = () => foot()?.querySelector<HTMLButtonElement>("[data-foot-router]") ?? null;
+  const payloadOf = () => nodesStore.getState().nodes.batman?.payload as TerminalPayload;
+
+  it("sits just before Link, named Model router with its word on show, off until it is turned on", async () => {
+    await show();
+    const button = router()!;
+    expect(button).not.toBeNull();
+    expect(button.textContent).toBe("Router");
+    // One name, holding the word it shows, its state in aria-pressed: "Model router, toggle button, not pressed".
+    expect(button.getAttribute("aria-label")).toBe("Model router");
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(button.getAttribute("data-router")).toBe("off");
+    expect(button.hasAttribute("aria-disabled")).toBe(false);
+    expect(button.nextElementSibling).toBe(linkButton());
+  });
+
+  it("stays on until it is turned off, saved in the terminal's payload at once, and never asks for a restart", async () => {
+    await show({ ...batman, model: "claude-haiku-5-5" });
+    await act(async () => router()!.click());
+    expect(payloadOf().router).toBe(true);
+    expect(router()!.getAttribute("aria-pressed")).toBe("true");
+    expect(router()!.getAttribute("data-router")).toBe("on");
+    // The model it chose stays: the router only speaks when a sub-task with a level comes.
+    expect(payloadOf().model).toBe("claude-haiku-5-5");
+    expect(relaunchTerminal).not.toHaveBeenCalled();
+    await act(async () => router()!.click());
+    expect(payloadOf().router).toBe(false);
+    expect(router()!.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("is on a Codex terminal too, and shows Settings' router while its own switch is unset; each click stores its state", async () => {
+    modelRouterStore.setState({ on: true });
+    await show({ ...batman, agent: "codex" });
+    expect(router()!.getAttribute("aria-pressed")).toBe("true");
+    await act(async () => router()!.click());
+    expect(payloadOf().router).toBe(false);
+    await act(async () => router()!.click());
+    expect(payloadOf().router).toBe(true);
+    // On is stored as set, the state Settings gives: it holds when Settings is turned off.
+    await act(async () => modelRouterStore.setState({ on: false }));
+    expect(router()!.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  describe("where it has nothing to route (a CLI without dummyPlane's tools, a Manager)", () => {
+    const CASES = [
+      { name: "Gemini", payload: { agent: "gemini" }, why: "Gemini can't open sub-agents, so the router has nothing to route here" },
+      { name: "Aider", payload: { agent: "aider" }, why: "Aider can't open sub-agents, so the router has nothing to route here" },
+      { name: "a Manager", payload: { role: "manager", fleet: "atlas" }, why: "A Manager opens no sub-agents; its Fleet's switch routes the mission" },
+    ] as const;
+
+    it.each(CASES)("shows $name's switch greyed out and off, and says why in its description", async ({ payload, why }) => {
+      await show({ ...batman, ...payload } as TerminalPayload);
+      const button = router()!;
+      // aria-disabled, not disabled: it stays in the tab order, and the pointer reaches its hint.
+      expect(button.getAttribute("aria-disabled")).toBe("true");
+      expect(button.disabled).toBe(false);
+      expect(button.getAttribute("aria-pressed")).toBe("false");
+      // Greyed by its ink, not by opacity: a faded control fell under 3:1 (theme/legibility.test.ts).
+      expect(button.className.split(/\s+/)).toEqual(expect.arrayContaining(["text-dp-text-3", "hover:text-dp-text-3"]));
+      expect(button.className.split(/\s+/)).not.toContain("opacity-50");
+      expect(document.getElementById(button.getAttribute("aria-describedby")!)?.textContent).toBe(why);
+    });
+
+    it.each(CASES)("changes nothing when $name's switch is pressed, even with Settings' router on and a stale switch stored", async ({ payload }) => {
+      modelRouterStore.setState({ on: true });
+      await show({ ...batman, ...payload, router: true } as TerminalPayload);
+      const before = JSON.stringify(nodesStore.getState().nodes);
+      expect(router()!.getAttribute("aria-pressed")).toBe("false");
+      await act(async () => router()!.click());
+      await act(async () => router()!.click());
+      expect(JSON.stringify(nodesStore.getState().nodes)).toBe(before);
+      expect(payloadOf().router).toBe(true);
+      expect(modelRouterStore.getState().on).toBe(true);
+      expect(router()!.getAttribute("aria-pressed")).toBe("false");
+    });
+  });
+});
+
 describe("Link from the agent's end", () => {
   it("starts the link mode for this agent, and ends it with Done", async () => {
     await show(batman, { atlas: { nodeIds: [], groupIds: [] } });
@@ -139,7 +224,7 @@ describe("Link from the agent's end", () => {
     const tooltip = () => document.querySelector('[role="tooltip"]')?.textContent ?? null;
     const later = () => act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
     expect(linkButton()!.hasAttribute("title")).toBe(false);
-    await act(async () => linkButton()!.focus());
+    await act(async () => tabTo(linkButton()!));
     await later();
     expect(tooltip()).toBe("Link this agent to another agent, a fleet or a Kanban board");
     const button = linkButton();

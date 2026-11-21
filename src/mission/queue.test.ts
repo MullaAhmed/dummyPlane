@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { launchGroup } from "@/agents/groups";
 import { addTerminal } from "@/agents/terminals";
-import { missionAddAgent, missionMerge, missionPrepare } from "@/ipc/mission";
+import { missionAddAgent, missionCleanup, missionMerge, missionPrepare } from "@/ipc/mission";
 import { ptySendText } from "@/ipc/pty";
 import { buildSpawnSpec } from "@/nodes/terminal/launch";
 import { relaunchTerminal, stopTerminal } from "@/nodes/terminal/registry";
@@ -16,15 +16,16 @@ import { isRunning, statusOf, terminalStatusStore } from "@/store/terminalStatus
 import { toast } from "sonner";
 import { workspacesStore } from "@/store/workspaces";
 import { notify } from "./events";
-import { endMission, launchMission, mergeLineKept, mergeMember, reassignTask } from "./launch";
+import { cleanMission, endMission, launchMission, mergeLineKept, mergeMember, reassignTask } from "./launch";
 import type { Member, Mission, QueuedTask } from "./mission";
 import { morningReport } from "./morning";
-import { afterReport, giveNext, pumpQueue, toldKept } from "./queue";
-import { missionOf, setMission, updateMember } from "./store";
+import { afterReport, giveNext, pumpQueue, settleQueue, toldKept } from "./queue";
+import { missionOf, setFleetClosed, setMission, updateMember } from "./store";
 import { addTeamMember } from "./manager";
 import { isLaunching, markLaunching } from "@/agents/spawnFamily";
 import { activeCount } from "./active";
 import { activeWork } from "./activeWork";
+import { installCloseWatch } from "./closeWatch";
 import { installRestartWatch } from "./restartWatch";
 import { fleetTool, managerTools } from "@/mcp/fleetTools";
 import { modelRouterStore } from "@/app/modelRouterSetting";
@@ -37,7 +38,7 @@ vi.mock("@/ipc/pty", async (importOriginal) => ({
   ptySendText: vi.fn(() => Promise.resolve()),
   ptyWrite: vi.fn(() => Promise.resolve()),
 }));
-vi.mock("@/nodes/terminal/registry", () => ({ relaunchTerminal: vi.fn(() => Promise.resolve()), stopTerminal: vi.fn(), quietFor: vi.fn(() => 0), typedAgo: vi.fn(() => Infinity), freshText: vi.fn(() => ""), markForAutostart: vi.fn() }));
+vi.mock("@/nodes/terminal/registry", () => ({ relaunchTerminal: vi.fn(() => Promise.resolve()), stopTerminal: vi.fn(), hasFocus: vi.fn(() => false), touchedAgo: vi.fn(() => Infinity), isLiveInRust: vi.fn(() => false), xtermOf: vi.fn(), quietFor: vi.fn(() => 0), typedAgo: vi.fn(() => Infinity), freshText: vi.fn(() => ""), markForAutostart: vi.fn() }));
 vi.mock("@/agents/groups", () => ({ launchGroup: vi.fn(), closeGroup: vi.fn(), showGroups: vi.fn() }));
 vi.mock("@/fleet/fleets", () => ({ linkFleet: vi.fn() }));
 vi.mock("@/agents/terminals", () => ({ addTerminal: vi.fn(), removeNodes: vi.fn() }));
@@ -79,6 +80,7 @@ const created = () => missionNow().members.filter((m) => !m.linked);
 const missionFrame = { id: "f1", name: "Mission Auth", x: 0, y: 0, width: 800, height: 500, memberIds: [] as string[], group: { role: "general" as const, pantheon: "egyptian" } };
 const queued = (...titles: string[]) => titles.map((title) => ({ ...next, title }));
 let made = 0;
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 async function setup(mission: Partial<Mission>) {
   await nodesStore.getState().create("chef", {
@@ -214,22 +216,28 @@ describe("an agent that reports « done »", () => {
     }
   });
 
-  it("tells the fleet of a conflict and leaves the branch unmerged; merge restarts the queue, merging it first", async () => {
+  it("tells the fleet of a conflict and leaves the branch unmerged; nothing retries it while the agent fixes it, its next report merges it first (#12)", async () => {
     await setup({});
     // Out of sight: no new agent takes its seat meanwhile.
     workspacesStore.setState({ activeId: "w2" });
     vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false, head: "c0ffee" });
     await afterReport("chef", "batman");
-    expect(missionNow().members[0]).toMatchObject({ task: "Login", report: done });
+    expect(missionNow().members[0]).toMatchObject({ task: "Login", report: done, conflictAt: done.at });
     expect(missionNow().members[0].merged).toBeUndefined();
     expect(missionNow().queue).toEqual([next]);
     expect(relaunchTerminal).not.toHaveBeenCalled();
-    expect(lines()[0]).toBe("Batman: conflict, merge undone — a.ts");
-    workspacesStore.setState({ activeId: "w1" });
+    expect(lines()[0]).toBe(`Batman: conflict, merge undone — a.ts. Not retried by itself: ask Batman to merge the mission's branch into its own, resolve and commit; its branch is merged again when it reports, or with merge and agent set to Batman.`);
+    // A task added, a restart that ended, another agent's merge: the queue moves, but Batman is mid-resolution.
     await pumpQueue("chef");
+    expect(missionMerge).toHaveBeenCalledOnce();
+    // Fixed, it reports again: its branch is merged before a new agent takes the next task.
+    workspacesStore.setState({ activeId: "w1" });
+    updateMember("chef", "batman", { report: { ...done, at: done.at + 1 } });
+    await afterReport("chef", "batman");
     expect(missionMerge).toHaveBeenCalledTimes(2);
     expect(vi.mocked(missionMerge).mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(missionAddAgent).mock.invocationCallOrder[0]);
     expect(missionNow().members[0]).toMatchObject({ task: "Login", merged: true });
+    expect(missionNow().members[0].conflictAt).toBeUndefined();
     expect(created().map((m) => m.task)).toEqual(["API"]);
   });
 
@@ -237,7 +245,7 @@ describe("an agent that reports « done »", () => {
     await setup({});
     vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false, head: "c0ffee" });
     await afterReport("chef", "batman");
-    expect(lines()[0]).toBe("Batman: conflict, merge undone — a.ts");
+    expect(lines()[0]).toBe(`Batman: conflict, merge undone — a.ts. Not retried by itself: ask Batman to merge the mission's branch into its own, resolve and commit; its branch is merged again when it reports, or with merge and agent set to Batman.`);
     expect(missionNow().members[0].task).toBe("Login");
     expect(created().map((m) => m.task)).toEqual(["API"]);
   });
@@ -246,7 +254,7 @@ describe("an agent that reports « done »", () => {
     await setup({});
     vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "merged" }, uncommitted: true, head: "c0ffee" });
     await afterReport("chef", "batman");
-    expect(lines()[0]).toContain("uncommitted");
+    expect(lines()[0]).toContain("uncommitted changes in its worktree are not merged: ask it to commit them, then merge again");
     expect(created().map((m) => m.task)).toEqual(["API"]);
   });
 
@@ -318,8 +326,9 @@ describe("an agent that reports « blocked » or « failed »", () => {
     });
     for (const id of ["cyborg", "flash"]) terminalStatusStore.getState().set(id, { state: "running" });
     expect(await reassignTask("chef", "batman", "Aquaman")).toBe(
-      '"Login" would put Aquaman back to work while 2 agents are already at work (Max active agents), and the agent it takes it from holds no seat now. ' +
-        "Reassign it once a seat is free (queue: active_agents below max_agents); a seat a report frees goes to the queue's next task first.",
+      "No seat is free: 2 of 2 agents at work (Max active agents, this mission's own limit, not the sub-agents' limit of Settings): Cyborg, Flash. " +
+        '"Login" would put Aquaman back to work as one more, and the agent it takes it from holds no seat now. ' +
+        "Reassign it once a report frees a seat (queue: active_agents below max_agents), or queue it with add_tasks; a seat a report frees goes to the queue's next task first.",
     );
     expect(missionNow().members.find((m) => m.name === "Aquaman")?.task).toBe("Docs");
     expect(missionNow().members.find((m) => m.name === "Batman")?.handedTo).toBeUndefined();
@@ -382,7 +391,9 @@ describe("an agent that reports « blocked » or « failed »", () => {
 
   it("starts nothing past Max agents with next_task", async () => {
     await setup({ maxAgents: 1, members: [member("batman", "Batman", { report: stuck }), member("aquaman", "Aquaman", { task: "Docs0" })] });
-    expect(await giveNext("chef", missionNow().members[0])).toEqual({ refused: "1 agent is already at work (Max active agents): the next task starts as soon as one reports." });
+    expect(await giveNext("chef", missionNow().members[0])).toEqual({
+      refused: "No seat is free: 1 of 1 agent at work (Max active agents, this mission's own limit, not the sub-agents' limit of Settings): Aquaman. The next task starts as soon as one reports.",
+    });
     expect(missionAddAgent).not.toHaveBeenCalled();
     expect(missionNow().members[0].abandoned).toBeUndefined();
   });
@@ -647,7 +658,7 @@ describe("what the fleet hears when nobody is left working", () => {
   it("is told once all have reported and the queue is empty", async () => {
     await setup({ queue: [] });
     await afterReport("chef", "batman");
-    expect(lines()).toEqual(["The queue is empty and everyone has reported: merge, have it checked, then finish."]);
+    expect(lines()).toEqual(["The queue is empty and everyone has reported: merge, have it checked, then land and finish."]);
   });
 
   it("is told when tasks wait that no new agent can take", async () => {
@@ -765,7 +776,7 @@ it("speaks English when the interface does", async () => {
   const name = created()[0].name;
   expect(lines()).toEqual([`${name}, a new agent, takes "API". Still waiting: 0.`]);
   expect(vi.mocked(ptySendText).mock.calls[0][1]).toBe(
-    `[dummyPlane · mission Auth] API — Fais l'API. Budget: 30 min. Branch: dummyplane/auth-${name.toLowerCase()}. This worktree is new: its dependencies (node_modules…) are not installed. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.`,
+    `[dummyPlane · mission Auth] API — Fais l'API. Budget: 30 min. Branch: dummyplane/auth-${name.toLowerCase()}. Work in this worktree only, never in the user's own checkout of the project: the mission reaches their branch when they click Land in dummyPlane. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.`,
   );
 });
 
@@ -822,6 +833,9 @@ describe("Max agents caps the agents at work, not the team", () => {
   const stuck = { summary: "Bloqué", status: "bloque" as const, at: 60_000 };
 
   it("starts a new agent, in the task's group, for a task no free agent's group allows", async () => {
+    // The project has a pnpm lockfile, and no note on its setup: the new worktree's agent is told the command.
+    workspacesStore.setState({ workspaces: [{ id: "w1", projectId: "p1", name: "A", position: 0, pantheon: null, kind: "canvas", folder: null }] });
+    mockIPC((cmd, args) => (cmd === "studio_version" && (args as { path: string }).path === "pnpm-lock.yaml" ? "v1" : cmd === "notes_agent_list" ? [] : undefined));
     canvasStore.setState({ frames: [missionFrame, front, back] });
     await setup({ frameId: "f1", maxAgents: 2, queue: [{ ...next, title: "Serveur", group: { id: "g2", name: "Serveur" } }] });
     await afterReport("chef", "batman");
@@ -833,8 +847,11 @@ describe("Max agents caps the agents at work, not the team", () => {
     expect(missionNow().plan?.[missionNow().plan!.length - 1]).toMatchObject({ title: "Serveur", agent: name });
     expect(lines()).toEqual([`${name}, a new agent, takes "Serveur". Still waiting: 0.`]);
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("n1", expect.stringContaining("Serveur — Fais l'API.")));
-    // A new worktree: it is told its dependencies are not installed.
-    expect(vi.mocked(ptySendText).mock.calls[0][1]).toContain("dependencies");
+    // A new worktree: it is told its dependencies are not installed, and how to install them.
+    expect(vi.mocked(ptySendText).mock.calls[0][1]).toContain(
+      "This worktree is new: its dependencies are not installed yet. Install them first, as the project's lockfiles say: pnpm install --frozen-lockfile. Declare your steps",
+    );
+    workspacesStore.setState({ workspaces: [] });
   });
 
   it("fills every free seat with new agents, the finished one's included, and no more", async () => {
@@ -1090,6 +1107,135 @@ describe("relaunch keeps the team within Max agents while the queue fills (revie
       stop();
     }
   });
+
+  describe("a member that exits or is closed frees its seat to the queue", () => {
+    /** The user closes a terminal: its process stops, its node leaves the canvas, its status goes (`disposeTerminal`). */
+    const closeByUser = (nodeId: string) => {
+      nodesStore.getState().close(nodeId);
+      terminalStatusStore.getState().remove(nodeId);
+    };
+    let stop: () => void;
+    beforeEach(() => {
+      stop = installCloseWatch();
+    });
+    afterEach(() => stop());
+
+    it("starts the waiting task of a full team when one member's terminal is closed, once", async () => {
+      await team("hulk", "Hulk", queued("API", "Docs"));
+      terminalStatusStore.getState().set("hulk", { state: "running" });
+      // Batman, Hulk and Cyborg are the three at work, Max agents 3: the queue waits.
+      await pumpQueue("chef");
+      expect(created()).toEqual([]);
+      expect(activeCount("chef", missionNow())).toBe(3);
+      closeByUser("hulk");
+      await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["API"]));
+      // One seat, one task: "Docs" waits, nobody is started twice.
+      await tick();
+      expect(missionAddAgent).toHaveBeenCalledTimes(1);
+      expect(missionNow().queue?.map((t) => t.title)).toEqual(["Docs"]);
+      expect(activeCount("chef", missionNow())).toBe(3);
+    });
+
+    it("starts the waiting task when a member's agent exits, and nothing more when its terminal is closed after", async () => {
+      await team("hulk", "Hulk", queued("API", "Docs"));
+      terminalStatusStore.getState().set("hulk", { state: "running" });
+      terminalStatusStore.getState().set("hulk", { state: "exited", code: 1 });
+      await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["API"]));
+      closeByUser("hulk");
+      await tick();
+      expect(missionAddAgent).toHaveBeenCalledTimes(1);
+      expect(missionNow().queue?.map((t) => t.title)).toEqual(["Docs"]);
+    });
+
+    it("starts nobody for a member that reported: its report freed its seat already, and its close frees none", async () => {
+      await team("hulk", "Hulk", queued("API"));
+      terminalStatusStore.getState().set("hulk", { state: "running" });
+      updateMember("chef", "hulk", { report: done });
+      closeByUser("hulk");
+      await tick();
+      expect(missionAddAgent).not.toHaveBeenCalled();
+    });
+
+    it("starts nobody when the mission's clean-up closes a member that never reported: the mission left en_cours before any terminal closed", async () => {
+      await team("hulk", "Hulk", queued("API"));
+      // Made for the mission (a linked agent is the user's, and a clean-up never closes it), idle, never reported.
+      updateMember("chef", "hulk", { linked: false });
+      terminalStatusStore.getState().set("hulk", { state: "running" });
+      // The mission's state as each terminal is stopped; its stop ends its process, as the pty's exit does.
+      const stateAtStop: string[] = [];
+      vi.mocked(stopTerminal).mockImplementation((id: string) => {
+        stateAtStop.push(missionNow().state);
+        terminalStatusStore.getState().set(id, { state: "exited", code: 1 });
+      });
+      vi.mocked(missionCleanup).mockResolvedValue({ removed: ["auth-hulk", "auth"], kept: [] });
+      // The board is finished (endMission), then the mission is cleaned up: Hulk, idle and never reported, is closed.
+      endMission("chef", "Done.");
+      expect(missionNow().state).toBe("terminee");
+      const done = await cleanMission("chef");
+      expect(done).toMatchObject({ removed: ["auth-hulk", "auth"], open: [] });
+      expect(stopTerminal).toHaveBeenCalledWith("hulk");
+      expect(stateAtStop.length).toBeGreaterThan(0);
+      expect(stateAtStop.every((state) => state === "terminee")).toBe(true);
+      // Its close, then its status gone (`disposeTerminal`): the close watch sees a finished mission and pumps nothing.
+      terminalStatusStore.getState().remove("hulk");
+      await tick();
+      expect(missionAddAgent).not.toHaveBeenCalled();
+      expect(addTerminal).not.toHaveBeenCalled();
+      expect(missionNow().queue ?? []).toEqual([]);
+      expect(missionNow().state).toBe("redaction");
+    });
+
+    it("starts nobody when its restart's old process exits: the member keeps its seat through the restart", async () => {
+      await team("hulk", "Hulk", queued("API"));
+      terminalStatusStore.getState().set("hulk", { state: "running" });
+      pty();
+      await restartByHand("hulk");
+      await tick();
+      expect(isRunning("hulk")).toBe(true);
+      expect(missionAddAgent).not.toHaveBeenCalled();
+      expect(created()).toEqual([]);
+    });
+
+    it("starts no extra agent while reassign hands a running member's task to a new agent: the predecessor's stop frees no seat for the queue", async () => {
+      await team("hulk", "Hulk", queued("API"));
+      // Batman, Hulk and Cyborg at work, Max agents 3: Batman's task goes to a new agent, which takes Batman's seat.
+      expect(await reassignTask("chef", "batman", "nouveau")).toEqual({ name: expect.any(String) });
+      // Batman's process ends and its terminal closes, as they do after a hand-over: nothing left to free.
+      terminalStatusStore.getState().set("batman", { state: "exited", code: 0 });
+      closeByUser("batman");
+      await tick();
+      // The one new agent is Batman's replacement: the queued task keeps waiting for a free seat.
+      expect(missionAddAgent).toHaveBeenCalledTimes(1);
+      expect(created().map((m) => m.task)).toEqual(["Login"]);
+      expect(missionNow().queue?.map((t) => t.title)).toEqual(["API"]);
+    });
+
+    it("starts nothing once the mission ended: its members close and exit with no queue to move", async () => {
+      await team("hulk", "Hulk", queued("API"));
+      terminalStatusStore.getState().set("hulk", { state: "running" });
+      endMission("chef", "done");
+      for (const id of ["hulk", "cyborg", "batman"]) {
+        terminalStatusStore.getState().set(id, { state: "exited", code: 0 });
+        closeByUser(id);
+      }
+      await tick();
+      expect(missionAddAgent).not.toHaveBeenCalled();
+    });
+
+    it("starts nothing when its Fleet is closed in the same tick: the mission is closing", async () => {
+      await team("hulk", "Hulk", queued("API"));
+      terminalStatusStore.getState().set("hulk", { state: "running" });
+      closeByUser("hulk");
+      setFleetClosed("chef", true);
+      try {
+        await tick();
+        expect(missionAddAgent).not.toHaveBeenCalled();
+        expect(created()).toEqual([]);
+      } finally {
+        setFleetClosed("chef", false);
+      }
+    });
+  });
 });
 
 describe("a card the Fleet adds while its Manager runs the board", () => {
@@ -1211,5 +1357,159 @@ describe("a waiting task another agent is already at work on", () => {
     expect(created()).toEqual([]);
     // The caller read it in the answer: the fleet is not told on top.
     expect(told()).toEqual([]);
+  });
+});
+
+// 12 Nov, wt-be-upload-land: "003" and "010" were done and merged outside the queue; dummyPlane still listed both as
+// waiting, so the mission could not be shown finished and the Fleet cleared the cards by hand.
+describe("a waiting task whose card is Done", () => {
+  const board = (doneCards: string[]) =>
+    nodesStore.getState().create("k1", {
+      workspaceId: "w1",
+      kind: "kanban",
+      payload: {
+        columns: [
+          { id: "todo", title: "To do", cardIds: ["c2"] },
+          { id: "doing", title: "In progress", cardIds: [] },
+          { id: "done", title: "Done", cardIds: doneCards },
+        ],
+        cards: { c1: { id: "c1", title: "API", notes: "", priority: "none" }, c2: { id: "c2", title: "Docs", notes: "", priority: "none" } },
+        orchestrator: { nodeId: "chef", columnId: "todo" },
+      },
+    });
+
+  it("leaves the queue, no agent takes it, and its runner is told", async () => {
+    await setup({ queue: [{ ...next, card: "c1" }, { ...next, title: "Docs", card: "c2" }], members: [member("batman", "Batman", { report: done, merged: true })] });
+    await board(["c1"]);
+    await pumpQueue("chef");
+    await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["Docs"]));
+    expect(missionNow().queue).toEqual([]);
+    expect(lines()).toContain('"API" left the queue: its card is Done, so the work is over. Nothing to do.');
+  });
+
+  it("is dropped from the queue tool's list as well", async () => {
+    await setup({ queue: [{ ...next, card: "c1" }], members: [member("batman", "Batman", { report: done, merged: true })] });
+    await board(["c1"]);
+    const queue = JSON.parse((await fleetTool("chef", "queue", {})).content[0].text);
+    expect(queue.waiting).toEqual([]);
+    expect(missionNow().queue).toEqual([]);
+  });
+
+  it("stays queued on a board with no Done column, whose last column may be the mission's to-do: that fallback is no end of work", async () => {
+    await setup({ queue: [{ ...next, card: "c1" }], members: [member("batman", "Batman", { report: done, merged: true })], maxAgents: 1 });
+    terminalStatusStore.getState().set("aquaman", { state: "running" });
+    await nodesStore.getState().create("k1", {
+      workspaceId: "w1",
+      kind: "kanban",
+      payload: {
+        columns: [{ id: "todo", title: "Backlog", cardIds: ["c1"] }],
+        cards: { c1: { id: "c1", title: "API", notes: "", priority: "none" } },
+        orchestrator: { nodeId: "chef", columnId: "todo" },
+      },
+    });
+    settleQueue("chef");
+    expect(missionNow().queue).toEqual([{ ...next, card: "c1" }]);
+  });
+
+  it("stays queued when a task of the plan holds its card: the first of two tasks on one card is done, the second still to do", async () => {
+    await setup({
+      queue: [{ ...next, title: "Tests B", card: "c1" }],
+      plan: [{ title: "Login", brief: "b", agent: "Batman", budgetMin: 20, card: "c1" }],
+      members: [member("batman", "Batman", { report: done, merged: true })],
+    });
+    await board(["c1"]);
+    settleQueue("chef");
+    expect(missionNow().queue?.map((task) => task.title)).toEqual(["Tests B"]);
+  });
+
+  it("stays queued while its card is not Done", async () => {
+    await setup({ queue: [{ ...next, card: "c2" }], maxAgents: 1, members: [member("batman", "Batman", { report: done, merged: true }), member("aquaman", "Aquaman", { task: "Docs" })] });
+    terminalStatusStore.getState().set("aquaman", { state: "running" });
+    await board([]);
+    await pumpQueue("chef");
+    expect(missionNow().queue).toEqual([{ ...next, card: "c2" }]);
+  });
+});
+
+// A card waits in "Reported, not merged" after its agent's report: its merge takes it to Done, a conflict leaves it.
+describe("the card of a merged branch", () => {
+  const board = () =>
+    nodesStore.getState().create("k1", {
+      workspaceId: "w1",
+      kind: "kanban",
+      payload: {
+        columns: [
+          { id: "todo", title: "To do", cardIds: [] },
+          { id: "reported", title: "Reported, not merged", cardIds: ["c1"] },
+          { id: "done", title: "Done", cardIds: [] },
+        ],
+        cards: { c1: { id: "c1", title: "Login", notes: "", priority: "none", agent: "Batman" } },
+        orchestrator: { nodeId: "chef", columnId: "todo" },
+      },
+    });
+  const where = () => (nodesStore.getState().nodes.k1.payload as { columns: { id: string; cardIds: string[] }[] }).columns.find((c) => c.cardIds.includes("c1"))?.id;
+  const reported = () => member("batman", "Batman", { report: done });
+  const planned = [{ title: "Login", brief: "b", agent: "Batman", budgetMin: 20, card: "c1" }];
+
+  it("goes to Done once the merge took the branch in", async () => {
+    await setup({ plan: planned, members: [reported()], queue: [] });
+    await board();
+    await mergeMember("chef", "C:/w/auth", reported());
+    await vi.waitFor(() => expect(where()).toBe("done"));
+  });
+
+  it("stays where it is on a conflict: the work is not in", async () => {
+    await setup({ plan: planned, members: [reported()], queue: [] });
+    await board();
+    vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false, head: "" });
+    await mergeMember("chef", "C:/w/auth", reported());
+    await tick();
+    expect(where()).toBe("reported");
+  });
+});
+
+// 12 Nov, wt-be-upload-land: Loki had done its work, its report never reached the record, and merge said ten times that
+// no agent had reported "done". An agent that finished without reporting is recorded by its Manager, as its report would be.
+describe("merge", () => {
+  const worker = (extra: Partial<Member> = {}) => member("batman", "Batman", { sentAt: 1, ...extra });
+
+  it("names who has not reported, and how each stands, when nothing is done", async () => {
+    await setup({ members: [worker(), member("aquaman", "Aquaman", { task: "Docs", report: { summary: "stuck", status: "bloque", at: 5 } })], queue: [] });
+    const said = (await fleetTool("chef", "fusionner", {})).content[0].text;
+    expect(said).toContain('Nothing to merge: no agent has reported "done". Not done: Batman (idle), Aquaman (blocked).');
+    expect(said).toContain("merge with agent set to its name");
+  });
+
+  it("records an idle agent's work as done, then merges it: its seat and card follow", async () => {
+    await setup({ members: [worker()], queue: [] });
+    const result = await fleetTool("chef", "fusionner", { agent: "Batman", summary: "3 commits on its branch, tests pass" });
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe("Batman's work is recorded as done: its seat is free, its card follows.\nBranch dummyplane/auth:\nBatman: merged");
+    expect(missionNow().members[0]).toMatchObject({ report: { status: "termine", summary: "3 commits on its branch, tests pass" }, merged: true });
+    expect(missionMerge).toHaveBeenCalledWith("C:/w/auth", "C:/w/batman", "dummyplane/auth-batman", expect.stringContaining("3 commits on its branch"), undefined);
+    expect(activeCount("chef", missionNow())).toBe(0);
+  });
+
+  it("takes a blocked agent's good work too, and says who recorded it when no summary is given", async () => {
+    await setup({ members: [worker({ report: { summary: "Bloqué: review", status: "bloque", at: 5 } })], queue: [] });
+    await fleetTool("chef", "fusionner", { agent: "Batman" });
+    expect(missionNow().members[0].report).toMatchObject({ status: "termine", summary: expect.stringContaining("the agent finished its work without reporting") });
+  });
+
+  it("refuses an agent still at work, records nothing and merges nothing", async () => {
+    await setup({ members: [worker()], queue: [] });
+    agentActivityStore.setState({ activities: { batman: { activity: "working" } } as never });
+    const result = await fleetTool("chef", "fusionner", { agent: "Batman" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Batman is at work");
+    expect(missionNow().members[0].report).toBeUndefined();
+    expect(missionMerge).not.toHaveBeenCalled();
+  });
+
+  it("refuses an agent that handed its sub-task over, and one that is not on the team", async () => {
+    await setup({ members: [worker({ handedTo: "Aquaman" })], queue: [] });
+    expect((await fleetTool("chef", "fusionner", { agent: "Batman" })).isError).toBe(true);
+    expect((await fleetTool("chef", "fusionner", { agent: "Nobody" })).isError).toBe(true);
+    expect(missionNow().members[0].report).toBeUndefined();
   });
 });

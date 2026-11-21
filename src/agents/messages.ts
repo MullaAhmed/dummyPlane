@@ -4,12 +4,31 @@ import { defineMessages, plural } from "@/i18n";
 const whoJoined = (names: readonly string[]) =>
   names.length <= 2 ? names.join(" and ") : `${names[0]}, ${names[1]} and ${plural(names.length - 2, "other", "others")}`;
 
+/**
+ * The state table: the one word of each state an agent stands in, read by every surface that names one (the foot and
+ * the status pill, the rows, the panel's filters, the group labels and counts, the mission rows, the finish alerts).
+ * `ready`: its turn is over and it waits for your next message; `done` only for an agent that reported done. A word that
+ * stands inside a line is read lowercase (`inLine`). `src/i18n/wording.test.ts` holds every surface to this table.
+ */
+export const stateWords = defineMessages({
+  working: "Working",
+  waiting: "Waiting",
+  ready: "Ready",
+  blocked: "Blocked",
+  failed: "Failed",
+  exited: "Exited",
+  done: "Done",
+});
+
+/** A word of the table inside a line: "2 working", "done". */
+export const inLine = (word: string) => word.toLowerCase();
+
 /** Every text of the agents panel and the agent menus the interface shows. */
 export const agentsMessages = defineMessages({
     launchFailed: "Could not launch the agent",
     launchNext: "Check that the agent is installed and its folder exists, then try again",
     fleetFailed: "Could not create the fleet",
-    foldWaiting: "Wait for the group's agents to start before folding it: a hidden agent does not start.",
+    foldWaiting: "Wait for the group's agents to start before folding it: a hidden agent does not start",
     noClaude: 'Claude Code is not installed: a fleet needs it. Install it (see "Getting started" on the home screen), then try again.',
     settingNotSaved: "Could not save the setting",
     /** A setting already applied on screen, whose saving failed. */
@@ -38,11 +57,15 @@ export const agentsMessages = defineMessages({
       "star-wars": "Star Wars",
       "lord-of-the-rings": "Lord of the Rings",
     },
-    filters: { all: "All", active: "Active", waiting: "Waiting", working: "Working", done: "Done" },
+    // The `done` filter (its id is kept, a saved choice names it) lists the agents at rest: the state table's Ready.
+    filters: { all: "All", waiting: stateWords.waiting, working: stateWords.working, done: stateWords.ready },
     outsideGroup: "No group",
+    // A group's label, worst first: "3 · 1 waiting · 1 working". Nobody waiting or working: every member at rest says "ready", else the count at rest.
     summary: {
-      counts: (members: number, working: number) => `${members} · ${working > 0 ? `${working} working` : "idle"}`,
-      waiting: (waiting: number) => `· ${waiting} waiting`,
+      waiting: (count: number) => `${count} ${inLine(stateWords.waiting)}`,
+      working: (count: number) => `${count} ${inLine(stateWords.working)}`,
+      ready: (count: number) => `${count} ${inLine(stateWords.ready)}`,
+      allReady: inLine(stateWords.ready),
       agents: (count: number) => plural(count, "agent", "agents"),
       groups: (count: number) => plural(count, "group", "groups"),
     },
@@ -61,6 +84,11 @@ export const agentsMessages = defineMessages({
       all: "@all",
       /** In grey under a Fleet in the `@` list, where an agent shows its group. */
       fleet: "Fleet",
+    },
+    /** What a parent did in its own sub-agent's terminal (`@/mcp/subAgentTools`): a toast, and a line in the log. */
+    parentControl: {
+      ran: (parent: string, child: string, command: string) => `${parent} ran ${command.length > 80 ? `${command.slice(0, 79)}…` : command} in ${child}'s terminal`,
+      answered: (parent: string, child: string, dialog: string, choice: string) => `${parent} answered ${child}'s dialog "${dialog}": ${choice}`,
     },
     broadcast: {
       skipped: (names: readonly string[]) =>
@@ -98,24 +126,40 @@ export const agentsMessages = defineMessages({
       copyLink: "Copy the link",
       linkCopied: "Link copied",
       openInBrowser: "Open in the browser",
-      consent: "Claude asks for your consent for Remote Control: answer in its terminal.",
-      notConfirmed: "Claude did not confirm Remote Control.",
-      draft: "Claude has text being typed: send or clear it, then try again.",
-      menuNotOpened: "Claude did not open the Remote Control menu.",
-      menuUnreadable: "The Remote Control menu could not be read.",
-      disconnectNotConfirmed: "Claude did not confirm the disconnection.",
+      consent: "Claude asks for your consent for Remote Control: answer in its terminal",
+      notConfirmed: "Claude did not confirm Remote Control",
+      draft: "Claude has text being typed: send or clear it, then try again",
+      menuNotOpened: "Claude did not open the Remote Control menu",
+      menuUnreadable: "The Remote Control menu could not be read",
+      disconnectNotConfirmed: "Claude did not confirm the disconnection",
       noClaudeSession: "No Claude session here",
       done: (on: boolean, names: string) => `Remote Control ${on ? "turned on" : "turned off"}: ${names}`,
       later: (names: string) => `Remote Control at the end of their turn: ${names}`,
       nextStartFor: (names: string) => `Remote Control at next start: ${names}`,
       failedFor: (name: string, on: boolean) => `Could not turn ${on ? "on" : "off"} Remote Control for ${name}`,
     },
+    /** The list of agents an "Other agent…" opens (./OtherAgentMenu.tsx): only those found on this machine. */
+    otherAgentMenu: {
+      label: "Launch an agent",
+      /** When no agent was found (the first look failed or found none), in the list's place. */
+      empty: "No agent found",
+      /** Names the tool rail's ＋ button by its label (Add to canvas). */
+      emptyHint: "Install one from Add to canvas",
+    },
+    /** The list of agents a group's "Add an agent" opens (./GroupAgentMenu.tsx). */
+    groupAgentMenu: { label: "Add an agent to the group" },
     agentMenu: {
-      title: "Launch an agent",
       notFound: (binary: string) => `${binary} not found in PATH`,
-      newConsole: "New console",
-      /** What the ＋ menu adds, in its three sections: the agents, the terminals, then the fleet and the boards. */
-      sections: { agents: "Agents", terminals: "Terminals", boards: "Fleet and boards" },
+      /** Under an agent whose commands dummyPlane does not read (`DELETES_NOT_BLOCKED`). */
+      deletesNotBlocked: "Not guarded: recursive deletes outside the worktree are not blocked",
+      /** What the ＋ menu adds, in its sections: the agents, the terminals, the fleet and the boards, then the files. */
+      sections: { agents: "Agents", terminals: "Terminals", boards: "Fleet and boards", files: "Files" },
+      markdown: "Markdown",
+      markdownHint: "a .md file of the project, rendered",
+      /** Under "Shell" before the shells are known: what it opens. */
+      plainShell: "a terminal without an agent",
+      /** Under "Shell": the shells it offers, "PowerShell, Command Prompt, Git Bash". */
+      shellChoices: (names: readonly string[]) => names.join(", "),
       fleet: "Fleet",
       fleetHint: "commands groups and agents",
       kanban: "Kanban",
@@ -123,7 +167,7 @@ export const agentsMessages = defineMessages({
       placedWhereClicked: "launched where you clicked",
       thenClickCanvas: "then click on the canvas to place it",
       options: "Options",
-      optionsHint: "The next agents you launch from this menu use these.",
+      optionsHint: "The next agents you launch from this menu use these",
       launchCustom: "Launch the custom command",
     },
     launchFolder: {
@@ -200,7 +244,7 @@ export const agentsMessages = defineMessages({
       specialityCustom: "Your own, then Enter",
       specialityNone: "None",
       names: "Pantheon",
-      namesHint: "Applies to agents added from now on.",
+      namesHint: "Applies to agents added from now on",
       addAgent: "Add an agent",
       linkFleet: "Link a fleet",
       pauseAll: "Pause all",
@@ -223,7 +267,7 @@ export const agentsMessages = defineMessages({
       titleField: "Title",
       automatic: "Automatic",
       command: "Command to run",
-      commandHint: "A Custom terminal runs it in its shell when it starts.",
+      commandHint: "A Custom terminal runs it in its shell when it starts",
     },
     link: {
       hint: "Click a group, an agent or a board to link, or pick one below · Esc to finish",
@@ -232,6 +276,33 @@ export const agentsMessages = defineMessages({
       kinds: { agent: "Agent", group: "Group", fleet: "Fleet", board: "Board" },
       boardName: (cards: number, repo?: string) => `Kanban board · ${repo ?? `${cards} ${cards === 1 ? "card" : "cards"}`}`,
       linked: "Linked",
+      /** What an agent's click on a Fleet says when the wire does not give the agent what it is for (a Fleet it commands, hand_off). */
+      fleetAlready: (fleet: string) => `${fleet} already commands this agent: no second wire`,
+      fleetNotLinked: (fleet: string) => `Could not link to ${fleet}`,
+      fleetNotLinkedNext: "Open its workspace so that its canvas loads, then link again",
+      fleetTeam: (agent: string, fleet: string) => `${agent} is linked to ${fleet}, but works for a mission its Manager runs: it reports to its Manager, and has no hand_off to the Fleet until the mission ends`,
+      fleetSubagent: (agent: string, fleet: string) => `${agent} is ${fleet}'s own sub-agent: it reports to the Fleet when its work is done, and has no hand_off to it`,
+      /** Two agents linked, each left where it stood: why no group holds them (src/agents/linkGroup.ts). */
+      notGrouped: (one: string, other: string, why: string) => `${one} and ${other} are linked, but not grouped: ${why}.`,
+      whyNotGrouped: {
+        otherGroups: (one: string, other: string) => `they stand in two groups, ${one} and ${other}. Move one into the other's group to group them`,
+        inTheWay: "something stands in the way of a group around them",
+        family: (agent: string) => `${agent} would be parted from its sub-agents or from the agent that opened it`,
+        mission: (agent: string) => `${agent} works for a mission, whose group keeps to its team`,
+        frame: (agent: string) => `${agent} stands in a frame drawn by hand`,
+      },
+    },
+    /** The ＋ menu's "Shell": which shell the terminal opens. */
+    shellPicker: {
+      title: "Shell",
+      hints: {
+        default: "your login shell",
+        powershell: "Windows PowerShell",
+        pwsh: "pwsh, PowerShell 7 and later",
+        cmd: "cmd.exe",
+        gitbash: "bash from Git for Windows",
+        wsl: "your default Linux distribution",
+      },
     },
     ollama: {
       title: "Ollama",
@@ -240,14 +311,14 @@ export const agentsMessages = defineMessages({
       chat: "Chat",
       aiderNotFound: "aider not found in PATH",
       reading: "Reading the models…",
-      serverDown: "The Ollama server is not responding: open the Ollama app, then try again.",
+      serverDown: "The Ollama server is not responding: open the Ollama app, then try again",
       retry: "Try again",
-      noModels: "No model installed: download one below.",
+      noModels: "No model installed: download one below",
       pullLabel: "Download a model",
       pullPlaceholder: "name:tag",
       pull: "Download",
-      pullInvalid: "This is not an Ollama model name.",
-      pullHint: "The download shows in a terminal on the canvas.",
+      pullInvalid: "This is not an Ollama model name",
+      pullHint: "The download shows in a terminal on the canvas",
       suggestions: "Suggestions",
       sizeGb: (size: number) => `${size} GB`,
       uses: { code: "code", light: "modest machine", chat: "chat", reasoning: "reasoning", agent: "coding agent" },
@@ -257,15 +328,18 @@ export const agentsMessages = defineMessages({
       button: "Install",
       installAgent: (label: string) => `Install ${label}`,
       runsIn: (shell: string) => `This official command will run in a terminal on the canvas (${shell}):`,
-      needsNode: "Requires Node.js and npm.",
-      npmMissing: "npm was not found: install Node.js first, which brings it.",
+      needsNode: "Requires Node.js and npm",
+      npmMissing: "npm was not found: install Node.js first, which brings it",
       getNode: "Download Node.js",
       recheck: "Check again",
       officialPage: "Official page",
       run: "Run in a terminal",
       terminalTitle: (label: string) => `Install · ${label}`,
       installed: (label: string) => `${label} is installed`,
-      noCanvas: "Open a project: the install runs in a terminal on its canvas.",
+      // The installed toast's action: the agent, launched where the view is.
+      launch: (label: string) => `Launch ${label}`,
+      launchNoCanvas: "Open a canvas of the project first: the agent starts there",
+      noCanvas: "Open a project: the install runs in a terminal on its canvas",
       /** The terminal of an install or a model pull did not start; what went wrong goes under it. */
       terminalFailed: "Could not open the install terminal",
     },

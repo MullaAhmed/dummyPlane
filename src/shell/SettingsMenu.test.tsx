@@ -51,3 +51,44 @@ it("takes the layout that is picked", async () => {
   await act(async () => void tree.click());
   expect(arrangeLayoutStore.getState().layout).toBe("tree");
 });
+
+it("marks its open content for the toasts to lift clear of, in a portal right under <body>, and leaves the padding to the menu", async () => {
+  const trigger = host.querySelector("button")!;
+  await act(async () => void trigger.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 0, pointerType: "mouse" })));
+  const content = document.querySelector<HTMLElement>('[data-slot="dropdown-menu-content"]')!;
+  expect(content.hasAttribute("data-rail-overlay")).toBe(true);
+  // shell/toastLift.ts watches <body>'s children: the portal it opens in is one.
+  let portal: HTMLElement = content;
+  while (portal.parentElement && portal.parentElement !== document.body) portal = portal.parentElement;
+  expect(portal.parentElement).toBe(document.body);
+  expect([...content.classList]).toContain("max-h-(--radix-dropdown-menu-content-available-height)");
+});
+
+/** Opens the menu as a click does. */
+async function openMenu() {
+  const trigger = host.querySelector("button")!;
+  await act(async () => void trigger.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 0, pointerType: "mouse" })));
+}
+
+it("groups its settings by what they change: alerts and the canvas layout are not agent settings", async () => {
+  await openMenu();
+  const groups = [...document.querySelectorAll('[role="group"][aria-labelledby]')].map((group) => ({
+    label: document.getElementById(group.getAttribute("aria-labelledby")!)?.textContent,
+    rows: [...group.querySelectorAll('[role^="menuitem"]')].map((row) => row.textContent?.trim()),
+  }));
+  expect(groups.map((group) => group.label)).toEqual(["Theme", "Scene", "Agents", "Alerts", "Layout", "Updates"]);
+  const by = Object.fromEntries(groups.map((group) => [group.label, group.rows]));
+  expect(by.Alerts).toEqual(["Windows notifications", "Go to agents that ask", "Alert when an agent finishes"]);
+  expect(by.Layout).toEqual(["Auto-arrange", expect.stringContaining("Arrange layout")]);
+  for (const moved of [...by.Alerts, "Auto-arrange"]) expect(by.Agents, moved).not.toContain(moved);
+  expect(by.Agents).toEqual(expect.arrayContaining(["Sub-agents as terminals", "Stop finished agents", "Model router"]));
+});
+
+it("keeps About out of Help: the version and what the app is stand at the head of Troubleshooting", async () => {
+  await openMenu();
+  const help = [...document.querySelectorAll('[data-slot="dropdown-menu-sub-trigger"]')].find((row) => row.textContent?.includes("Help"))!;
+  await act(async () => void help.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+  const rows = [...document.querySelectorAll('[data-slot="dropdown-menu-sub-content"] [role="menuitem"]')].map((row) => row.textContent?.trim());
+  expect(rows).toEqual(["Troubleshooting…", "Open the logs folder"]);
+  expect(document.body.textContent).not.toContain("About dummyPlane");
+});

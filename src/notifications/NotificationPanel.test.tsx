@@ -71,6 +71,15 @@ const open = async () => {
 const button = (name: string) => getByRole(document.body, "button", name) as HTMLButtonElement;
 
 describe("the bell", () => {
+  it("opens its panel marked for the toasts to lift clear of, in a portal right under <body>", async () => {
+    await open();
+    expect(content()!.hasAttribute("data-rail-overlay")).toBe(true);
+    // shell/toastLift.ts watches <body>'s children: the portal it opens in is one.
+    let portal: HTMLElement = content()!;
+    while (portal.parentElement && portal.parentElement !== document.body) portal = portal.parentElement;
+    expect(portal.parentElement).toBe(document.body);
+  });
+
   it("says it is notifications, with no pip when nothing is unread", async () => {
     seed(note("a", "info", "Read", "w1", { read: true }));
     await render();
@@ -135,12 +144,17 @@ describe("the panel", () => {
     expect(rows()[1].textContent).toContain("Alpha › (closed)");
   });
 
-  it("marks what is unread: by its dot and, for a screen reader, its words", async () => {
+  it("marks what is unread by its weight and ink, never a dot (the agent's mark), and for a screen reader by its words", async () => {
     seed(note("a", "info", "New", "w1"), note("b", "info", "Old", "w1", { read: true }));
     await open();
-    expect(rows()[0].querySelector("[data-unread-dot]")).not.toBeNull();
+    const title = rows()[0].querySelector<HTMLElement>("[data-unread-dot]")!;
+    expect(title.className).toContain("font-medium");
+    expect(title.className).toContain("text-dp-text");
+    expect(rows()[0].querySelector("time")!.className).toContain("text-dp-text");
     expect(rows()[0].textContent).toContain("Unread.");
     expect(rows()[1].querySelector("[data-unread-dot]")).toBeNull();
+    expect(rows()[1].querySelector("time")!.className).toContain("text-dp-text-3");
+    for (const row of rows()) expect(row.querySelector(".rounded-full")).toBeNull();
   });
 
   it("says when there is nothing to list", async () => {
@@ -209,7 +223,7 @@ describe("the filters", () => {
     await open();
     await act(async () => filter("board").click());
     expect(rows()).toHaveLength(0);
-    expect(content()?.textContent).toContain("Nothing here.");
+    expect(content()?.textContent).toContain("Nothing here");
     // Pressing the filter in force again keeps it on.
     await act(async () => filter("board").click());
     expect(filter("board").getAttribute("data-state")).toBe("on");

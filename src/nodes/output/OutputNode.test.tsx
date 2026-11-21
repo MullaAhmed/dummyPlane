@@ -7,6 +7,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { removeNode } from "@/agents/terminals";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { notify } from "@/mission/events";
+import { canvasStore } from "@/canvas/canvasStore";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { OutputNode } from "./OutputNode";
@@ -119,5 +120,19 @@ it("says so when its record is missing, instead of drawing nothing", async () =>
     expect(host.textContent).toBe("This output is gone");
   } finally {
     vi.useRealTimers();
+  }
+});
+
+it("is hidden while the group it stands in is folded, as the group's terminals are", async () => {
+  const frame = { id: "g", name: "Justice League", x: 0, y: 0, width: 100, height: 100, memberIds: ["batman"], group: { role: "general", pantheon: "dc", folded: true } };
+  const scene = [{ id: "o1", frameId: "g", isDeleted: false }];
+  canvasStore.setState({ api: { getSceneElements: () => scene } as never, frames: [frame] as never });
+  try {
+    const host = await render("o1");
+    expect(host.querySelector("[data-output='o1']")).toBeNull();
+    await act(async () => canvasStore.setState({ frames: [{ ...frame, group: { ...frame.group, folded: false } }] as never }));
+    expect(host.querySelector("[data-output='o1']")).not.toBeNull();
+  } finally {
+    canvasStore.setState({ api: null, frames: [] });
   }
 });

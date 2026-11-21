@@ -4,14 +4,15 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 import { excalidrawThinSelection } from "./scripts/excalidraw-thin-selection.mjs";
+import { excalidrawNodeLinkIcons } from "./scripts/excalidraw-link-icon.mjs";
 
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
-  plugins: [react(), tailwindcss(), excalidrawThinSelection()],
-  // In dev, Excalidraw is pre-bundled apart from the app's plugins: the same rewrite runs there.
-  optimizeDeps: { rolldownOptions: { plugins: [excalidrawThinSelection()] } },
+  plugins: [react(), tailwindcss(), excalidrawThinSelection(), excalidrawNodeLinkIcons()],
+  // In dev, Excalidraw is pre-bundled apart from the app's plugins: the same rewrites run there.
+  optimizeDeps: { rolldownOptions: { plugins: [excalidrawThinSelection(), excalidrawNodeLinkIcons()] } },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

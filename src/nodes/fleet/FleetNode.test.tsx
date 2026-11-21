@@ -204,7 +204,7 @@ describe("its header, the same chrome as a terminal's", () => {
       const sw = routerButton()!;
       expect(sw).not.toBeNull();
       expect(sw.getAttribute("aria-pressed")).toBe("false");
-      // With the clock, from 28rem of header on: a narrower node has the same switch in its Edit tab.
+      // With the clock, from 28rem of header on: a narrower node has the same switch in its Edit panel.
       expect(sw.parentElement!.className).toContain("@md/head:flex");
       await act(async () => sw.click());
       expect(missionRouter()).toBe(true);

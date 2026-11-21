@@ -60,7 +60,9 @@ function follow() {
   clearTimeout(retry);
   retry = undefined;
   if (!followWaitingStore.getState().enabled) return reset();
-  const waiting = currentWaitingAgents();
+  // An agent's question only: a Fleet's decision (a plan's go-ahead, Land) waits in its panel as long as the user likes,
+  // and the keyboard in that Fleet would otherwise keep every other agent that asks from being gone to.
+  const waiting = currentWaitingAgents().filter((agent) => !agent.decision);
   const ids = new Set(waiting.map((agent) => agent.id));
   for (const id of pending) if (!ids.has(id)) pending.delete(id);
   if (followed !== null && !ids.has(followed)) followed = null;

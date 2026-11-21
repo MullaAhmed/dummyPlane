@@ -4,15 +4,17 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
+import { subagentSettingsStore } from "@/app/subagentSettings";
 import { wireActivityStore } from "@/canvas/wireActivity";
 import { wakeFinished, wakingUp } from "@/agents/finishedStop";
-import { atWork, markLaunching, markReported } from "@/agents/spawnFamily";
+import { fullCap } from "@/agents/seats";
+import { atWork, markLaunching, markReported, releaseWake, unmarkReported, WAKE_HOLD_MS } from "@/agents/spawnFamily";
 import { spawnedTask } from "@/agents/taskSummary";
 import { withAgentLink, withWire } from "@/agents/wires";
 import { activeWork } from "@/mission/activeWork";
 import { notify, sendCommand } from "@/mission/events";
 import { terminalText } from "@/nodes/terminal/registry";
-import { MAX_STORED_TASK } from "@/nodes/types";
+import { MAX_STORED_TASK, readTerminalPayload } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -54,6 +56,8 @@ beforeEach(() => {
   terminalStatusStore.getState().set("batman", { state: "running" });
 });
 afterEach(() => {
+  // The seat a message held for a sub-agent is its own test's.
+  for (const id of ["aquaman", "cyborg", "batman", "robin"]) releaseWake(id);
   agentActivityStore.setState({ activities: {} });
   wireActivityStore.setState({ pulses: {} });
 });
@@ -61,9 +65,11 @@ afterEach(() => {
 describe("linked agents' tools", () => {
   it("are listed for agents after their own tools, and refused to a fleet", async () => {
     const list = (await answer({ callId: 1, nodeId: "batman", method: "tools/list", params: {} })) as { tools: { name: string }[] };
-    expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "installed_extras", "linked_agents", "message_agent", "read_agent", "linked_boards", "add_board_card", "move_board_card", "open_board", "show_output", "output_guide", "read_node", "notes"]);
+    expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "installed_extras", "linked_agents", "message_agent", "read_agent", "linked_boards", "add_board_card", "move_board_card", "open_board", "show_output", "output_guide", "run_command", "answer_dialog", "hand_off", "read_node", "notes"]);
     const manager = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
     expect(manager.tools.map((t) => t.name)).not.toContain("message_agent");
+    // A Fleet reaches its mission's Manager with a tool of its own (`./router.test.ts`).
+    expect(manager.tools.map((t) => t.name)).toContain("message_manager");
     expect(textOf(await call("chef", "message_agent", { agent: "Batman", text: "hi" }))).toBe("This tool is for agents.");
   });
 
@@ -300,11 +306,224 @@ describe("new work for a sub-agent that reported", () => {
       ]);
     });
 
+    it("is refused while the cap is full, as a message to any finished sub-agent is: it would take a seat, and nothing starts", async () => {
+      const cap = subagentSettingsStore.getState().maxSpawned;
+      nodesStore.getState().update("cyborg", { spawnedBy: "batman" });
+      subagentSettingsStore.setState({ maxSpawned: 1 });
+      try {
+        const refused = await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK });
+        expect(refused.isError).toBe(true);
+        expect(textOf(refused)).toContain("No seat is free: 1 of 1 sub-agent at work");
+        expect(wakeFinished).not.toHaveBeenCalled();
+        expect(payloadOf("aquaman").lastReport).toEqual(FINISHED.lastReport);
+      } finally {
+        subagentSettingsStore.setState({ maxSpawned: cap });
+        nodesStore.getState().update("cyborg", { spawnedBy: undefined });
+      }
+    });
+
+    it("holds the seat of the session it starts, takes a second message to it for no new seat, and lets go when the session does not open", async () => {
+      const cap = subagentSettingsStore.getState().maxSpawned;
+      subagentSettingsStore.setState({ maxSpawned: 1 });
+      try {
+        expect(textOf(await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK }))).toContain("starts again on its own conversation");
+        expect(fullCap()).toMatchObject({ held: 1, max: 1 });
+        expect((await call("batman", "message_agent", { agent: "Aquaman", text: "And the 008 bug." })).isError).toBeUndefined();
+        wake(false);
+        await vi.waitFor(() => expect(notify).toHaveBeenCalledWith("batman", expect.stringContaining("did not start again")));
+        expect(fullCap()).toBeNull();
+      } finally {
+        subagentSettingsStore.setState({ maxSpawned: cap });
+      }
+    });
+
+    it("refuses a linked peer's message that would start its session again with the cap full, as its parent's is", async () => {
+      const cap = subagentSettingsStore.getState().maxSpawned;
+      // Cyborg, a sub-agent at work, holds the one seat; it is not Aquaman's parent, so its message is no new work.
+      nodesStore.getState().update("cyborg", { spawnedBy: "batman" });
+      scene = withAgentLink(nodes, "cyborg", "aquaman");
+      subagentSettingsStore.setState({ maxSpawned: 1 });
+      try {
+        const refused = await call("cyborg", "message_agent", { agent: "Aquaman", text: "Which fixture did you use?" });
+        expect(refused.isError).toBe(true);
+        expect(textOf(refused)).toContain("No seat is free: 1 of 1 sub-agent at work");
+        expect(wakeFinished).not.toHaveBeenCalled();
+      } finally {
+        subagentSettingsStore.setState({ maxSpawned: cap });
+        nodesStore.getState().update("cyborg", { spawnedBy: undefined });
+      }
+    });
+
     it("wakes a finished sub-agent stopped since an app restart for its parent's new work", async () => {
       nodesStore.getState().update("aquaman", { stoppedFinished: undefined });
       terminalStatusStore.getState().set("aquaman", { state: "stopped" });
       expect(textOf(await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK }))).toContain("starts again on its own conversation");
       expect(wakeFinished).toHaveBeenCalledWith("aquaman", expect.any(Function));
+    });
+  });
+
+  describe("while the cap on sub-agents running at once is full", () => {
+    let cap: number;
+    beforeEach(() => {
+      cap = subagentSettingsStore.getState().maxSpawned;
+      // Cyborg, another sub-agent of Batman's, is at work: the one seat of the cap. Aquaman's report freed its own.
+      nodesStore.getState().update("cyborg", { spawnedBy: "batman" });
+      scene = withWire(withWire(nodes, "batman", "aquaman", "calm", true), "batman", "cyborg", "calm", true);
+      subagentSettingsStore.setState({ maxSpawned: 1 });
+      markReported("aquaman");
+    });
+    afterEach(() => {
+      subagentSettingsStore.setState({ maxSpawned: cap });
+      nodesStore.getState().update("cyborg", { spawnedBy: undefined });
+      unmarkReported("aquaman");
+      unmarkReported("cyborg");
+    });
+
+    it("refuses new work for a sub-agent that reported, which would take a seat: it says who holds the seats and what to do, and changes nothing", async () => {
+      const refused = await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK, title: "007 mint.py tests" });
+      expect(refused.isError).toBe(true);
+      expect(textOf(refused)).toMatch(
+        /^No seat is free: 1 of 1 sub-agent at work \(the most sub-agents at once, set in dummyPlane's Settings and shared by every project\): Cyborg \(code\)\. Not sent: Aquaman has reported, and new work would take a seat again\. /,
+      );
+      // Batman has a shell: it may be told to do the work itself.
+      expect(textOf(refused)).toContain("Wait for one to report and send it again, or do this work yourself.");
+      expect(textOf(refused)).toContain("A message that only answers an agent still at work goes through.");
+      // Nothing typed, nothing renamed, its report still standing and no seat taken.
+      expect(notify).not.toHaveBeenCalled();
+      expect(sendCommand).not.toHaveBeenCalled();
+      expect(payloadOf("aquaman")).toMatchObject({ title: FINISHED.title, task: FINISHED.task, lastReport: FINISHED.lastReport });
+      expect(atWork("aquaman")).toBe(false);
+    });
+
+    it("tells a manager sub-agent to wait for its own and ask its parent, never to do the work itself", async () => {
+      nodesStore.getState().update("batman", { coordinator: true });
+      try {
+        const refused = await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK });
+        expect(refused.isError).toBe(true);
+        expect(textOf(refused)).toContain("tell your parent with message_agent");
+        expect(textOf(refused)).not.toContain("do this work yourself");
+      } finally {
+        nodesStore.getState().update("batman", { coordinator: undefined });
+      }
+    });
+
+    it("lets a message through to an agent still at work, and an answer that starts no work: neither takes a seat", async () => {
+      // Cyborg holds the seat itself: a message to it is no new seat.
+      expect(textOf(await call("batman", "message_agent", { agent: "Cyborg", text: "Use the other fixture." }))).toContain("Sent to Cyborg");
+      expect(notify).toHaveBeenCalledWith("cyborg", expect.stringContaining("Use the other fixture."));
+      // A sub-agent answering its parent starts no work for anyone.
+      expect(textOf(await call("cyborg", "message_agent", { agent: "Batman", text: "The fixture is in." }))).toContain("Sent to Batman");
+    });
+
+    // The report is kept with the node (`lastReport`), the set `markReported` fills only for the app's run: a line from a
+    // linked peer, not the parent, wakes the reported agent into work all the same (`onNewWork`), whether the app ran
+    // since its report or was restarted since.
+    for (const [when, restart] of [
+      ["while the app runs", () => undefined],
+      [
+        "after an app restart",
+        () => {
+          // What the next start has of it: the node as saved and read back, and no set of the sub-agents that reported.
+          expect(readTerminalPayload(JSON.parse(JSON.stringify(payloadOf("aquaman"))))).toMatchObject({ spawnedBy: "batman", lastReport: FINISHED.lastReport });
+          unmarkReported("aquaman");
+        },
+      ],
+    ] as const) {
+      describe(`a line from a linked peer to a sub-agent that reported, ${when}`, () => {
+        beforeEach(() => {
+          restart();
+          scene = withAgentLink(scene, "cyborg", "aquaman");
+        });
+
+        it("is refused while the cap is full, as its parent's new work is: it would take a seat, and nothing is typed", async () => {
+          const refused = await call("cyborg", "message_agent", { agent: "Aquaman", text: "FYI the fixture changed." });
+          expect(refused.isError).toBe(true);
+          expect(textOf(refused)).toContain("No seat is free: 1 of 1 sub-agent at work");
+          expect(textOf(refused)).toContain("Not sent: Aquaman has reported, and new work would take a seat again.");
+          expect(notify).not.toHaveBeenCalled();
+          // Its report stands, and it holds no seat: the cap still has the one seat Cyborg holds.
+          expect(payloadOf("aquaman").lastReport).toEqual(FINISHED.lastReport);
+          expect(atWork("aquaman")).toBe(false);
+          expect(fullCap()).toMatchObject({ held: 1, max: 1 });
+        });
+
+        it("takes the seat it wakes the agent into when one is free, and keeps it once typed", async () => {
+          subagentSettingsStore.setState({ maxSpawned: 2 });
+          expect(textOf(await call("cyborg", "message_agent", { agent: "Aquaman", text: "FYI the fixture changed." }))).toContain("Sent to Aquaman");
+          // Typed (the report cleared): working, and counted, never seatless.
+          expect(payloadOf("aquaman").lastReport).toBeUndefined();
+          expect(atWork("aquaman")).toBe(true);
+          expect(fullCap()).toMatchObject({ held: 2, max: 2 });
+          // A second line to it, now at work, is no new seat; another reported sub-agent's would be refused.
+          expect(textOf(await call("cyborg", "message_agent", { agent: "Aquaman", text: "And the other one." }))).toContain("Sent to Aquaman");
+        });
+      });
+    }
+
+    it("leaves a mission's team agent alone: its Manager's Max active agents counts it, not this cap", async () => {
+      await terminal("robin", "Robin");
+      await nodesStore.getState().create("mgr", { workspaceId: "w1", kind: "terminal", payload: { title: "", name: "Manager", agent: "claude", cwd: "C:/code", shell: "default", command: "", role: "manager", fleet: "chef" } });
+      scene = withAgentLink([...scene, element("terminal", "robin", 6000)], "cyborg", "robin");
+      nodesStore.getState().update("robin", { spawnedBy: "mgr", ...FINISHED });
+      terminalStatusStore.getState().set("robin", { state: "running" });
+      try {
+        expect(textOf(await call("cyborg", "message_agent", { agent: "Robin", text: "FYI the fixture changed." }))).toContain("Sent to Robin");
+        expect(fullCap()).toMatchObject({ held: 1, max: 1 });
+      } finally {
+        terminalStatusStore.getState().set("robin", { state: "stopped" });
+        nodesStore.getState().update("robin", { spawnedBy: undefined, lastReport: undefined });
+      }
+    });
+
+    it("holds the seat of each sub-agent it re-tasks from its message: two messages in a row cannot both pass a cap with one seat left", async () => {
+      subagentSettingsStore.setState({ maxSpawned: 2 });
+      await terminal("robin", "Robin");
+      scene = withWire([...scene, element("terminal", "robin", 6000)], "batman", "robin", "calm", true);
+      nodesStore.getState().update("robin", { spawnedBy: "batman", ...FINISHED });
+      terminalStatusStore.getState().set("robin", { state: "running" });
+      markReported("robin");
+      // Typing waits (a dialog is open): their reports stand, as they do until the message is typed.
+      vi.mocked(notify).mockImplementation(() => undefined);
+      try {
+        expect(textOf(await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK }))).toContain("Sent to Aquaman");
+        const refused = await call("batman", "message_agent", { agent: "Robin", text: NEW_WORK });
+        expect(refused.isError).toBe(true);
+        expect(textOf(refused)).toContain("No seat is free: 2 of 2 sub-agents at work");
+        expect(textOf(refused)).toContain("Aquaman");
+        expect(atWork("robin")).toBe(false);
+        // A second message to the one that holds the seat is no new seat.
+        expect(textOf(await call("batman", "message_agent", { agent: "Aquaman", text: "And the 008 bug." }))).toContain("Sent to Aquaman");
+        // Typed at last (its report cleared): the seat is its own state's now, and stays held.
+        nodesStore.getState().update("aquaman", { lastReport: undefined });
+        expect(atWork("aquaman")).toBe(true);
+        expect((await call("batman", "message_agent", { agent: "Robin", text: NEW_WORK })).isError).toBe(true);
+      } finally {
+        terminalStatusStore.getState().set("robin", { state: "stopped" });
+        nodesStore.getState().update("robin", { spawnedBy: undefined, lastReport: undefined });
+        unmarkReported("robin");
+      }
+    });
+
+    it("lets go of the seat a message held when it is never typed", async () => {
+      vi.mocked(notify).mockImplementation(() => undefined);
+      subagentSettingsStore.setState({ maxSpawned: 2 });
+      expect(textOf(await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK }))).toContain("Sent to Aquaman");
+      expect(fullCap()).toMatchObject({ held: 2 });
+      const now = Date.now();
+      const clock = vi.spyOn(Date, "now").mockReturnValue(now + WAKE_HOLD_MS + 1);
+      try {
+        expect(fullCap()).toBeNull();
+        expect(atWork("aquaman")).toBe(false);
+      } finally {
+        clock.mockRestore();
+      }
+    });
+
+    it("goes through again once a report frees a seat, and takes it", async () => {
+      expect((await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK })).isError).toBe(true);
+      markReported("cyborg");
+      expect(textOf(await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK }))).toContain("Sent to Aquaman");
+      expect(atWork("aquaman")).toBe(true);
     });
   });
 

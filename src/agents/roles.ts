@@ -14,7 +14,8 @@ export const ROLES: Record<RoleId, Role> = {
     get label() {
       return messages(agentsMessages).roles.frontend;
     },
-    color: "#C18E57",
+    // Terracotta, at least about 28° of hue from every palette's wait colour (sceneColors.test.ts): the tan it was sat 7° from it.
+    color: "#BC7A5A",
   },
   backend: {
     get label() {

@@ -9,6 +9,7 @@ import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
 import { LoopsDialog } from "./LoopsDialog";
+import { BOTTOM_GUTTER, LOOPS_PILL_BOTTOM, LOOPS_PILL_ROOM, LOOPS_ROOM_PROPERTY } from "@/shell/layout";
 import { LoopsIndicator } from "./LoopsIndicator";
 import { loopsStore } from "./live";
 
@@ -95,6 +96,15 @@ it("opens on the list, empty at first, with the spending warning in the descript
   await open();
   expect(document.body.textContent).toContain("No loop yet");
   expect(document.body.textContent).toContain("Each run spends real usage");
+  // The indicator's click: the dialog fades in.
+  expect(document.querySelector("[data-slot='dialog-content']")!.hasAttribute("data-instant")).toBe(false);
+});
+
+it("shows at once, its scrim too, when the palette opened it", async () => {
+  await act(async () => requestUi({ kind: "loops", instant: true }));
+  for (const slot of ["dialog-overlay", "dialog-content"]) {
+    expect(document.querySelector(`[data-slot='${slot}']`)!.hasAttribute("data-instant"), slot).toBe(true);
+  }
 });
 
 it("fills the form from a template and starts nothing", async () => {
@@ -137,9 +147,15 @@ it("saves a bounded loop, lists it off with its end, turns it on, shows the runs
   expect(loopsStore.getState().runningCount()).toBe(1);
   expect(document.body.textContent).toContain("run 0 / 4");
   expect(document.body.textContent).toContain("1 loop · 0 runs");
+  // The pill stands in the corner's stack, on the layout's numbers, and tells the waiting notice how much room it takes.
+  const pill = document.querySelector<HTMLElement>("[data-loops-indicator]")!;
+  expect(pill.style.bottom).toBe(`${LOOPS_PILL_BOTTOM}px`);
+  expect(pill.style.left).toBe(`${BOTTOM_GUTTER}px`);
+  expect(document.documentElement.style.getPropertyValue(LOOPS_ROOM_PROPERTY)).toBe(`${LOOPS_PILL_ROOM}px`);
   await act(async () => document.querySelector<HTMLButtonElement>('[data-loops-indicator] button[data-stop-all]')!.click());
   expect(loopsStore.getState().runningCount()).toBe(0);
   expect(document.querySelector("[data-loops-indicator]")).toBeNull();
+  expect(document.documentElement.style.getPropertyValue(LOOPS_ROOM_PROPERTY)).toBe("");
 });
 
 describe("loops target agents only, and each project has its own", () => {
@@ -178,7 +194,7 @@ describe("loops target agents only, and each project has its own", () => {
     expect(rows()).toEqual(["mine", "none"]);
     // The other project's loop still runs: the indicator counts it, and the list says where it is.
     expect(document.querySelector("[data-loops-indicator]")?.textContent).toContain("1 loop");
-    expect(document.querySelector("[data-loops-elsewhere]")?.textContent).toBe("1 loop runs in other projects: Stop all, at the bottom left, stops them too.");
+    expect(document.querySelector("[data-loops-elsewhere]")?.textContent).toBe("1 loop runs in other projects: Stop all, at the bottom left, stops them too");
     // Saved here, a loop of no project becomes this project's.
     const edits = [...document.querySelectorAll<HTMLButtonElement>("button")].filter((b) => b.textContent === "Edit");
     await act(async () => edits[1].click());
@@ -197,9 +213,15 @@ describe("loops target agents only, and each project has its own", () => {
     loopsStore.setState({ loops: [loop("old", "p1", ["console"]), loop("mixed", "p1", ["console", "batman"])], loaded: true, runtime: {} });
     await open();
     const [old, mixed] = [...document.querySelectorAll<HTMLElement>("[data-loop-row]")];
-    expect(old.textContent).toContain("no agent among its targets: edit it to choose agents");
+    expect(old.textContent).toContain("Off: none of its targets is an agent");
+    expect(old.textContent).toContain("Edit the loop to choose agents");
     const turnOn = (row: HTMLElement) => [...row.querySelectorAll("button")].find((b) => b.textContent === "Turn on")!;
     expect(turnOn(old).disabled).toBe(true);
+    // The way out leads: Edit is the row's first button, Turn on steps back.
+    const edit = (row: HTMLElement) => [...row.querySelectorAll("button")].find((b) => b.textContent === "Edit")!;
+    expect(edit(old).dataset.variant).toBe("default");
+    expect(turnOn(old).dataset.variant).toBe("ghost");
+    expect(edit(mixed).dataset.variant).toBe("ghost");
     // An agent beside the shell: it runs, and only the agent is typed into.
     expect(turnOn(mixed).disabled).toBe(false);
     await act(async () => [...old.querySelectorAll("button")].find((b) => b.textContent === "Edit")!.click());
@@ -280,6 +302,30 @@ it("opens a loop to edit without the error a form left before it", async () => {
   expect(field("Name").value).toBe("Point");
   expect(field("Name").hasAttribute("aria-invalid")).toBe(false);
   expect(document.body.textContent).not.toContain("Give the loop a name");
+});
+
+it("says how to run again a loop that stopped with no agent running, Edit first; a loop that ended keeps its quiet line", async () => {
+  const loop = (id: string, name: string) => ({ id, name, instruction: "go", targets: ["batman"], trigger: { kind: "interval" as const, minutes: 30 }, maxRuns: 3, projectId: "p1" });
+  loopsStore.setState({
+    loops: [loop("a", "Point"), loop("b", "Tests")],
+    loaded: true,
+    runtime: {
+      a: { running: false, runs: 1, startedAt: null, stoppedBecause: "noTargets" },
+      b: { running: false, runs: 3, startedAt: null, stoppedBecause: "runs" },
+    } as never,
+  });
+  await open();
+  const [stopped, ended] = [...document.querySelectorAll<HTMLElement>("[data-loop-row]")];
+  const lines = [...stopped.querySelectorAll("[data-problem] p")].map((p) => p.textContent);
+  expect(lines).toEqual(["Stopped: none of its agents is running", "Restart one of its agents, or edit the loop to pick others"]);
+  const buttonIn = (row: HTMLElement, label: string) => [...row.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === label)!;
+  expect(buttonIn(stopped, "Edit").dataset.variant).toBe("default");
+  // A restarted agent makes it run again: Turn on stays, a step back.
+  expect(buttonIn(stopped, "Turn on").disabled).toBe(false);
+  expect(buttonIn(stopped, "Turn on").dataset.variant).toBe("ghost");
+  expect(ended.querySelector("[data-problem]")).toBeNull();
+  expect(ended.textContent).toContain("done: runs reached · run 3 / 3");
+  expect(buttonIn(ended, "Turn on").dataset.variant).toBe("default");
 });
 
 it("names the indicator by what it shows first", async () => {

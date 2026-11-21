@@ -25,6 +25,8 @@ import {
   orphanReason,
   orphanWires,
   outdatedWires,
+  rejoinableWires,
+  withWireBetween,
   faceWires,
   misfacedWires,
   rerouteWires,
@@ -456,6 +458,40 @@ describe("orphanWires", () => {
     const wire = linked[linked.length - 1];
     const byId = new Map(withoutIds(linked, peer.id).map((e) => [e.id, e]));
     expect(orphanReason(wire, byId)).toBe(`wire ${wire.id} (link) deleted as orphaned: start ${lone.id} ok; end ${peer.id} deleted; listed by ${lone.id}`);
+  });
+});
+
+describe("rejoinableWires", () => {
+  const board = { ...createNodeElement("kanban", { x: 1800, y: 900 }), id: "board" } as unknown as ExcalidrawElement;
+  const loosened = (elements: readonly ExcalidrawElement[], wireId: string, side: "startBinding" | "endBinding") =>
+    elements.map((e) => (e.id === wireId ? ({ ...e, [side]: null } as ExcalidrawElement) : e));
+
+  it("mends a Fleet's board link whose start lost its binding while the Fleet still lists it (17 Nov)", () => {
+    const linked = withBoardLink([fleet, board], fleet.id, board.id);
+    const wire = linked[linked.length - 1];
+    const scene = loosened(linked, wire.id, "startBinding");
+    expect(orphanWires(scene)).toEqual([wire.id]);
+    expect(rejoinableWires(scene)).toEqual([{ wireId: wire.id, fromId: fleet.id, toId: board.id }]);
+    // Joined again, the Fleet's board tools find the board.
+    const again = withWireBetween(scene.map((e) => (e.id === wire.id ? ({ ...e, isDeleted: true } as ExcalidrawElement) : e)), fleet.id, board.id);
+    expect(boardLinksOf(again, fleet.id)).toEqual([board.id]);
+    // Its end, likewise, between two agents.
+    const peer = { ...createNodeElement("terminal", { x: 1800, y: 0 }), id: "peer" } as unknown as ExcalidrawElement;
+    const agents = withAgentLink([lone, peer], lone.id, peer.id);
+    const link = agents[agents.length - 1];
+    expect(rejoinableWires(loosened(agents, link.id, "endBinding"))).toEqual([{ wireId: link.id, fromId: lone.id, toId: peer.id }]);
+  });
+
+  it("leaves a wire the user pulled off a node (no longer listed there), one whose node is gone, and spawn wires", () => {
+    const linked = withBoardLink([fleet, board], fleet.id, board.id);
+    const wire = linked[linked.length - 1];
+    const pulledOff = loosened(linked, wire.id, "startBinding").map((e) => (e.id === fleet.id ? ({ ...e, boundElements: [] } as ExcalidrawElement) : e));
+    expect(rejoinableWires(pulledOff)).toEqual([]);
+    const fleetGone = linked.map((e) => (e.id === fleet.id ? ({ ...e, isDeleted: true } as ExcalidrawElement) : e));
+    expect(rejoinableWires(fleetGone)).toEqual([]);
+    const spawned = withWire([fleet, lone], fleet.id, lone.id, undefined, true);
+    const spawn = spawned[spawned.length - 1];
+    expect(rejoinableWires(loosened(spawned, spawn.id, "startBinding"))).toEqual([]);
   });
 });
 

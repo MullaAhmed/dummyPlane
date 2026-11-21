@@ -4,6 +4,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { expandTerminal } from "@/nodes/terminal/minimize";
 import { focusTerminal } from "@/nodes/terminal/registry";
 import { activeTerminalStore } from "./activeTerminal";
+import { workArea } from "@/shell/layout";
 import { canvasStore, fullSizeView } from "./canvasStore";
 import { focusNode } from "./focusNode";
 
@@ -101,8 +102,8 @@ it("expands a minimized terminal first, then centers and activates its element a
   expect(expandTerminal).toHaveBeenCalledWith("t1");
   const { appState } = updateScene.mock.calls[0][0];
   expect(appState.activeEmbeddable.element).toBe(full);
-  expect(appState.scrollY).toBe(fullSizeView(full, view).scrollY);
-  expect(appState.scrollY).not.toBe(fullSizeView(card, view).scrollY);
+  expect(appState.scrollY).toBe(fullSizeView(full, view, workArea(false)).scrollY);
+  expect(appState.scrollY).not.toBe(fullSizeView(card, view, workArea(false)).scrollY);
   // Its xterm shows only once React renders it expanded: the keyboard goes to it a frame later.
   expect(focusTerminal).not.toHaveBeenCalled();
   frames.forEach((run) => run(0));

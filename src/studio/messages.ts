@@ -9,7 +9,8 @@ export const studioMessages = defineMessages({
   filterLabel: "Filter the files",
   filterPlaceholder: "Filter the files…",
   readingTree: "Reading the repository…",
-  treeFailed: (error: string) => `The repository could not be read: ${error}`,
+  treeFailed: "Could not read the project's files",
+  treeNext: "Refresh the tree to read them again",
   noMatch: "No file matches",
   treeCut: (count: number) => `Only the first ${count} rows are shown: filter to narrow down`,
   // The project has more files than the tree can list: a file past the cut is in the project, not in the list or the filter.
@@ -17,8 +18,10 @@ export const studioMessages = defineMessages({
   empty: "The repository is empty",
   pickFile: "Pick a file in the tree",
   readingFile: "Reading the file…",
-  readFailed: (error: string) => `The file could not be read: ${error}`,
-  modified: "Modified, not saved",
+  readFailed: (path: string) => `Could not open ${path}`,
+  readNext: "Open it in another editor, or pick another file",
+  // The tab's and the file bar's state word, the notes' too: the words its question uses.
+  modified: "Unsaved changes",
   closeTab: (name: string) => `Close ${name}`,
   save: "Save (Ctrl+S)",
   saving: "Saving…",
@@ -26,7 +29,9 @@ export const studioMessages = defineMessages({
   /** The tab keeps its changes when a save fails. */
   saveNext: "Your changes stay in the tab: save again",
   saveConflict: (path: string) => `${path} changed on disk: choose which version to keep first`,
-  failed: (error: string) => `Failed: ${error}`,
+  /** A reload that failed, said in the tab: the buffer stays as it was. */
+  reloadFailed: (path: string) => `Could not read ${path} again from the disk`,
+  reloadNext: "Your version stays in the tab: reload again, or overwrite",
   changedOnDisk: "This file changed on disk, most likely because of an agent",
   reload: "Reload (loses my changes)",
   overwrite: "Overwrite with my version",
@@ -34,6 +39,7 @@ export const studioMessages = defineMessages({
   recreate: "Create the file again",
   drop: "Close without keeping",
   unsavedFiles: (count: number) => `these ${count} files`,
+  // Unsaved changes, one question in one vocabulary: a tab closing (the decision bar) and the window closing (the dialog).
   unsaved: {
     title: (file: string) => `Save ${file}?`,
     description: "Your changes will be lost if you don't save them",
@@ -45,10 +51,13 @@ export const studioMessages = defineMessages({
   edit: "Code",
   insert: "Insert",
   insertTitle: "Insert this file on the last canvas shown",
-  discardTitle: (name: string) => `${name} has unsaved changes`,
-  discard: "Close without saving",
-  saveAndClose: "Save and close",
-  cancel: "Cancel",
+  // The ＋ menu's Markdown: a file of the project, rendered on the canvas.
+  markdown: {
+    pickTitle: "Open a Markdown file",
+    filter: "Markdown",
+    outside: "This file is not in the project",
+    outsideNext: "Pick a Markdown file inside the project's folder",
+  },
   goToLine: "Go to line",
   goToLinePlaceholder: "Line or line:column",
   goToLineInvalid: "A line number, e.g. 42 or 42:7",

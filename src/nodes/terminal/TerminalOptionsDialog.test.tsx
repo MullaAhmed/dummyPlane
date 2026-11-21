@@ -81,7 +81,7 @@ it("shows a Custom terminal's command first, says what runs it, and saves it tri
   await openFor(terminal({ agent: "custom", title: "Dev server", command: "npm run dev" }));
   const command = field("Command to run")!;
   expect(command.value).toBe("npm run dev");
-  expect(document.getElementById(command.getAttribute("aria-describedby")!)!.textContent).toBe("A Custom terminal runs it in its shell when it starts.");
+  expect(document.getElementById(command.getAttribute("aria-describedby")!)!.textContent).toBe("A Custom terminal runs it in its shell when it starts");
   expect(labels()).toEqual(["Command to run", "Folder", "Shell", "Title"]);
   await type(command, "  pnpm dev --port 3000 ");
   await apply();

@@ -1,28 +1,32 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown, Ellipsis, Layers, Network, Pause, Play, Plus, SquareTerminal, Users, X } from "lucide-react";
 import { useStore } from "zustand";
 import { useCanvas } from "@/canvas/canvasStore";
 import { focusNode } from "@/canvas/focusNode";
+import { RoleMark } from "@/components/marks";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useMessages } from "@/i18n";
 import { formatDuration } from "@/lib/format";
+import { returnFocus, useOpener } from "@/lib/focusReturn";
 import { useNow } from "@/lib/useNow";
 import { cn } from "@/lib/utils";
+import { StatusPill } from "@/nodes/terminal/StatusPill";
 import { readFleetPayload } from "@/nodes/types";
 import { IconButton } from "@/shell/buttons";
-import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
-import { useActivities } from "@/store/agentActivity";
+import { FLOAT_INSET, LANE_BOTTOM, LANE_RIGHT, LANE_TOP } from "@/shell/layout";
+import { useLaneOccupant } from "@/shell/lane";
+import { useActivities, useActivity } from "@/store/agentActivity";
 import { terminalOf, useNodes } from "@/store/nodes";
-import { terminalStatusStore } from "@/store/terminalStatus";
+import { terminalStatusStore, useTerminalStatus } from "@/store/terminalStatus";
 import { AgentMenu } from "./AgentMenu";
 import { AgentRow } from "./AgentRow";
 import { setAgentsFilter, setAgentsPanel, useAgentsPanel } from "./agentsPanelState";
 import { pauseAll, resumeAll, workspaceTerminalIds } from "./broadcast";
-import { AGENTS } from "./catalog";
+import { AGENTS, INDIGO } from "./catalog";
 import { ComposeGroup } from "./ComposeGroup";
-import { agentStateOf, isAgentNode, isLive } from "./agentState";
+import { isAgentNode } from "./agentState";
 import { PANEL_FILTERS, filterCounts, inFilter, panelSections, panelStateOf, type PanelAgent, type PanelFilter } from "./agentsView";
 import { GroupMenu } from "./GroupMenu";
 import { countsText } from "./groupSummary";
@@ -39,13 +43,25 @@ const SECTION_ROW =
 // `-rotate-90` sets the `rotate` property: a list naming `transform` would never ease it.
 const CHEVRON = "size-3.5 text-dp-text-2 transition-[rotate] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none";
 
-/** The agents of the workspace on screen, by group. */
+/**
+ * The agents of the workspace on screen, by group. It stands in the right lane (shell/layout.ts), on its edge and its
+ * top, the lane's width: the lane's occupant, which a work window or the Edit panel folds (panelFold.ts).
+ */
 export function AgentsPanel() {
   const t = useMessages(agentsMessages).panel;
+  // On screen, it holds the lane: the work area, the work windows and the camera keep clear of it.
+  useLaneOccupant("agents");
   const filter = useAgentsPanel((s) => s.filter);
   // The room the Resume offer takes, a line more when it names the finished sub-agents it leaves stopped.
   const offerRoom = useStore(resumeOfferStore, resumeOfferRoom);
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
+  // Its Close gives the keyboard back to what opened it (the rail's Agents button, or what had it before the palette), else to that button.
+  const opener = useOpener();
+  const panel = useRef<HTMLElement>(null);
+  const closePanel = () => {
+    returnFocus(opener, panel.current) || returnFocus(document.querySelector<HTMLElement>("[data-agents-toggle]"), panel.current);
+    setAgentsPanel(false);
+  };
   const now = useNow(15_000);
   const nodeIds = useCanvas((s) => s.nodeIds);
   const frames = useCanvas((s) => s.frames);
@@ -57,7 +73,7 @@ export function AgentsPanel() {
     const payload = terminalOf(nodes[id]);
     if (!payload) return [];
     const status = statuses[id] ?? { state: "stopped" as const };
-    // The reading the title bar's counters share (agentState): a plain shell is never at work, waiting nor live.
+    // The reading the rail's pip, the filters, the title bar's Working count and the tab badges share (agentState): a plain shell is never at work nor waiting.
     const isAgent = isAgentNode(nodes[id]);
     const state = panelStateOf(status, activities[id], payload.lastReport?.status, isAgent);
     return [
@@ -66,19 +82,18 @@ export function AgentsPanel() {
         name: payload.name || AGENTS[payload.agent].label,
         agent: payload.agent,
         state,
-        live: isAgent && isLive(agentStateOf(status, activities[id], payload.lastReport?.status)),
         since: status.state === "running" ? activities[id]?.since : undefined,
       },
     ];
   });
-  // The Fleets are agents too: the filters count them, as the title bar's counters do, and their section filters.
+  // The Fleets are agents too: the filters count them, as the rail's pip and the title bar's Working count do, and their section filters.
   const allFleets = nodeIds.flatMap((id) => {
     const record = nodes[id];
     if (record?.kind !== "fleet") return [];
     const status = statuses[id] ?? { state: "stopped" as const };
     const report = record.payload.session?.lastReport?.status;
     const state = panelStateOf(status, activities[id], report);
-    return [{ id, name: readFleetPayload(record.payload).name, state, live: isLive(agentStateOf(status, activities[id], report)) }];
+    return [{ id, name: readFleetPayload(record.payload).name, state }];
   });
   const fleets = allFleets.filter((f) => inFilter(f, filter));
   const counts = filterCounts([...agents, ...allFleets]);
@@ -94,8 +109,10 @@ export function AgentsPanel() {
 
   return (
     <aside
-      className="dp-glass-strong absolute right-18 z-30 flex w-80 flex-col overflow-hidden rounded-xl"
-      style={{ top: TOP_ROW_HEIGHT + 14, maxHeight: `calc(100% - ${TOP_ROW_HEIGHT + 14 + (offerRoom ?? BOTTOM_BAR_HEIGHT) + 14}px)` }}
+      ref={panel}
+      className="dp-glass-strong absolute z-30 flex w-84 flex-col overflow-hidden rounded-xl"
+      // Its foot: the lane's, or one gap above the Resume offer.
+      style={{ right: LANE_RIGHT, top: LANE_TOP, maxHeight: `calc(100% - ${LANE_TOP + (offerRoom === null ? LANE_BOTTOM : offerRoom + FLOAT_INSET)}px)` }}
     >
       {/* The header of the other panels (Git, Review): icon, title, then the actions, the close last. */}
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
@@ -141,7 +158,7 @@ export function AgentsPanel() {
               <DropdownMenuItem onSelect={() => setFolded(new Set())}>{t.unfoldAll}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <IconButton label={t.closePanel} onClick={() => setAgentsPanel(false)}>
+          <IconButton label={t.closePanel} onClick={closePanel}>
             <X />
           </IconButton>
         </div>
@@ -193,17 +210,17 @@ export function AgentsPanel() {
                   className={cn(SECTION_ROW, "min-w-0 flex-1 hover:bg-transparent aria-expanded:hover:bg-transparent")}
                 >
                   <ChevronDown className={cn(CHEVRON, !open && "-rotate-90")} />
-                  <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: section.color ?? "var(--dp-text-3)" }} />
+                  {/* The group's colour as the terminal header draws its role: a bar, the round dot is each agent's below. */}
+                  <RoleMark color={section.color ?? "var(--dp-text-3)"} />
                   <span className="truncate font-medium text-dp-text">{section.name}</span>
                   <span className="ml-auto shrink-0 font-mono text-xs text-dp-text-2 tabular-nums">
-                    {countsText(section.members, section.working)}
+                    {countsText(section)}
                   </span>
                 </Button>
                 {section.id === null && <OutsideNamesMenu />}
                 {section.id && (
                   <GroupMenu
                     groupId={section.id}
-                    answersRequests
                     trigger={
                       <IconButton
                         label={t.groupMenu}
@@ -256,11 +273,23 @@ export function AgentsPanel() {
                 >
                   <Network className="size-4 text-dp-text-2" />
                   <span className="truncate text-dp-text">{o.name}</span>
+                  <FleetStatus id={o.id} />
                 </Button>
               ))}
           </section>
         )}
       </div>
     </aside>
+  );
+}
+
+/** A Fleet's status at the end of its row: the dot and word its node's header shows (FleetNode), as an agent's row does. */
+function FleetStatus({ id }: { id: string }) {
+  const status = useTerminalStatus(id);
+  const activity = useActivity(id);
+  return (
+    <span className="ml-auto">
+      <StatusPill status={status} activity={activity} indigo={AGENTS.claude.tint === INDIGO} />
+    </span>
   );
 }

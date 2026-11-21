@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { clearDraft, trackInput } from "@/nodes/terminal/draft";
 import { DRAFT_MS, TYPING_MS, userIsTyping, userIsWriting } from "./typing";
 
 const press = (target: Element) => target.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
@@ -20,6 +21,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  clearDraft("t1");
   vi.useRealTimers();
   document.body.replaceChildren();
 });
@@ -116,4 +118,16 @@ it("userIsWriting does not count a terminal's textarea nor a focused checkbox as
   box.type = "checkbox";
   box.focus();
   expect(userIsWriting()).toBe(false);
+});
+
+it("is typing while a terminal holds text the user wrote and has not sent, however long they paused, until they send it", () => {
+  const screen = add("div");
+  screen.className = "xterm";
+  add("textarea", screen).focus();
+  expect(userIsTyping()).toBe(false);
+  trackInput("t1", "half a sentence");
+  vi.advanceTimersByTime(TYPING_MS * 5);
+  expect(userIsTyping()).toBe(true);
+  trackInput("t1", "\r");
+  expect(userIsTyping()).toBe(false);
 });

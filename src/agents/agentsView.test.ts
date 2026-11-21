@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SceneFrame } from "@/canvas/groups";
 import { filterCounts, PANEL_FILTERS, panelSections, panelStateOf, type PanelAgent } from "./agentsView";
 
-// Live unless stopped, by default: a starting agent or a busy console says so with `live` false.
-const agent = (id: string, state: PanelAgent["state"], live = state !== "stopped"): PanelAgent => ({ id, name: id, agent: "claude", state, live, since: 0 });
+const agent = (id: string, state: PanelAgent["state"]): PanelAgent => ({ id, name: id, agent: "claude", state, since: 0 });
 const frame = (id: string, memberIds: string[], role: "backend" | "docs" | null = "backend"): SceneFrame => ({
   id,
   name: id.toUpperCase(),
@@ -52,20 +51,20 @@ describe("panelStateOf", () => {
   });
 });
 
-it("has exactly five filters: All, Active, Waiting, Working, Done", () => {
-  expect(PANEL_FILTERS.map((f) => f.id)).toEqual(["all", "active", "waiting", "working", "done"]);
-  expect(PANEL_FILTERS.map((f) => f.label)).toEqual(["All", "Active", "Waiting", "Working", "Done"]);
+it("has exactly four filters: All, Waiting, Working, Ready (no Active: it listed the same agents as Working and the rest)", () => {
+  expect(PANEL_FILTERS.map((f) => f.id)).toEqual(["all", "waiting", "working", "done"]);
+  expect(PANEL_FILTERS.map((f) => f.label)).toEqual(["All", "Waiting", "Working", "Ready"]);
 });
 
 describe("panelSections", () => {
   const agents = [agent("a", "working"), agent("b", "idle"), agent("c", "waiting"), agent("d", "stopped")];
   const frames = [frame("g1", ["a", "b"]), frame("plain", ["c"], null), frame("g2", ["d"], "docs")];
 
-  it("heads each section with its members and those at work, whatever the filter (as the group's canvas label)", () => {
+  it("heads each section with its members and those waiting, at work and at rest, whatever the filter (as the group's canvas label)", () => {
     const team = [agent("a", "working"), agent("b", "working"), agent("c", "waiting"), agent("d", "idle")];
     const [section] = panelSections(team, [frame("g1", ["a", "b", "c", "d"])], "waiting");
     expect(section.agents.map((a) => a.id)).toEqual(["c"]);
-    expect([section.members, section.working]).toEqual([4, 2]);
+    expect([section.members, section.waiting, section.working, section.ready]).toEqual([4, 1, 2, 1]);
   });
 
   it("lists each group in scene order, then the agents outside groups", () => {
@@ -84,7 +83,7 @@ describe("panelSections", () => {
     expect(panelSections(agents, frames, "waiting").map((s) => s.id)).toEqual([null]);
   });
 
-  it("shows under Done the agents that rest or ended, and the active ones under All alone", () => {
+  it("shows under Ready (the filter whose id is done) the agents that rest or ended, and the active ones under All alone", () => {
     expect(panelSections(agents, frames, "done").map((s) => [s.id, s.agents.map((a) => a.id)])).toEqual([
       ["g1", ["b"]],
       ["g2", ["d"]],
@@ -97,22 +96,15 @@ describe("panelSections", () => {
 });
 
 describe("filterCounts", () => {
-  it("counts the agents of each filter: Done is every agent that rests or ended", () => {
-    expect(filterCounts([agent("a", "working"), agent("b", "working"), agent("c", "stopped")])).toEqual({ all: 3, active: 2, waiting: 0, working: 2, done: 1 });
+  it("counts the agents of each filter: Ready is every agent that rests or ended", () => {
+    expect(filterCounts([agent("a", "working"), agent("b", "working"), agent("c", "stopped")])).toEqual({ all: 3, waiting: 0, working: 2, done: 1 });
     expect(
       filterCounts([agent("a", "idle"), agent("b", "stopped"), agent("c", "waiting"), agent("d", "active"), agent("e", "working"), agent("f", "idle")]),
-    ).toEqual({ all: 6, active: 5, waiting: 1, working: 1, done: 3 });
+    ).toEqual({ all: 6, waiting: 1, working: 1, done: 3 });
   });
 
-  it("counts nobody under the filters when nobody runs; one of unknown activity is active, one that starts in All alone", () => {
-    expect(filterCounts([])).toEqual({ all: 0, active: 0, waiting: 0, working: 0, done: 0 });
-    expect(filterCounts([agent("a", "active")])).toEqual({ all: 1, active: 1, waiting: 0, working: 0, done: 0 });
-    expect(filterCounts([agent("a", "active", false)])).toEqual({ all: 1, active: 0, waiting: 0, working: 0, done: 0 });
-  });
-
-  it("lists under Active the live agents alone, as many as the title bar's N active: never a console nor one that starts", () => {
-    const team = [agent("a", "working"), agent("b", "idle"), agent("console", "idle", false), agent("starting", "active", false), agent("c", "stopped")];
-    expect(panelSections(team, [], "active")[0].agents.map((a) => a.id)).toEqual(["a", "b"]);
-    expect(filterCounts(team).active).toBe(2);
+  it("counts nobody under the filters when nobody runs; an agent of unknown activity or one that starts is in All alone", () => {
+    expect(filterCounts([])).toEqual({ all: 0, waiting: 0, working: 0, done: 0 });
+    expect(filterCounts([agent("a", "active")])).toEqual({ all: 1, waiting: 0, working: 0, done: 0 });
   });
 });

@@ -3,7 +3,7 @@ import { defineMessages } from "@/i18n";
 export const accountsMessages = defineMessages(
   {
     title: "Claude accounts",
-    notRead: "The accounts could not be read: this terminal waits, so as not to start on another account.",
+    notRead: "The accounts could not be read: this terminal waits, so as not to start on another account",
     description: "A profile is a name and a folder: Claude keeps its login and conversations there. dummyPlane only reads settings.json there, for the status line, and looks whether a conversation exists before resuming it, without reading it. It never touches your login.",
     defaultName: "Default",
     defaultHint: "dummyPlane's environment (CLAUDE_CONFIG_DIR or ~/.claude)",

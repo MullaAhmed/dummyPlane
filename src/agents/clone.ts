@@ -16,6 +16,7 @@ export function cloneTerminalPayload(source: TerminalPayload, name: string): Ter
   delete copy.linear;
   // A copy reports to nobody and counts toward no sub-agent tree.
   delete copy.spawnedBy;
+  delete copy.forStep;
   delete copy.task;
   delete copy.coordinator;
   // A copy of a mission's Manager is a plain agent: the mission has its own Manager.

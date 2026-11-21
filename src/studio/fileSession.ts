@@ -43,6 +43,8 @@ export interface SessionState {
   saving: boolean;
   /** The last write or reload that failed. */
   error: string | null;
+  /** Which of the two `error` is about: the tab names it. */
+  failedTo: "save" | "reload" | null;
   open: (file: string) => Promise<void>;
   edit: (text: string) => void;
   /** True when the disk has the buffer. */
@@ -66,7 +68,7 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
 /** A tab closes from the tab bar and quits through the store: its session leaves nothing. */
 const NO_EXITS: SessionExits = { onClose: () => undefined, onQuit: () => undefined };
 
-const empty = { refused: null, baseline: "", draft: "", raw: "", version: null, eol: "\n", disk: null, error: null } as const;
+const empty = { refused: null, baseline: "", draft: "", raw: "", version: null, eol: "\n", disk: null, error: null, failedTo: null } as const;
 
 /**
  * One open file against a disk that agents write to:
@@ -116,7 +118,7 @@ export function createFileSession(io: StudioIo, exits: SessionExits = NO_EXITS) 
         }
         set({ disk: { version: outcome.disk }, pending: null, saving: false });
       } catch (error) {
-        set({ error: errorText(error), pending: null, saving: false });
+        set({ error: errorText(error), failedTo: "save", pending: null, saving: false });
       }
       return false;
     };
@@ -165,12 +167,12 @@ export function createFileSession(io: StudioIo, exits: SessionExits = NO_EXITS) 
           if (disk) set({ disk: null, error: null });
         } else if (disk?.version !== seen) {
           if (seen === null || isDirty(get())) set({ disk: { version: seen } });
-          else await load(file, "reload", true).catch((error: unknown) => set({ error: errorText(error), disk: { version: seen } }));
+          else await load(file, "reload", true).catch((error: unknown) => set({ error: errorText(error), failedTo: "reload", disk: { version: seen } }));
         }
       },
       reload: async () => {
         const { file } = get();
-        if (file) await load(file, "reload").catch((error: unknown) => set({ error: errorText(error) }));
+        if (file) await load(file, "reload").catch((error: unknown) => set({ error: errorText(error), failedTo: "reload" }));
       },
       overwrite: async () => {
         const { disk } = get();

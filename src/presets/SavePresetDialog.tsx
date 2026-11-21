@@ -45,7 +45,8 @@ export function SavePresetDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent showCloseButton={false} className="sm:max-w-sm">
+      {/* Only a command opens it (the palette's Save as preset): it shows at once. */}
+      <DialogContent instant showCloseButton={false} className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{t.title}</DialogTitle>
           <DialogDescription>{t.description}</DialogDescription>

@@ -11,7 +11,8 @@ import { nodesStore } from "@/store/nodes";
 import { moveCardWithGithub } from "./github";
 import { kanbanMessages } from "./messages";
 import { columnOf } from "./board";
-import { doneTarget, flagCard, linkedTo, linkFleet, planRequest, setCardAgent, startCard, todoColumnOf, withBlockedColumn, withTaskCards, type CardTask } from "./missionLink";
+import { namedDoneColumn } from "./githubSync";
+import { doneTarget, flagCard, linkedTo, linkFleet, planRequest, setCardAgent, startCard, todoColumnOf, withBlockedColumn, withReportedColumn, withTaskCards, type CardTask } from "./missionLink";
 
 // The Kanban node's fleet wiring: "Plan with the fleet", and its cards following the mission.
 
@@ -97,7 +98,10 @@ function saveCards(boardId: string, before: KanbanPayload, after: KanbanPayload)
   if (after !== before) nodesStore.getState().update(boardId, { cards: after.cards });
 }
 
-/** A member reported done: its sub-task's card goes to the done column, its alert cleared, and its issue follows on GitHub. */
+/**
+ * A member's work is in the mission's branch (`mergeMember`), or has no branch to go to: its sub-task's card goes to the
+ * done column, its alert cleared, and its issue follows on GitHub.
+ */
 export async function finishMissionCard(fleetId: string, plan: readonly SubTask[] | undefined, task: string) {
   const found = taskCard(fleetId, plan, task);
   if (!found) return;
@@ -105,6 +109,25 @@ export async function finishMissionCard(fleetId: string, plan: readonly SubTask[
   if (agent) saveCards(found.boardId, found.board, setCardAgent(found.board, found.card, agent));
   const target = doneTarget(boardOf(found.boardId) ?? found.board, found.card);
   if (target) await moveCardWithGithub(found.boardId, found.card, target, undefined, missionFolder(fleetId));
+}
+
+/**
+ * A member reported done: its card says so, in a "Reported, not merged" column, until its branch is merged: Done is the
+ * merge's (`finishMissionCard`), or a card would stand in Done with its work on a branch nobody merged (12 Nov, dummyPlane:
+ * four cards Done right after their reports, the branches unmerged). A mission with no branch has nothing to merge, and
+ * the report ends it.
+ */
+export async function reportedMissionCard(fleetId: string, plan: readonly SubTask[] | undefined, task: string) {
+  const mission = missionOf(nodesStore.getState().nodes[fleetId]);
+  const merged = mission?.members.some((m) => m.task === task && !m.handedTo && m.merged === true);
+  if (!mission?.worktree || merged) return finishMissionCard(fleetId, plan, task);
+  const found = taskCard(fleetId, plan, task);
+  if (!found) return;
+  const agent = found.board.cards[found.card].agent;
+  const cleared = agent ? setCardAgent(found.board, found.card, agent) : found.board;
+  const placed = withReportedColumn(cleared, t().reported);
+  nodesStore.getState().update(found.boardId, { columns: placed.board.columns, cards: placed.board.cards });
+  if (columnOf(placed.board, found.card)?.id !== placed.columnId) await moveCardWithGithub(found.boardId, found.card, placed.columnId, undefined, missionFolder(fleetId));
 }
 
 /**
@@ -137,6 +160,17 @@ export async function reassignMissionCard(fleetId: string, plan: readonly SubTas
   if (!started) return;
   nodesStore.getState().update(found.boardId, { columns: started.board.columns, cards: started.board.cards });
   if (columnOf(started.board, found.card)?.id !== started.columnId) await moveCardWithGithub(found.boardId, found.card, started.columnId, undefined, missionFolder(fleetId));
+}
+
+/**
+ * Whether a card of a board handed to the fleet (or of its mission's) stands in a column titled Done: its work is over.
+ * Never the last column of a board with no such title (`doneColumn`'s fallback): a to-do column may be that one.
+ */
+export function cardDone(fleetId: string, cardId: string): boolean {
+  const own = missionBoard(fleetId);
+  const board = own?.board.cards[cardId] ? own.board : linkedBoards(fleetId).find(({ board }) => board.cards[cardId])?.board;
+  const done = board ? namedDoneColumn(board) : undefined;
+  return board !== undefined && done !== undefined && columnOf(board, cardId)?.id === done.id;
 }
 
 /** The board a Manager runs the fleet's mission on, if it is still there. */

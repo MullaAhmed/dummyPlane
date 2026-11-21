@@ -13,7 +13,7 @@ function PathHint({ path, above }: { path: string; above?: string }) {
   return (
     <span className="flex flex-col">
       {above && <span>{above}</span>}
-      <span className={above ? "break-all font-mono opacity-70" : "break-all font-mono"}>{path}</span>
+      <span className={above ? "break-all font-mono text-background/85" : "break-all font-mono"}>{path}</span>
     </span>
   );
 }

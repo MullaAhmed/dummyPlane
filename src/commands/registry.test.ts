@@ -57,7 +57,7 @@ describe("the registry", () => {
     expect(new Set(ids).size).toBe(ids.length);
     const shortcuts = COMMANDS.flatMap((c) => (c.shortcut ? [c.shortcut] : []));
     expect(new Set(shortcuts).size).toBe(shortcuts.length);
-    expect(new Set(shortcuts)).toEqual(new Set(["Ctrl+Tab", "Ctrl+Shift+Tab", "Ctrl+P", "Ctrl+Shift+P", "Shift+Escape", "Ctrl+Shift+A", "Ctrl+G", "Ctrl+Shift+G"]));
+    expect(new Set(shortcuts)).toEqual(new Set(["Ctrl+Tab", "Ctrl+Shift+Tab", "Ctrl+P", "Ctrl+Shift+P", "Shift+Escape", "Ctrl+Shift+A", "Ctrl+G", "Ctrl+Shift+G", "Ctrl+Shift+B"]));
   });
 
   it("offers the terminal steps only with terminals, the palette everywhere", () => {

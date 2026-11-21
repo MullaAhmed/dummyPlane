@@ -6,9 +6,9 @@ describe("pillOf", () => {
   it("labels each process state", () => {
     expect(pillOf({ state: "running" })).toEqual({ label: "Starting", tone: "live" });
     expect(pillOf({ state: "stopped" })).toEqual({ label: "Stopped", tone: "stopped" });
-    expect(pillOf({ state: "exited", code: 0 })).toEqual({ label: "Exited · 0", tone: "done" });
+    expect(pillOf({ state: "exited", code: 0 })).toEqual({ label: "Exited · 0", tone: "stopped" });
     expect(pillOf({ state: "exited", code: 2 })).toEqual({ label: "Exited · 2", tone: "failed" });
-    expect(pillOf({ state: "exited", code: null })).toEqual({ label: "Exited", tone: "done" });
+    expect(pillOf({ state: "exited", code: null })).toEqual({ label: "Exited", tone: "stopped" });
     expect(pillOf({ state: "error", message: "x" })).toEqual({ label: "Error", tone: "failed" });
   });
 });

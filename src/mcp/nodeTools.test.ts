@@ -2,15 +2,19 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { createGroupFrame } from "@/canvas/groups";
 import { createNodeElement, nodeKindOf } from "@/canvas/nodeElement";
+import { frameAround, NODE_GAP, overlap } from "@/agents/groupLayout";
 import { terminalText } from "@/nodes/terminal/registry";
 import { subagentNodesStore } from "@/nodes/subagent/store";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { notify } from "@/mission/events";
+import type { Member } from "@/mission/mission";
 import { answer } from "./router";
-import { orphanWires } from "@/agents/wires";
+import { fleetTargets, orphanWires, withAgentLink, withWire } from "@/agents/wires";
+import { forgetScene, rememberScene } from "@/canvas/sceneCache";
 import { onFinish, type FinishSignal } from "@/agents/finishes";
 import { summaryLine } from "@/shell/finishAlert";
 
@@ -191,12 +195,131 @@ describe("show_output", () => {
     });
   });
 
-  it("is an agent's tool: a fleet is refused it, and output_guide gives the whole language", async () => {
-    await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet" } });
-    expect(textOf(await call("chef", "show_output", { title: "T", ui: UI }))).toBe("This tool is for agents.");
+  describe("for an agent in a group", () => {
+    const shownId = (result: { content: { text: string }[] }) => /new output ([\w-]+) \(/.exec(textOf(result))![1];
+    const rect = ({ x, y, width, height }: { x: number; y: number; width: number; height: number }) => ({ x, y, width, height });
+    const holds = (frame: ExcalidrawElement, e: ExcalidrawElement) =>
+      e.x >= frame.x && e.y >= frame.y && e.x + e.width <= frame.x + frame.width && e.y + e.height <= frame.y + frame.height;
+    const live = (id: string) => scene.find((e) => e.id === id && !e.isDeleted)!;
+
+    /** `ids` in a group whose frame fits them, as Group makes it: their frameId set, the frame after them. */
+    function group(...ids: string[]): string {
+      const members = scene.filter((e) => ids.includes(e.id));
+      const frame = createGroupFrame(frameAround(members.map(rect)), "Justice League", { role: "general", pantheon: "dc" });
+      scene = [...scene.map((e) => (ids.includes(e.id) ? ({ ...e, frameId: frame.id } as ExcalidrawElement) : e)), frame];
+      return frame.id;
+    }
+
+    it("shows the output inside the group, beside its agent: a member of the frame, which grows to hold it", async () => {
+      const frameId = group("batman");
+      const before = rect(live(frameId));
+      const id = shownId(await call("batman", "show_output", { title: "Plan", ui: UI }));
+      const output = live(id);
+      const frame = live(frameId);
+      const source = live("batman");
+      expect(output.frameId).toBe(frameId);
+      expect(holds(frame, output)).toBe(true);
+      // Grown, never shrunk: its top-left corner stays, the agent still in it.
+      expect(frame.x).toBe(before.x);
+      expect(frame.y).toBe(before.y);
+      expect(frame.width).toBeGreaterThan(before.width);
+      expect(holds(frame, source)).toBe(true);
+      // Right of its agent, its top level with the terminal's, as outside a group.
+      expect(output.x).toBe(source.x + source.width + NODE_GAP);
+      expect(output.y).toBe(source.y);
+      // Excalidraw keeps a frame above its children: the output comes before it in the scene.
+      expect(scene.findIndex((e) => e.id === id)).toBeLessThan(scene.findIndex((e) => e.id === frameId));
+      const wire = scene.find((e) => e.type === "arrow" && !e.isDeleted) as ExcalidrawArrowElement;
+      expect([wire.startBinding?.elementId, wire.endBinding?.elementId]).toEqual(["batman", id]);
+      expect(orphanWires(scene)).toEqual([]);
+    });
+
+    it("keeps clear of the group's other members, and so does a second output", async () => {
+      // Robin stands right of Batman, a column of the grid: the spot beside Batman is his.
+      const batman = live("batman");
+      scene = scene.map((e) => (e.id === "robin" ? ({ ...e, x: batman.x + batman.width + 32, y: batman.y } as ExcalidrawElement) : e));
+      const frameId = group("batman", "robin");
+      const first = shownId(await call("batman", "show_output", { title: "one", ui: UI }));
+      const second = shownId(await call("batman", "show_output", { title: "two", ui: UI, new: true }));
+      const frame = live(frameId);
+      const nodes = ["batman", "robin", first, second].map(live);
+      for (const id of [first, second]) {
+        expect(live(id).frameId).toBe(frameId);
+        expect(holds(frame, live(id))).toBe(true);
+      }
+      for (const [i, a] of nodes.entries()) for (const b of nodes.slice(i + 1)) expect(overlap(rect(a), rect(b))).toBe(0);
+    });
+
+    it("leaves an agent in no group as it was: its output in no frame, clear of every group", async () => {
+      const frameId = group("batman");
+      const id = shownId(await call("robin", "show_output", { title: "Robin's", ui: UI }));
+      const output = live(id);
+      expect(output.frameId).toBeNull();
+      expect(overlap(rect(output), rect(live(frameId)))).toBe(0);
+      expect(output.x).toBeGreaterThan(live("robin").x + live("robin").width);
+    });
+
+    it("keeps a frame drawn by hand out: an output never joins a plain frame", async () => {
+      const frame = { ...createGroupFrame(frameAround([rect(live("batman"))]), "Sketch", { role: "general", pantheon: "dc" }), customData: undefined } as ExcalidrawElement;
+      scene = [...scene.map((e) => (e.id === "batman" ? ({ ...e, frameId: frame.id } as ExcalidrawElement) : e)), frame];
+      const id = shownId(await call("batman", "show_output", { title: "Plan", ui: UI }));
+      expect(live(id).frameId).toBeNull();
+      expect(overlap(rect(live(id)), rect(live(frame.id)))).toBe(0);
+    });
+  });
+
+  it("output_guide gives the whole language", async () => {
     const guide = textOf(await call("batman", "output_guide", {}));
     expect(guide).toContain("root = Stack(");
     expect(guide).toContain("BarChart(");
+  });
+
+  describe("for a Fleet", () => {
+    /** A Fleet on the canvas, as a team agent stands on it: the output goes beside its own node. */
+    async function addFleet(at = { x: 5000, y: 0 }) {
+      await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet" } });
+      scene.push({ ...createNodeElement("fleet", at), id: "chef" } as unknown as ExcalidrawElement);
+    }
+    const names = async (nodeId: string) => ((await answer({ callId: 1, nodeId, method: "tools/list", params: {} })) as { tools: { name: string }[] }).tools.map((t) => t.name);
+    const shownId = (result: { content: { text: string }[] }) => /new output ([\w-]+) \(/.exec(textOf(result))![1];
+
+    it("lists show_output and output_guide, which no agent had to draw for it", async () => {
+      await addFleet();
+      expect(await names("chef")).toEqual(expect.arrayContaining(["show_output", "output_guide"]));
+      // The Manager keeps the guide alone: its summary is finish's.
+      await nodesStore.getState().create("boss", { workspaceId: "w1", kind: "terminal", payload: { title: "Manager", name: "Manager", agent: "claude", cwd: "C:/p", shell: "default", command: "", role: "manager", fleet: "chef" } });
+      const manager = await names("boss");
+      expect(manager).toContain("output_guide");
+      expect(manager).not.toContain("show_output");
+      expect((await call("boss", "show_output", { title: "T", ui: UI })).isError).toBe(true);
+    });
+
+    it("shows an output beside its own node, wired to it, and updates it in place", async () => {
+      await addFleet();
+      const result = await call("chef", "show_output", { title: "Plan", ui: UI });
+      expect(result.isError).toBeUndefined();
+      const id = shownId(result);
+      const fleet = scene.find((e) => e.id === "chef")!;
+      const output = scene.find((e) => e.id === id)!;
+      expect(nodeKindOf(output)).toBe("output");
+      // Right of the Fleet, no node under it.
+      expect(output.x).toBeGreaterThanOrEqual(fleet.x + fleet.width);
+      expect(nodesStore.getState().nodes[id]).toMatchObject({ kind: "output", payload: { title: "Plan", source: "chef" } });
+      // A wire joins them, and it is no team link: an output is not an agent of the Fleet.
+      expect(scene.some((e) => e.type === "arrow" && !e.isDeleted && [(e as ExcalidrawArrowElement).startBinding?.elementId, (e as ExcalidrawArrowElement).endBinding?.elementId].sort().join() === ["chef", id].sort().join())).toBe(true);
+      expect(fleetTargets(scene, "chef")).toEqual({ groupIds: [], nodeIds: [] });
+      // A second call without output updates it: no second node.
+      const again = await call("chef", "show_output", { title: "Plan", ui: UI });
+      expect(textOf(again)).toContain(`Your latest output ${id} updated in place`);
+      expect(scene.filter((e) => nodeKindOf(e) === "output")).toHaveLength(1);
+      // An agent cannot update the Fleet's output, nor read it as its own.
+      expect(textOf(await call("robin", "show_output", { title: "x", ui: UI, output: id }))).toContain("was shown by another agent");
+    });
+
+    it("answers what to fix in plain words, as for an agent", async () => {
+      await addFleet();
+      expect(textOf(await call("chef", "show_output", { title: "T", ui: "Just some text" }))).toContain("The first line must be the root statement");
+    });
   });
 
   it("keeps its description short and names every component", async () => {
@@ -277,6 +400,67 @@ describe("read_node", () => {
     expect(textOf(await call("batman", "read_node", { link: "dummyplane://teapot/x1" }))).toContain("is not a dummyPlane link");
     expect(textOf(await call("batman", "read_node", { link: "dummyplane://terminal/nobody" }))).toContain("Nothing in dummyPlane answers to dummyplane://terminal/nobody");
     expect(textOf(await call("batman", "read_node", { link: "dummyplane://subagent/gone" }))).toContain("lasts only as long as the Claude session");
+  });
+
+  describe("by the name a mission lists", () => {
+    const listed = (nodeId: string, name: string): Member => ({ nodeId, name, task: "Login form", budgetMin: 20, linked: false, branch: "dummyplane/login-superman", worktree: "w", sentAt: 1 });
+    const mission = (...members: Member[]) =>
+      nodesStore.getState().update("chef", { mission: { state: "en_cours", maxAgents: 4, members, startedAt: Date.now() } });
+    beforeEach(async () => {
+      await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });
+    });
+
+    it("reads a member the Fleet's team lists, by its name or the start of its id, as it reads a link", async () => {
+      await addTerminal("85a6b1c0-1111", "Superman");
+      mission(listed("85a6b1c0-1111", "Superman"));
+      expect(textOf(await call("chef", "read_node", { link: "superman" }))).toContain("Terminal Superman");
+      expect(textOf(await call("chef", "read_node", { link: "85a6b1" }))).toContain("Terminal Superman");
+    });
+
+    // A stopped agent of the mission read "Nothing answers to Superman now", while `team` still listed it (13 Nov, 4 times).
+    it("says a member whose terminal is gone is stopped, with what the mission kept of it, not that nothing answers", async () => {
+      mission({ ...listed("ff8dcb00-2222", "Celaena"), report: { summary: "Form done, tests green", status: "termine", at: 5 } });
+      for (const link of ["Celaena", "ff8dcb", "dummyplane://terminal/ff8dcb00-2222"]) {
+        const result = await call("chef", "read_node", { link });
+        expect(result.isError).toBeUndefined();
+        const text = textOf(result);
+        expect(text).toContain("Celaena is stopped, and its terminal is gone");
+        expect(text).toContain("Its task: Login form");
+        expect(text).toContain("Form done, tests green");
+        expect(text).not.toContain("Nothing in dummyPlane answers");
+      }
+    });
+
+    it("reads only the missions the caller runs or works for", async () => {
+      mission(listed("ff8dcb00-2222", "Celaena"));
+      expect(textOf(await call("batman", "read_node", { link: "Celaena" }))).toContain("Nothing in dummyPlane answers to Celaena");
+      // Its Manager, and a teammate, are of that mission.
+      await nodesStore.getState().update("chef", { mission: { state: "en_cours", maxAgents: 4, manager: "robin", members: [listed("ff8dcb00-2222", "Celaena"), listed("batman", "Batman")], startedAt: 1 } });
+      expect(textOf(await call("robin", "read_node", { link: "Celaena" }))).toContain("Celaena is stopped");
+      expect(textOf(await call("batman", "read_node", { link: "Celaena" }))).toContain("Celaena is stopped");
+    });
+
+    // `mission` lists "Superman" as a linked agent, one the Fleet is wired to and the team has not taken yet: read_node("Superman") failed.
+    it("reads an agent wired to the Fleet by the name mission lists it under, and the Manager by its name", async () => {
+      await addTerminal("boss", "Manager", { x: 4000, y: 0 }, { role: "manager", fleet: "chef" });
+      const chef = { ...createNodeElement("fleet", { x: 6000, y: 0 }), id: "chef" } as unknown as ExcalidrawElement;
+      rememberScene("w1", withWire([...scene, chef], "chef", "robin") as never, {} as never, {}, []);
+      try {
+        expect(textOf(await call("chef", "read_node", { link: "Robin" }))).toContain("Terminal Robin");
+        mission();
+        nodesStore.getState().update("chef", { mission: { state: "en_cours", maxAgents: 4, manager: "boss", members: [], startedAt: 1 } });
+        expect(textOf(await call("chef", "read_node", { link: "Manager" }))).toContain("Terminal Manager");
+        // An agent nothing wires to it is none of its business.
+        expect(textOf(await call("chef", "read_node", { link: "Batman" }))).toContain("Nothing in dummyPlane answers to Batman");
+      } finally {
+        forgetScene("w1");
+      }
+    });
+
+    it("reads an agent linked to the caller by its name", async () => {
+      scene = withAgentLink(scene, "batman", "robin");
+      expect(textOf(await call("batman", "read_node", { link: "Robin" }))).toContain("Terminal Robin");
+    });
   });
 
   it("is everyone's: a fleet reads a pasted link too", async () => {

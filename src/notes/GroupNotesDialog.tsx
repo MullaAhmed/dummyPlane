@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { EmptyState } from "@/components/EmptyState";
+import { InlineProblem } from "@/components/InlineProblem";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useMessages } from "@/i18n";
+import { messages, useMessages } from "@/i18n";
+import { logError } from "@/lib/errorToast";
 import { AccentButton, QuietButton } from "@/shell/buttons";
-import { ListMessage } from "@/studio/parts";
 import { useProjects } from "@/store/projects";
 import { groupNotesOf, setGroupNotes } from "./groupNotes";
 import { notesAll } from "./ipc";
@@ -23,18 +25,23 @@ function Chooser({ groupId }: { groupId: string }) {
   const [names, setNames] = useState<string[] | null>(null);
   const [chosen, setChosen] = useState(() => groupNotesOf(groupId));
   const [failure, setFailure] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!projectId) return;
     let alive = true;
     notesAll(projectId).then(
       (list) => alive && setNames(list.notes.map((note) => note.name)),
-      (error: unknown) => alive && setFailure(String(error)),
+      (error: unknown) => {
+        if (!alive) return;
+        logError(messages(notesMessages).group.readFailed, error);
+        setFailure(String(error));
+      },
     );
     return () => {
       alive = false;
     };
-  }, [projectId]);
+  }, [projectId, attempt]);
 
   const known = names ?? [];
   const gone = chosen.filter((name) => noteNamed(known.map((n) => ({ name: n })), name) === null);
@@ -49,11 +56,23 @@ function Chooser({ groupId }: { groupId: string }) {
           <DialogDescription>{t.description}</DialogDescription>
         </DialogHeader>
         {failure ? (
-          <ListMessage danger>{failure}</ListMessage>
+          <InlineProblem
+            place="list"
+            title={t.readFailed}
+            next={t.readNext}
+            error={failure}
+            action={{
+              label: t.retry,
+              onClick: () => {
+                setFailure(null);
+                setAttempt((n) => n + 1);
+              },
+            }}
+          />
         ) : names === null ? (
-          <ListMessage>{t.reading}</ListMessage>
+          <EmptyState place="list" grace>{t.reading}</EmptyState>
         ) : rows.length === 0 ? (
-          <ListMessage>{t.empty}</ListMessage>
+          <EmptyState place="list">{t.empty}</EmptyState>
         ) : (
           <ul className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
             {rows.map((name) => (

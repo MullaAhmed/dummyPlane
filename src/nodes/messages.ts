@@ -1,3 +1,4 @@
+import { inLine, stateWords } from "@/agents/messages";
 import { defineMessages } from "@/i18n";
 
 /** The texts of the nodes: terminals, the Fleet. */
@@ -10,16 +11,17 @@ export const nodesMessages = defineMessages(
     },
     pill: {
       starting: "Starting",
-      working: "Working",
-      waiting: "Waiting",
-      ready: "Ready",
+      // The state table's words (`stateWords`): every surface says one word for one state.
+      working: stateWords.working,
+      waiting: stateWords.waiting,
+      ready: stateWords.ready,
       // What its last report says of an agent that is not at work.
-      done: "Done",
-      blocked: "Blocked",
-      failed: "Failed",
+      done: stateWords.done,
+      blocked: stateWords.blocked,
+      failed: stateWords.failed,
       stopped: "Stopped",
-      exited: "Exited",
-      exitedWith: (code: number) => `Exited · ${code}`,
+      exited: stateWords.exited,
+      exitedWith: (code: number) => `${stateWords.exited} · ${code}`,
       // Claude exited and its terminal is back at the shell, which still runs.
       left: "Agent exited",
       // A plain console that runs and is not quiet: no agent, so neither Working nor Waiting (the counts' words).
@@ -75,15 +77,21 @@ export const nodesMessages = defineMessages(
     /** The title of a member's budget bar under its terminal: its time over its budget, in minutes. */
     budgetBar: {
       spent: (spent: number, budget: number) => `${spent} / ${budget} min`,
-      done: (spent: number, budget: number) => `Done in ${spent} min of ${budget}`,
-      blocked: (spent: number, budget: number) => `Blocked after ${spent} min of ${budget}`,
-      failed: (spent: number, budget: number) => `Failed after ${spent} min of ${budget}`,
+      done: (spent: number, budget: number) => `${stateWords.done} in ${spent} min of ${budget}`,
+      blocked: (spent: number, budget: number) => `${stateWords.blocked} after ${spent} min of ${budget}`,
+      failed: (spent: number, budget: number) => `${stateWords.failed} after ${spent} min of ${budget}`,
+    },
+    /** A step of the frieze under a terminal, as its mark is named: "Tests, done". Its shape shows the state; the name says it. */
+    stepMark: {
+      state: { fait: inLine(stateWords.done), en_cours: "in progress", a_venir: "to do", echec: inLine(stateWords.failed) },
+      name: (title: string, state: string) => `${title}, ${state}`,
     },
     file: {
       notFound: "File not found",
       refresh: "Refresh",
       loading: "Loading…",
-      readFailed: (error: string) => `Could not read: ${error}`,
+      readFailed: "Could not read the file",
+      readNext: "Refresh to read it again",
       empty: "Empty file",
     },
     terminal: {
@@ -110,6 +118,8 @@ export const nodesMessages = defineMessages(
       /** A mission's Manager terminal (`@/mission/manager`): its name, and its title with the mission's. */
       managerName: "Manager",
       managerTitle: (mission: string) => `Manager · ${mission}`,
+      /** The group frame that holds a mission's Manager and its team, as a go-ahead's team had before Managers. */
+      teamGroup: (mission: string) => (mission ? `Mission ${mission}` : "Mission"),
       notFound: "Fleet not found",
       clockTitle: "Time spent / overall budget",
       menu: "Fleet menu",
@@ -121,7 +131,7 @@ export const nodesMessages = defineMessages(
     },
     toolsUnavailable: {
       title: "dummyPlane tools unavailable",
-      consequence: "Without them, the fleet could change your branch: it does not start.",
+      consequence: "Without them, the fleet could change your branch: it does not start",
       retry: "Try again",
       openLogs: "Open the logs folder",
     },

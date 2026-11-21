@@ -1,13 +1,20 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { closeRadial } from "@/radial/radialState";
-import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
+import { currentWorkArea } from "@/shell/lane";
+import type { Insets } from "@/shell/layout";
 import { uiStore } from "@/store/ui";
 import { canvasStore } from "./canvasStore";
 import { groupInfoOf } from "./groups";
 import { nodeKindOf } from "./nodeElement";
+import { cameraMotion, type CameraInput } from "./viewActions";
 
-/** The glass bars cover the canvas edges: views fit the zone utile, not the whole window. */
-export const ZONE_OFFSETS = { top: TOP_ROW_HEIGHT, bottom: BOTTOM_BAR_HEIGHT };
+/**
+ * The glass bars, the rails and an occupied lane cover the canvas's edges: views fit the zone utile, the work area
+ * (shell/layout.ts), not the whole window.
+ */
+export function zoneOffsets(): Insets {
+  return currentWorkArea();
+}
 
 /** A group's name sits on its frame, above it: room for the label under the tabs. */
 export const LABEL_ROOM = 24;
@@ -48,21 +55,28 @@ export function overviewTargets(elements: readonly ExcalidrawElement[]): Excalid
   return [...live.filter((e) => e.type === "frame" && holding.has(e.id) && groupInfoOf(e) !== null), ...nodes];
 }
 
-/** Ctrl+Shift+A: every node in view, with an animation and a 10 % margin, then the keyboard to the canvas. */
-export function overview() {
+/**
+ * Ctrl+Shift+A: every node in view, with a 10 % margin, then the keyboard to the canvas. At once from the keyboard;
+ * a glide of CAMERA_MS from the pointer (cameraMotion).
+ */
+export function overview(input: CameraInput) {
   const api = canvasStore.getState().api;
   if (!api) return;
   const targets = overviewTargets(api.getSceneElements());
-  if (targets.length > 0) api.scrollToContent(targets, { fitToViewport: true, viewportZoomFactor: 0.9, animate: true, canvasOffsets: ZONE_OFFSETS });
+  if (targets.length > 0) api.scrollToContent(targets, { fitToViewport: true, viewportZoomFactor: 0.9, ...cameraMotion(input), canvasOffsets: zoneOffsets() });
   releaseToCanvas();
 }
 
-/** A group of "Go to": its frame fitted, at 100 % at most, then the keyboard to the canvas. False when it is gone. */
-export function focusGroup(frameId: string): boolean {
+/**
+ * A group of "Go to": its frame fitted, at 100 % at most, then the keyboard to the canvas, moved as `input` asked
+ * (cameraMotion). False when it is gone.
+ */
+export function focusGroup(frameId: string, input: CameraInput): boolean {
   const api = canvasStore.getState().api;
   const frame = api?.getSceneElements().find((e) => e.id === frameId && e.type === "frame");
   if (!api || !frame) return false;
-  api.scrollToContent(frame, { fitToViewport: true, viewportZoomFactor: 0.9, animate: true, maxZoom: 1, canvasOffsets: { ...ZONE_OFFSETS, top: ZONE_OFFSETS.top + LABEL_ROOM } });
+  const offsets = zoneOffsets();
+  api.scrollToContent(frame, { fitToViewport: true, viewportZoomFactor: 0.9, ...cameraMotion(input), maxZoom: 1, canvasOffsets: { ...offsets, top: offsets.top + LABEL_ROOM } });
   releaseToCanvas();
   return true;
 }

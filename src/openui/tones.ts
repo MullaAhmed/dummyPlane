@@ -38,6 +38,15 @@ export const TONE_SOFT: Record<Tone, string> = {
   danger: "bg-dp-danger/10",
 };
 
+/** The same inks as a fill: a toned Progress bar's, a graphic at 3:1 or more on every ground (they are text inks, 4.5:1). */
+export const TONE_FILL: Record<Tone, string> = {
+  neutral: "bg-dp-text-2",
+  info: "bg-dp-accent-ink",
+  success: "bg-dp-ok",
+  warning: "bg-dp-wait",
+  danger: "bg-dp-danger",
+};
+
 /** The text roles the library writes in. */
 export const TEXT_TOKENS = ["--dp-text", "--dp-text-2", "--dp-text-3"] as const;
 
@@ -54,7 +63,7 @@ export const GROUND_TOKENS = ["--dp-surface", "--dp-card", "--dp-terminal-head"]
 /** A line chart's series, in order: the palette's syntax hues (`@/studio/syntaxHues`), each 4.5:1 or more on the surface. */
 export const SERIES_HUES = ["blue", "green", "magenta", "yellow", "cyan", "red"] as const;
 
-/** A bar's fill, and a progress bar's: the accent's ink and the accent, as palette tokens. */
+/** A bar's fill, and an untoned progress bar's: the accent's ink and the accent, as palette tokens. */
 export const BAR_TOKEN = "--dp-accent-ink";
 export const PROGRESS_TOKEN = "--dp-accent";
 

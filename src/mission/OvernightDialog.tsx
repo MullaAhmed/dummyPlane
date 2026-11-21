@@ -1,10 +1,10 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { Check, Circle, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
-import { toastError } from "@/lib/errorToast";
+import { errorDetail, logError, toastError } from "@/lib/errorToast";
 import { OptionItem, OptionList } from "@/components/OptionList";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { showNode } from "@/canvas/arrive";
 import { messages, useMessages } from "@/i18n";
@@ -86,7 +86,10 @@ function OvernightForm({ nodeId, onOpenChange }: { nodeId: string; onOpenChange:
     let current = true;
     void missionChecks(project).then(
       (found) => current && setChecks(found),
-      (error: unknown) => current && setCheckError(errorText(error)),
+      (error: unknown) => {
+        logError(messages(missionMessages).overnight.checkFailed, error);
+        if (current) setCheckError(errorText(error));
+      },
     );
     return () => {
       current = false;
@@ -139,13 +142,13 @@ function OvernightForm({ nodeId, onOpenChange }: { nodeId: string; onOpenChange:
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      {/* The header and the footer stay put, the sections scroll between them: "Prepare the night" is always in view. */}
-      <DialogContent showCloseButton={false} className="flex max-h-[calc(100vh-2rem)] flex-col sm:max-w-lg">
+      {/* The header and the footer stay put, the sections scroll between them (DialogBody): "Prepare the night" is always in view. */}
+      <DialogContent showCloseButton={false} className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{start.changing ? t.titleChange : t.title}</DialogTitle>
           <DialogDescription>{t.description}</DialogDescription>
         </DialogHeader>
-        <div data-night-body className="-mx-4 flex min-h-0 flex-col gap-5 overflow-y-auto px-4 text-sm text-dp-text">
+        <DialogBody data-night-body className="flex flex-col gap-5 text-sm text-dp-text">
           <Section title={t.time}>
             <div className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2">
               <NumberRow label={t.away} aria={t.awayLabel} unit={t.hours} value={hours} onChange={setHours} min={0.5} max={MAX_AWAY_HOURS} step={0.5} error={awayValid ? undefined : t.awayInvalid(MAX_AWAY_HOURS)} />
@@ -202,7 +205,7 @@ function OvernightForm({ nodeId, onOpenChange }: { nodeId: string; onOpenChange:
             <ul data-checks className="flex flex-col gap-1.5 text-xs">
               {checking && <CheckRow state="pending" text={t.checking} />}
               {checkError !== null && (
-                <CheckRow state="blocked" text={t.checkFailed(checkError)}>
+                <CheckRow state="blocked" text={t.checkFailed} next={t.checkNext} detail={errorDetail(checkError)}>
                   <Button type="button" variant="ghost" size="xs" onClick={checkAgain} className="-my-1 ml-auto shrink-0 font-normal text-dp-text-2 hover:text-dp-text">
                     {t.checkAgain}
                   </Button>
@@ -221,7 +224,7 @@ function OvernightForm({ nodeId, onOpenChange }: { nodeId: string; onOpenChange:
               <CheckRow state="info" text={t.check.awake} />
             </ul>
           </Section>
-        </div>
+        </DialogBody>
         <DialogFooter>
           <QuietButton onClick={() => onOpenChange(false)}>{t.cancel}</QuietButton>
           <AccentButton size="lg" disabled={!valid} onClick={prepare}>
@@ -287,11 +290,16 @@ const MARKS: Record<CheckState, ReactNode> = {
 };
 
 /** A line of the checklist: its mark says the state, so it does not rest on the colour alone. */
-function CheckRow({ state, text, children }: { state: CheckState; text: string; children?: ReactNode }) {
+/** A check's line; one that failed to run adds what to do next and the error's own first line, as a toast does (Alerts). */
+function CheckRow({ state, text, next, detail, children }: { state: CheckState; text: string; next?: string; detail?: string; children?: ReactNode }) {
   return (
     <li data-check={state} role={state === "blocked" ? "alert" : undefined} className={cn("flex items-start gap-2", state === "blocked" ? "text-dp-danger" : "text-dp-text-2")}>
       <span className="mt-0.5 shrink-0">{MARKS[state]}</span>
-      <span className="min-w-0">{text}</span>
+      <span className="grid min-w-0 gap-0.5">
+        <span>{text}</span>
+        {next && <span className="text-dp-text-2">{next}</span>}
+        {detail && <span className="line-clamp-2 font-mono break-words text-dp-text-3">{detail}</span>}
+      </span>
       {children}
     </li>
   );

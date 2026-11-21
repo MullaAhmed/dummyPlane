@@ -15,6 +15,38 @@ import { AGENTS } from "./catalog";
  * router routes a team agent, and it is on everywhere unless Settings or a switch turns it off.
  */
 
+/**
+ * What a sub-agent's work is, as spawn_agent's optional `kind` says it: `plan` (planning, design, hard debugging, a
+ * decision) or routine work, `write` (writing files from a settled plan, mechanical edits, boilerplate) and `verify`
+ * (running tests and reading them, lint and format, search sweeps, a verification pass). A router whose agents rated
+ * the whole task put a costly model on all of it, the typing and the checking included: routine work is held to
+ * `ROUTINE_MAX`, so the costly levels go to thinking.
+ */
+export const WORK_KINDS = ["plan", "write", "verify"] as const;
+export type WorkKind = (typeof WORK_KINDS)[number];
+
+/** A kind as spawn_agent sent it, case aside; undefined for anything else. */
+export function readWorkKind(raw: unknown): WorkKind | undefined {
+  const folded = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return WORK_KINDS.find((kind) => kind === folded);
+}
+
+/** The highest level routine work (`write`, `verify`) opens at. */
+export const ROUTINE_MAX: Level = "moyen";
+
+/** The levels whose models spend the most: what a router keeps for planning and the hard decisions. */
+export const COSTLY_LEVELS: readonly Level[] = ["eleve", "extreme"];
+
+/**
+ * The level a sub-agent opens at once its kind is read: routine work (`write`, `verify`) given a costly level is lowered
+ * to `ROUTINE_MAX`, and `lowered` says from which. `plan`, no kind, or a level already at or below medium keep the level
+ * as given; no level stays none (the router's medium). Read before the router and the ad-hoc gate, so both see it.
+ */
+export function routineLevel(level: Level | undefined, kind: WorkKind | undefined): { level?: Level; lowered?: Level } {
+  if (!level || (kind !== "write" && kind !== "verify") || !COSTLY_LEVELS.includes(level)) return { level };
+  return { level: ROUTINE_MAX, lowered: level };
+}
+
 /** Why a level picked no model: the router is off (at a node's switch, or in Settings), or the CLI has none for it. */
 export type Unrouted = { off: true; at?: string } | { off?: undefined; cli: AgentId };
 

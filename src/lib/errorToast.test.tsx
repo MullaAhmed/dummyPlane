@@ -122,6 +122,48 @@ function firstArguments(text: string, name: RegExp): { at: number; arg: string; 
   return found;
 }
 
+/**
+ * The value of `prop` on every `<tag` in `text`: a string as written, or the expression between its braces, found by
+ * matching them. The tag ends at its first `>` outside braces and quotes (an arrow's `=>` is not one).
+ */
+function jsxProps(text: string, tag: string, prop: string): { at: number; value: string }[] {
+  const found: { at: number; value: string }[] = [];
+  for (const match of text.matchAll(new RegExp(`<${tag}\\b`, "g"))) {
+    let depth = 0;
+    let quote: string | null = null;
+    let start = -1;
+    for (let i = match.index! + match[0].length; i < text.length; i++) {
+      const c = text[i];
+      if (quote) {
+        if (c === "\\") i++;
+        else if (c === quote) {
+          quote = null;
+          if (start >= 0 && depth === 0) {
+            found.push({ at: match.index!, value: text.slice(start, i + 1) });
+            start = -1;
+          }
+        }
+        continue;
+      }
+      const named = depth === 0 && text.slice(i - prop.length - 1, i) === `${prop}=` && /\s/.test(text[i - prop.length - 2]);
+      if (c === '"' || c === "'" || c === "`") {
+        quote = c;
+        if (named) start = i;
+      } else if (c === "{") {
+        if (named) start = i;
+        depth++;
+      } else if (c === "}") {
+        depth--;
+        if (depth === 0 && start >= 0) {
+          found.push({ at: match.index!, value: text.slice(start + 1, i).trim() });
+          start = -1;
+        }
+      } else if (c === ">" && depth === 0 && text[i - 1] !== "=") break;
+    }
+  }
+  return found;
+}
+
 /** What gives a raw error away in a title: an error variable, its message, or the text String() makes of it. */
 const RAW = /\b(?:error|err|e|reason|detail|cause)\b|\bString\(|\berrorText\(|\berrorDetail\(|\.message\b/;
 
@@ -155,6 +197,32 @@ describe("no toast's title is a raw error (Alerts)", () => {
         expect(call, file).not.toMatch(/\bString\((?:error|err|e|reason)\)|\berrorText\(|\.message\b/);
       }
     }
+  });
+
+  it("titles every problem shown inside a panel (InlineProblem) with a sentence of the app too, never with the error", () => {
+    let seen = 0;
+    for (const [file, text] of files) {
+      if (file === "components/InlineProblem.tsx") continue;
+      for (const { at, value } of jsxProps(text, "InlineProblem", "title")) {
+        seen++;
+        expect(value, `${file}:${at}: ${value}`).not.toMatch(RAW);
+      }
+    }
+    // The guard reads the real call sites: the git window, the review, Code Studio, the canvas, the loops…
+    expect(seen).toBeGreaterThanOrEqual(10);
+  });
+
+  it("reads a problem's title however the tag is written: one line or several, a string or an expression", () => {
+    const one = `<InlineProblem place="band" title={t.read(path)} action={{ label: t.go, onClick: () => go() }} />`;
+    expect(jsxProps(one, "InlineProblem", "title")).toEqual([{ at: 0, value: "t.read(path)" }]);
+    const several = `x
+<InlineProblem
+  subtitle={a}
+  title="Could not read"
+  next={t.next}
+/>`;
+    expect(jsxProps(several, "InlineProblem", "title")).toEqual([{ at: 2, value: '"Could not read"' }]);
+    expect(jsxProps(`<InlineProblem title={String(error)} />`, "InlineProblem", "title")[0].value).toMatch(RAW);
   });
 
   it("rejects a title that is a raw error, in the guard's own words", () => {

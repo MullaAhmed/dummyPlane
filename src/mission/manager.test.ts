@@ -3,7 +3,8 @@ import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/exca
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { createNodeElement, NODE_SIZE } from "@/canvas/nodeElement";
-import { GROUP_GAP } from "@/agents/groupLayout";
+import { GROUP_GAP, PADDING, PADDING_BOTTOM, PADDING_TOP } from "@/agents/groupLayout";
+import { groupInfoOf } from "@/canvas/groups";
 import { isLaunching } from "@/agents/spawnFamily";
 import { addTerminal, removeNodes } from "@/agents/terminals";
 import { quietly } from "@/agents/arrivals";
@@ -14,7 +15,7 @@ import { readTerminalPayload } from "@/nodes/types";
 import { isManagerNode, nodesStore, terminalOf } from "@/store/nodes";
 import { isAgentNode } from "@/agents/agentState";
 import { workspacesStore } from "@/store/workspaces";
-import { addTeamMember, boardSpot, managerCenter, managerPayload, setUpBoard, undoSetup } from "./manager";
+import { addTeamMember, boardSpot, keepTeamFrame, managerCenter, managerPayload, removeManager, setUpBoard, teamFrameOf, undoSetup } from "./manager";
 import { missionOf, missionRunner } from "./store";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -79,9 +80,9 @@ describe("where the board and its Manager go", () => {
     expect(spot.y).toBeGreaterThan(group.y + group.height);
   });
 
-  it("centers the Manager under the board, GROUP_GAP below it", () => {
+  it("puts the Manager under the board in its team's group: the frame's left edge on the board's, its top GROUP_GAP below it", () => {
     const board = { x: 736, y: 0, ...NODE_SIZE.kanban };
-    expect(managerCenter(board)).toEqual({ x: 736 + 320, y: 400 + GROUP_GAP + NODE_SIZE.terminal.height / 2 });
+    expect(managerCenter(board)).toEqual({ x: 736 + PADDING + NODE_SIZE.terminal.width / 2, y: 400 + GROUP_GAP + PADDING_TOP + NODE_SIZE.terminal.height / 2 });
   });
 });
 
@@ -97,12 +98,18 @@ describe("setUpBoard at the go-ahead", () => {
     // Linked to the Fleet: its cards follow the mission, its first column is the mission's to-do.
     expect(payload.orchestrator).toEqual({ nodeId: "chef", columnId: payload.columns[0].id });
     expect(element(setup.boardId)).toMatchObject({ x: 640 + GROUP_GAP, y: 0 });
-    // The Manager: a terminal under the board, centered on it.
+    // The Manager: a terminal under the board, in a group of its own, its team's, the frame's left edge on the board's.
     const manager = element(setup.managerId);
-    expect(manager.x + manager.width / 2).toBe(element(setup.boardId).x + NODE_SIZE.kanban.width / 2);
-    expect(manager.y).toBe(NODE_SIZE.kanban.height + GROUP_GAP);
+    const frame = teamFrameOf(scene, setup.managerId)!;
+    expect(frame).toMatchObject({ name: "Mission Auth", x: element(setup.boardId).x, y: NODE_SIZE.kanban.height + GROUP_GAP });
+    expect(groupInfoOf(frame)).toMatchObject({ role: "general" });
+    expect(manager.x).toBe(frame.x + PADDING);
+    expect(manager.y).toBe(frame.y + PADDING_TOP);
+    expect(frame.height).toBe(PADDING_TOP + NODE_SIZE.terminal.height + PADDING_BOTTOM);
+    // Excalidraw keeps a frame above its members.
+    expect(scene.findIndex((e) => e.id === frame.id)).toBeGreaterThan(scene.findIndex((e) => e.id === setup.managerId));
     expect(isManagerNode(setup.managerId)).toBe(true);
-    // An agent like any other for every count (title bar, tabs, home card).
+    // An agent like any other for every count (rail, tabs, home card).
     expect(isAgentNode(nodesStore.getState().nodes[setup.managerId])).toBe(true);
     expect(joined("chef", setup.boardId)).toBe(true);
     expect(joined(setup.boardId, setup.managerId)).toBe(true);
@@ -121,7 +128,7 @@ describe("setUpBoard at the go-ahead", () => {
     expect(setup).toMatchObject({ boardId: "k1", boardMade: false });
     expect(scene.filter((e) => e.type === "embeddable" && e.customData?.kind === "kanban")).toHaveLength(1);
     expect(element("k1")).toMatchObject({ x: 2000, y: 1000 });
-    expect(element(setup.managerId).y).toBe(1000 + NODE_SIZE.kanban.height + GROUP_GAP);
+    expect(element(setup.managerId).y).toBe(1000 + NODE_SIZE.kanban.height + GROUP_GAP + PADDING_TOP);
     expect(missionOf(nodesStore.getState().nodes.chef)?.boardMade).toBeUndefined();
   });
 
@@ -148,8 +155,10 @@ describe("setUpBoard at the go-ahead", () => {
   it("takes back what a failed launch made: the Manager and a new board, never a board the user handed over", async () => {
     await fleet();
     const setup = await setUpBoard("chef", "w1", missionOf(nodesStore.getState().nodes.chef)!, "claude", quietly("mission"));
+    const frame = teamFrameOf(scene, setup.managerId)!;
     undoSetup("chef", "w1", setup);
-    expect(removeNodes).toHaveBeenCalledWith([setup.managerId, setup.boardId]);
+    // The Manager's group goes with it: made with it, it holds nothing else.
+    expect(removeNodes).toHaveBeenCalledWith([setup.managerId, frame.id, setup.boardId]);
     expect(missionOf(nodesStore.getState().nodes.chef)).not.toHaveProperty("manager", expect.anything());
     expect(missionOf(nodesStore.getState().nodes.chef)?.board).toBeUndefined();
     vi.mocked(removeNodes).mockClear();
@@ -204,5 +213,61 @@ describe("a team agent under its Manager", () => {
     expect(wire.startBinding?.elementId).toBe(setup.managerId);
     expect(isSpawnWire(wire)).toBe(true);
     expect(isLaunching(id)).toBe(true);
+    // In its Manager's group, before its frame: the tree's reflow lays it out there and grows the frame around it.
+    const frame = teamFrameOf(scene, setup.managerId)!;
+    expect(element(id).frameId).toBe(frame.id);
+    expect(scene.findIndex((e) => e.id === id)).toBeLessThan(scene.findIndex((e) => e.id === frame.id));
+  });
+});
+
+describe("the mission keeps its team's group", () => {
+  const payload: TerminalPayload = { title: "Robin", name: "Robin", agent: "claude", cwd: "C:/w/robin", shell: "default", command: "", };
+
+  it("records it when the Manager's group is made, and again when a launch is tried again, and forgets it with the Manager", async () => {
+    await fleet();
+    const setup = await setUpBoard("chef", "w1", missionOf(nodesStore.getState().nodes.chef)!, "claude", quietly("mission"));
+    const frame = teamFrameOf(scene, setup.managerId)!;
+    expect(missionOf(nodesStore.getState().nodes.chef)?.teamFrame).toBe(frame.id);
+    // A saved mission reads it back.
+    expect(readMission(JSON.parse(JSON.stringify(missionOf(nodesStore.getState().nodes.chef))))?.teamFrame).toBe(frame.id);
+    nodesStore.getState().update("chef", { mission: { ...missionOf(nodesStore.getState().nodes.chef)!, teamFrame: undefined } });
+    await setUpBoard("chef", "w1", missionOf(nodesStore.getState().nodes.chef)!, "claude", quietly("mission"));
+    expect(missionOf(nodesStore.getState().nodes.chef)?.teamFrame).toBe(frame.id);
+    undoSetup("chef", "w1", setup);
+    expect(missionOf(nodesStore.getState().nodes.chef)?.teamFrame).toBeUndefined();
+  });
+
+  it("puts a new agent in it when the Manager is closed and nobody else stands there: by the id, not by who is in it", async () => {
+    await fleet();
+    const setup = await setUpBoard("chef", "w1", missionOf(nodesStore.getState().nodes.chef)!, "claude", quietly("mission"));
+    const frame = teamFrameOf(scene, setup.managerId)!;
+    // The Manager closed, as a restart leaves it: its element gone, the group empty.
+    scene = scene.filter((e) => e.id !== setup.managerId).map((e) => (e.id === frame.id ? { ...e, boundElements: [] } : e));
+    const id = (await addTeamMember("w1", setup.managerId, payload, "Login", quietly("mission")))!;
+    expect(element(id).frameId).toBe(frame.id);
+    expect(scene.filter((e) => e.type === "frame" && !e.isDeleted)).toHaveLength(1);
+  });
+
+  it("keeps the id of a mission started before it was kept, found once its Fleet or Manager runs after a restart", async () => {
+    await fleet();
+    const setup = await setUpBoard("chef", "w1", missionOf(nodesStore.getState().nodes.chef)!, "claude", quietly("mission"));
+    const frame = teamFrameOf(scene, setup.managerId)!;
+    nodesStore.getState().update("chef", { mission: { ...missionOf(nodesStore.getState().nodes.chef)!, teamFrame: undefined } });
+    keepTeamFrame("chef");
+    expect(missionOf(nodesStore.getState().nodes.chef)?.teamFrame).toBe(frame.id);
+  });
+});
+
+describe("the team's group at the mission's clean-up", () => {
+  it("goes with the Manager once the team left it, and stays while an agent still stands in it", async () => {
+    await fleet();
+    const setup = await setUpBoard("chef", "w1", missionOf(nodesStore.getState().nodes.chef)!, "claude", quietly("mission"));
+    const frame = teamFrameOf(scene, setup.managerId)!;
+    removeManager("chef");
+    expect(removeNodes).toHaveBeenLastCalledWith([setup.managerId, frame.id]);
+    // A team agent's own sub-agent left open by the mission's end: the group stays with it.
+    scene = [...scene.filter((e) => e.id !== frame.id), { ...createNodeElement("terminal", { x: 0, y: 0 }), id: "kid", frameId: frame.id }, frame];
+    removeManager("chef");
+    expect(removeNodes).toHaveBeenLastCalledWith([setup.managerId]);
   });
 });

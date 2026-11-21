@@ -13,7 +13,7 @@ import { fleetTool, fleetTools, managerTool } from "./fleetTools";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
+vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }));
 vi.mock("@/mission/launch", async () => {
   const { NEW_MISSION: blank } = await import("@/mission/mission");
   const { nodesStore: store } = await import("@/store/nodes");
@@ -23,11 +23,12 @@ vi.mock("@/mission/launch", async () => {
     reassignTask: vi.fn(),
     deliveryPending: vi.fn(() => false),
     launchMission: vi.fn(() => Promise.resolve()),
+    cleaningNow: vi.fn(() => false),
     // The panel's cleanup, as far as these tests look: it frees the Fleet with a blank mission, its settings kept.
     cleanMission: vi.fn(async (fleetId: string) => {
       const mission = (store.getState().nodes[fleetId]?.payload as { mission?: { maxAgents: number; router?: boolean } }).mission;
       store.getState().update(fleetId, { mission: { ...blank, maxAgents: mission?.maxAgents ?? blank.maxAgents, ...(mission?.router ? { router: true } : {}) } });
-      return { removed: ["auth-batman", "auth"], kept: [] as string[] };
+      return { removed: ["auth-batman", "auth"], kept: [] as string[], open: [] };
     }),
   };
 });
@@ -45,9 +46,6 @@ const finished = (extra: Partial<Mission> = {}): Partial<Mission> => ({
 });
 const plan = { name: "Next", task: "T", subtasks: [{ title: "Docs", brief: "Write them", agent: "new", budget_min: 5 }] };
 
-/** What the project's git would say the cleanup leaves in place: `mission_cleanup_unsaved`'s answer. */
-let unsaved: string[] | Error = [];
-let asked: Record<string, unknown>[] = [];
 
 async function setup(mission: Partial<Mission>) {
   await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef", session, mission: { ...NEW_MISSION, ...mission } } });
@@ -56,14 +54,7 @@ async function setup(mission: Partial<Mission>) {
 beforeEach(() => {
   // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
   modelRouterStore.setState({ on: false, levels: {} });
-  unsaved = [];
-  asked = [];
-  mockIPC((command, args) => {
-    if (command !== "mission_cleanup_unsaved") return undefined;
-    asked.push(args as Record<string, unknown>);
-    if (unsaved instanceof Error) throw unsaved;
-    return unsaved;
-  });
+  mockIPC(() => undefined);
   vi.clearAllMocks();
   workspacesStore.setState({ activeId: "w1" });
   agentActivityStore.setState({ activities: {} });
@@ -78,29 +69,33 @@ describe("clean_up_mission", () => {
     expect(cleanMission).toHaveBeenCalledOnce();
     expect(cleanMission).toHaveBeenCalledWith("chef");
     expect(textOf(result)).toBe(
-      'Mission "Auth" cleaned up: the worktrees of its team that were merged are removed (the branches stay), its Manager (if it had one) is closed, and the mission starts again blank. ' +
-        "Its branch dummyplane/auth stays too: the user merges it into their own, and the next mission starts from the project's current commit. " +
+      `Mission "Auth" cleaned up: its team's terminals that were done are closed, its Manager (if it had one) too, its worktrees removed (uncommitted work committed first on its own branch, as "WIP saved at clean-up"), the branches whose work is all on the user's branch deleted, and the mission starts again blank. ` +
+        "Removed: auth-batman, auth. " +
         "Its summary is no longer in the panel: tell the user what it said, if you have not. Summary: Login and API shipped. To check by hand: Read the migration.",
     );
-    // The same check the panel's cleanup would keep nothing from: the project, the mission's slug, every member.
-    expect(asked).toEqual([{ project: "C:/code/proj", mission: "auth", agents: [{ name: "Batman" }] }]);
     expect(missionOf(nodesStore.getState().nodes.chef)).toMatchObject({ state: "redaction", maxAgents: 3, members: [] });
   });
 
-  it("shows a quiet toast, 'Mission <name> cleaned up'", async () => {
+  it("shows the user a notice, 'Mission <name> cleaned up', with what went", async () => {
     await setup(finished());
     await fleetTool("chef", "clean_up_mission", {});
-    expect(toast).toHaveBeenCalledWith("Mission Auth cleaned up");
+    expect(toast.success).toHaveBeenCalledWith("Mission Auth cleaned up", { id: "cleaned-Auth", description: "Removed: auth-batman, auth." });
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it("names the worktrees the real cleanup still left in place", async () => {
+  it("names what the real cleanup kept, and shows it to the user until dismissed", async () => {
     await setup(finished());
     vi.mocked(cleanMission).mockImplementationOnce(async (fleetId) => {
       nodesStore.getState().update(fleetId, { mission: { ...NEW_MISSION } });
-      return { removed: ["auth-batman"], kept: ["auth (Permission denied)"] };
+      return { removed: ["auth-batman"], kept: ["auth (Permission denied)", "dummyplane/auth (its worktree auth stays)"], open: [] };
     });
-    expect(textOf(await fleetTool("chef", "clean_up_mission", {}))).toContain("Left in place: auth (Permission denied).");
+    expect(textOf(await fleetTool("chef", "clean_up_mission", {}))).toContain("Kept, and shown to the user with why: auth (Permission denied); dummyplane/auth (its worktree auth stays).");
+    expect(toast.success).toHaveBeenCalledWith("Mission Auth cleaned up", {
+      id: "cleaned-Auth",
+      description: "Removed: auth-batman. Kept: auth (Permission denied); dummyplane/auth (its worktree auth stays).",
+      duration: Infinity,
+      closeButton: true,
+    });
   });
 
   it("tells a git failure after the checks, the mission being blank all the same", async () => {
@@ -111,22 +106,23 @@ describe("clean_up_mission", () => {
     });
     const result = await fleetTool("chef", "clean_up_mission", {});
     expect(result.isError).not.toBe(true);
-    expect(textOf(result)).toContain("Git said: The project folder is not a git repository. Some worktrees may be left in place.");
+    expect(textOf(result)).toContain("Git said: The project folder is not a git repository. Some worktrees and branches may be left in place.");
     expect(toast.error).toHaveBeenCalled();
   });
 
   it.each([
     ["lancement", "A mission is under way: it can be cleaned up once it is finished."],
     ["en_cours", "A mission is under way: it can be cleaned up once it is finished."],
-    ["redaction", "No finished mission to clean up."],
-    ["plan", "No finished mission to clean up."],
+    ["redaction", "No finished mission to clean up: only a mission that finished is cleaned up"],
+    ["plan", "No finished mission to clean up: only a mission that finished is cleaned up"],
   ] as const)("refuses a mission that is %s and touches nothing", async (state, text) => {
     await setup({ state, members: [member("a1", "Batman")], project: "C:/code/proj", slug: "auth" });
     const result = await fleetTool("chef", "clean_up_mission", {});
     expect(result.isError).toBe(true);
-    expect(textOf(result)).toBe(text);
+    // The refusal says what to do instead: nothing ran, so planning needs no cleanup.
+    expect(textOf(result)).toContain(text);
+    if (state === "redaction" || state === "plan") expect(textOf(result)).toContain("call propose_plan");
     expect(cleanMission).not.toHaveBeenCalled();
-    expect(asked).toEqual([]);
   });
 
   it("refuses an overnight run: its report is the user's, and the cleanup would restart the Fleet's own session", async () => {
@@ -151,27 +147,11 @@ describe("clean_up_mission", () => {
     expect(textOf(await fleetTool("chef", "clean_up_mission", {}))).toContain("still at work: Batman, Manager.");
   });
 
-  it("refuses with a branch not merged or uncommitted work, names it, and cleans nothing", async () => {
-    await setup(finished());
-    unsaved = ["auth-batman (branch not merged)", "auth-aquaman (uncommitted changes)"];
+  it("no longer refuses for a branch not merged or uncommitted work: the cleanup commits the one on its branch and keeps the other (#13)", async () => {
+    await setup(finished({ members: [member("a1", "Batman", { report: { summary: "stuck", status: "bloque", at: 2 }, merged: false })] }));
     const result = await fleetTool("chef", "clean_up_mission", {});
-    expect(result.isError).toBe(true);
-    expect(textOf(result)).toBe(
-      "Not cleaned up: something is unsaved (auth-batman (branch not merged); auth-aquaman (uncommitted changes)). The user decides what to do with it, then cleans the mission up from the panel.",
-    );
-    expect(cleanMission).not.toHaveBeenCalled();
-    expect(missionOf(nodesStore.getState().nodes.chef)?.state).toBe("terminee");
-    expect(toast).not.toHaveBeenCalled();
-  });
-
-  it("refuses when git cannot say what the cleanup would leave: nothing is cleaned on a guess", async () => {
-    await setup(finished());
-    unsaved = new Error("The folder C:/code/proj is not a git repository.");
-    const result = await fleetTool("chef", "clean_up_mission", {});
-    expect(result.isError).toBe(true);
-    expect(textOf(result)).toContain("dummyPlane could not check what the cleanup would leave behind");
-    expect(textOf(result)).toContain("not a git repository");
-    expect(cleanMission).not.toHaveBeenCalled();
+    expect(result.isError).not.toBe(true);
+    expect(cleanMission).toHaveBeenCalledOnce();
   });
 
   describe("the board's open cards", () => {
@@ -202,7 +182,7 @@ describe("clean_up_mission", () => {
       const result = await fleetTool("chef", "clean_up_mission", {});
       expect(result.isError).toBe(true);
       // Only the mission's: the user's own card on the same board is none of its business.
-      expect(textOf(result)).toContain('something is unsaved (1 task not done or never started: "API")');
+      expect(textOf(result)).toContain(`the mission's work is not over (1 task not done or never started: "API")`);
       expect(cleanMission).not.toHaveBeenCalled();
     });
 
@@ -224,10 +204,15 @@ describe("clean_up_mission", () => {
   it("is in the Fleet's tools, with no argument, and in no one else's", () => {
     const fleet = fleetTools();
     expect(fleet.map((tool) => tool.name)).toContain("clean_up_mission");
-    expect(fleet.map((tool) => tool.name).indexOf("clean_up_mission")).toBe(fleet.map((tool) => tool.name).indexOf("stop_mission") + 1);
+    // In the order a mission ends: stopped or landed, then cleaned up.
+    const names = fleet.map((tool) => tool.name);
+    expect(names.slice(names.indexOf("stop_mission"), names.indexOf("stop_mission") + 3)).toEqual(["stop_mission", "land", "clean_up_mission"]);
     const tool = fleet.find((spec) => spec.name === "clean_up_mission")!;
     expect(tool.inputSchema).toEqual({ type: "object", properties: {} });
     expect(tool.description).toContain("Refused while a mission is running or was an overnight run");
+    // It is the close-mission step, and says so plainly.
+    expect(tool.description).toContain('Close the finished mission (this is the "close mission" step)');
+    expect(tool.description).toContain("without losing work");
     // A Codex fleet has it too: the cleanup is dummyPlane's, not Claude's.
     expect(fleetTools({ claude: false }).map((spec) => spec.name)).toContain("clean_up_mission");
   });
@@ -245,25 +230,26 @@ describe("propose_plan on a finished mission", () => {
     expect(text).toContain("Plan proposed: 1 sub-task.");
     // The settings the cleanup keeps (Max agents, the router) are the new plan's.
     expect(missionOf(nodesStore.getState().nodes.chef)).toMatchObject({ state: "plan", name: "Next", maxAgents: 3, router: true, members: [] });
-    expect(toast).toHaveBeenCalledWith("Mission Auth cleaned up");
+    expect(toast.success).toHaveBeenCalledWith("Mission Auth cleaned up", { id: "cleaned-Auth", description: "Removed: auth-batman, auth." });
   });
 
-  it("keeps the old refusal, and names what is unsaved, so the user decides", async () => {
-    await setup(finished());
-    unsaved = ["auth-batman (uncommitted changes)"];
+  it("keeps the old refusal while the mission's work is not over, and names it, so the user decides", async () => {
+    await setup(finished({ queue: [{ title: "Docs", brief: "b", budgetMin: 5 }] }));
     const result = await fleetTool("chef", "proposer_plan", { nom: "Next", tache: "T", sous_taches: [{ titre: "Docs", consigne: "b", agent: "nouveau", budget_min: 5 }] });
     expect(result.isError).toBe(true);
     expect(textOf(result)).toBe(
       "The mission is finished: the user cleans it up from the panel, then you can propose a new plan. " +
-        "Not cleaned up: something is unsaved (auth-batman (uncommitted changes)). The user decides what to do with it, then cleans the mission up from the panel.",
+        `Not cleaned up: the mission's work is not over (1 task not done or never started: "Docs"). The user decides what to do with it, then cleans the mission up from the panel.`,
     );
     expect(cleanMission).not.toHaveBeenCalled();
     expect(missionOf(nodesStore.getState().nodes.chef)).toMatchObject({ state: "terminee", name: "Auth" });
   });
 
-  it("is refused while the mission runs, and for an overnight run, as before", async () => {
-    await setup({ state: "en_cours", members: [] });
-    expect(textOf(await fleetTool("chef", "proposer_plan", { nom: "N", tache: "T", sous_taches: [] }))).toBe("A mission is already under way: finish it before proposing another.");
+  it("is refused while the team forms, and for an overnight run, as before (a running mission is amended instead, `amendment.test.ts`)", async () => {
+    await setup({ state: "lancement", members: [] });
+    expect(textOf(await fleetTool("chef", "proposer_plan", { nom: "N", tache: "T", sous_taches: [] }))).toBe(
+      "The team is forming: once the mission runs, propose_plan proposes an amendment to its waiting tasks.",
+    );
     nodesStore.getState().update("chef", { mission: { ...NEW_MISSION, ...finished({ overnight: true, budgetMin: 60 }) } });
     const result = await fleetTool("chef", "proposer_plan", { nom: "N", tache: "T", sous_taches: [] });
     expect(result.isError).toBe(true);

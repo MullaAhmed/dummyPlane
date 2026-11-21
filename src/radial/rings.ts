@@ -123,7 +123,7 @@ function arrangeAround(nodeOf: (ctx: CommandContext) => string | null | undefine
     return id ? groupHolding(id) : null;
   };
   return {
-    command: (ctx) => (groupOfNode(ctx) ? "group.arrangeAs" : "scene.arrangeAs"),
+    command: (ctx) => (groupOfNode(ctx) ? "group.arrange" : "scene.arrange"),
     short: "arrange",
     icon: LayoutGrid,
     // The canvas, whole: not whatever Excalidraw has selected elsewhere.
@@ -136,7 +136,7 @@ function arrangeAround(nodeOf: (ctx: CommandContext) => string | null | undefine
 const folded = (ctx: CommandContext) => canvasStore.getState().frames.find((f) => f.id === ctx.groupId)?.group?.folded === true;
 /**
  * Arrange moves nodes and frames, and drawings stay where they are: for a selection of drawings
- * alone it would arrange the whole canvas instead, which is not what the selection's ring means.
+ * alone there is nothing for the selection's Arrange to move, so it is greyed with its reason.
  */
 function drawingsAlone(ctx: CommandContext): string | null {
   const ids = new Set(ctx.selectionIds ?? []);
@@ -163,7 +163,7 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
     { command: "agent.inFolder", short: "inFolder", icon: FolderOpen },
     { command: "agent.fleet", short: "fleet", icon: Network },
     { command: "drawing.paste", short: "paste", icon: ClipboardPaste },
-    { command: "scene.arrangeAs", short: "arrange", icon: LayoutGrid },
+    { command: "scene.arrange", short: "arrange", icon: LayoutGrid },
     { command: "agent.other", short: "otherAgent", icon: Plus },
     // A board in More's place (12 Nov): the canvas ring has no arc. Overview, export, import and PNG are the palette's.
     { command: "studio.kanban", short: "kanban", icon: Kanban },
@@ -189,7 +189,7 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
     { command: "group.linkFleet", short: "linkFleet", icon: Network },
     { command: "group.pause", short: "pause", icon: Pause },
     { command: "group.close", short: "close", icon: X, danger: true },
-    { command: "group.arrangeAs", short: "arrange", icon: LayoutGrid },
+    { command: "group.arrange", short: "arrange", icon: LayoutGrid },
     { command: "group.resume", short: "resume", icon: Play },
   ],
   fleet: [
@@ -212,8 +212,8 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
     { command: "drawing.front", short: "toFront", icon: BringToFront },
     { command: "drawing.delete", short: "delete", icon: Trash2, danger: true },
     { command: "drawing.back", short: "toBack", icon: SendToBack },
-    // The selection's blocks, or inside the one group selected (scene.arrange reads the ring's selection).
-    { command: "scene.arrangeAs", short: "arrange", icon: LayoutGrid, reason: drawingsAlone },
+    // The selection's blocks, or inside the one group selected, at once in the saved layout (scene.arrangeSelection reads the ring's selection and never the whole canvas).
+    { command: "scene.arrangeSelection", short: "arrange", icon: LayoutGrid, reason: drawingsAlone },
   ],
 };
 

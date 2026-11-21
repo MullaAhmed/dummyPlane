@@ -17,6 +17,8 @@ export type DotState = "working" | "waiting" | "idle" | "done" | "stopped" | "er
  * reduced motion a slower, shallower one (dp-breath, index.css), nothing else.
  * Its ring is an outline: off the layout, so the dot keeps its 8px place, and
  * with a clear gap that shows whatever ground it sits on.
+ * A stopped agent's ring is a step quieter than an idle one by its ink (text-3
+ * for text-2), never by opacity: a faded ring fell to 2.5:1 (legibility.test.ts).
  */
 const LOOK: Record<DotState, string> = {
   working: "rounded-full bg-dp-accent",
@@ -24,8 +26,8 @@ const LOOK: Record<DotState, string> = {
     "rounded-full bg-dp-wait outline-[1.5px] outline-offset-1 outline-dp-wait motion-safe:animate-pulse motion-reduce:animate-[dp-breath_3s_ease-in-out_infinite]",
   idle: "rounded-full border-[1.5px] border-dp-text-2",
   done: "rounded-full border-[1.5px] border-dp-ok",
-  stopped: "rounded-full border-[1.5px] border-dp-text-3 opacity-60",
-  error: "rounded-[2px] bg-dp-danger",
+  stopped: "rounded-full border-[1.5px] border-dp-text-3",
+  error: "rounded-xs bg-dp-danger",
 };
 
 /** The dot of a status pill's tone: one look for the two working tones. */

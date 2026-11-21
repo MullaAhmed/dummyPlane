@@ -4,7 +4,7 @@ import { sessionOf, type NodeRecord } from "@/store/nodes";
 import type { TerminalStatus } from "@/store/terminalStatus";
 
 /**
- * Where an agent stands: the one reading that every count shares (the title bar's counters, the rail's pip,
+ * Where an agent stands: the one reading that every count shares (the rail's pip, the title bar's Working count,
  * the agents panel's filters, the group labels, the tab badges, Go to). The status pill reads it the same way
  * (`pillOf`), so a count never says an agent works while its pill says otherwise.
  * - `starting`: its process is on its way;

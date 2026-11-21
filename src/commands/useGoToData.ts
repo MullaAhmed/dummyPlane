@@ -55,7 +55,7 @@ export function useGoToData(): { items: GoToItem[]; loading: boolean } {
     };
   }, [home, workspaces, activeWorkspaceId]);
 
-  // A workspace's "N active": its live agents, as its tab's badge and the title bar count them.
+  // A workspace's "N active": its live agents, as its tab's badge counts them.
   const live = Object.fromEntries(workspaces.map((w) => [w.id, tallyAgents(workspaceNodeIds(nodes, w.id), nodes, statuses, activities).active]));
   // At home no project is open, even if "All projects…" kept the last one's id.
   const items = goToItems({ home, projects, activeProjectId: home ? null : activeProjectId, workspaces, activeWorkspaceId, scenes, nodes, live });

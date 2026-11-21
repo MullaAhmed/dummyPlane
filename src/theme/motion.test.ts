@@ -144,11 +144,24 @@ describe("nothing the keyboard sets off, nor what the pointer sweeps, is animate
       ["studio/CodeWorkspace.tsx", /"flex h-7 w-full items-center gap-1 pr-2[^"]*"/],
       ["notes/NotesWorkspace.tsx", /"block w-full px-3 py-1\.5 text-left[^"]*"/],
       ["canvas/ExtensionList.tsx", /"group\/row flex min-h-10[^"]*"/],
+      // The Settings menu's rows are the menu primitive's, with only their padding set here.
+      ["shell/SettingsMenu.tsx", /const ITEM =\s*"[^"]*"/],
+      ["shell/SettingsMenu.tsx", /const CHOICE =\s*"[^"]*"/],
     ];
     for (const [file, row] of rows) {
       const classes = row.exec(readSource(file));
       expect(classes, `${file} keeps its row`).not.toBeNull();
       expect(classes![0], file).not.toMatch(/transition|duration-/);
+    }
+    // And the primitive's own rows, which every menu's row and the Settings menu's come from.
+    for (const [file, slot] of [
+      ["components/ui/dropdown-menu.tsx", "dropdown-menu-item"],
+      ["components/ui/dropdown-menu.tsx", "dropdown-menu-checkbox-item"],
+      ["components/ui/dropdown-menu.tsx", "dropdown-menu-radio-item"],
+      ["components/ui/dropdown-menu.tsx", "dropdown-menu-sub-trigger"],
+      ["components/ui/select.tsx", "select-item"],
+    ]) {
+      expect(slotClasses(file, slot).filter((c) => /transition|duration-/.test(c)), `${slot} snaps`).toEqual([]);
     }
   });
 
@@ -173,3 +186,96 @@ describe("nothing the keyboard sets off, nor what the pointer sweeps, is animate
   });
 });
 
+
+/**
+ * Every component and class table of src: the chrome and the panels, and where the motion drifted outside them
+ * (the canvas's own controls, the radial ring, the nodes, the notifications, lib).
+ */
+const CODE = /\.tsx?$/;
+
+/** The class strings of a file: its double-quoted literals that name a utility of `pattern`. */
+const classStrings = (text: string, pattern: RegExp) => (text.match(/"[^"\n]*"/g) ?? []).filter((s) => pattern.test(s));
+
+/** Movement: what reduced motion drops. A list that names only these may stop altogether. */
+const MOVES = new Set(["transform", "translate", "scale", "rotate"]);
+
+/** The properties a class string transitions, or null when it names no transition of its own. */
+function transitioned(classes: string): string[] | null {
+  const list = /(?<![\w:-])transition-\[([^\]]*)\]/.exec(classes);
+  if (list) return list[1].split(",");
+  const named = /(?<![\w:-])transition-(colors|opacity|transform|shadow)(?![\w-])/.exec(classes);
+  if (named) return named[1] === "colors" ? ["color", "background-color", "border-color"] : [named[1]];
+  return null;
+}
+
+/** Row fills that keep `motion-reduce:transition-none` until their card makes them snap (rows the pointer sweeps: no transition at all). */
+const ROW_FILLS = new Set(["agents/AgentRow.tsx", "agents/AgentsPanel.tsx", "loops/LoopsDialog.tsx", "notes/GroupNotesDialog.tsx", "shell/SettingsMenu.tsx"]);
+
+describe("motion follows the input, wherever it is written", () => {
+  it("moves on the motion tokens in every file: no hard-coded duration or ease on a utility, no transition-all", () => {
+    const files = Object.entries(sourceFiles()).filter(([file]) => CODE.test(file));
+    expect(files.length).toBeGreaterThan(400);
+    expect(files.map(([file]) => file)).toEqual(
+      expect.arrayContaining(["shell/CommandBar.tsx", "agents/AgentsPanel.tsx", "canvas/Canvas.tsx", "radial/RadialMenu.tsx", "nodes/note/NoteNode.tsx", "notifications/NotificationPanel.tsx", "lib/errorToast.tsx"]),
+    );
+    for (const [file, text] of files) {
+      // Not preceded by a word or a dash: `ease-(--dp-ease-out)` holds an `ease-out` of its own.
+      expect(text.match(/(?<![\w-])duration-\d+\b/g) ?? [], `${file}: duration-(--dp-dur-fast) or duration-(--dp-dur)`).toEqual([]);
+      expect(text.match(/(?<![\w-])ease-(out|in|in-out|linear)\b/g) ?? [], `${file}: ease-(--dp-ease-out)`).toEqual([]);
+      expect(/transition-all/.test(text), `${file}: list the transitioned properties`).toBe(false);
+    }
+  });
+
+  it("keeps a colour fade under reduced motion: `motion-reduce:transition-none` only on a list that moves and nothing else", () => {
+    for (const [file, text] of Object.entries(sourceFiles())) {
+      if (ROW_FILLS.has(file)) continue;
+      for (const classes of classStrings(text, /motion-reduce:transition-none/)) {
+        const list = transitioned(classes);
+        if (!list) continue;
+        expect(list.filter((p) => !MOVES.has(p)), `${file}: motion-reduce:transition-[the colours] in ${classes}`).toEqual([]);
+      }
+    }
+  });
+
+  it("stops every press under reduced motion: an `active:scale-[…]` comes with `motion-reduce:active:scale-100`", () => {
+    for (const [file, text] of Object.entries(sourceFiles())) {
+      for (const classes of classStrings(text, /(?<![\w-])active:scale-\[/)) {
+        expect(classes, `${file}: motion-reduce:active:scale-100`).toContain("motion-reduce:active:scale-100");
+      }
+      for (const classes of classStrings(text, /(?<![\w:-])scale-\[0\.9\d*\]/)) {
+        expect(classes, `${file}: a held press, motion-reduce:scale-100`).toContain("motion-reduce:scale-100");
+      }
+    }
+  });
+
+  it("moves the camera at once for the keyboard and for CAMERA_MS otherwise: no `scrollToContent` on Excalidraw's own 500 ms", () => {
+    for (const [file, text] of Object.entries(sourceFiles())) {
+      const calls = text.match(/scrollToContent\([^;]*\)/g) ?? [];
+      for (const call of calls) {
+        expect(call, `${file}: ...cameraMotion(input)`).not.toMatch(/animate:\s*true|duration:\s*\d/);
+      }
+    }
+    expect(readSource("canvas/viewActions.ts")).toMatch(/export const CAMERA_MS = (\d+);/);
+    expect(Number(/export const CAMERA_MS = (\d+);/.exec(readSource("canvas/viewActions.ts"))![1])).toBeLessThanOrEqual(300);
+  });
+
+  it("opens at once what a request opened: every overlay a `useUiRequest` answers carries `data-instant`", () => {
+    const overlay = /<(PopoverContent|DropdownMenuContent|DialogContent|PointMenu)\b/;
+    const instant = /<PointMenu\b|data-instant=|<DialogContent instant\b/;
+    // The rename requests edit a name where it is written: no overlay opens.
+    const answered = Object.entries(sourceFiles()).filter(([, text]) => /useUiRequest\(\s*"(?!rename)/.test(text));
+    expect(answered.map(([file]) => file)).toEqual(expect.arrayContaining(["agents/ComposeGroup.tsx", "agents/ArrangeLayoutMenu.tsx", "loops/LoopsDialog.tsx"]));
+    for (const [file, text] of answered) {
+      expect(overlay.test(text), `${file} opens an overlay`).toBe(true);
+      expect(instant.test(text), `${file}: data-instant when a request opened it`).toBe(true);
+    }
+    // A dialog's scrim is a sibling of its content: `instant` marks both, or the scrim still fades.
+    const dialog = readSource("components/ui/dialog.tsx");
+    expect(dialog).toMatch(/<DialogOverlay data-instant=\{instant \? "" : undefined\} \/>/);
+    expect(dialog).toMatch(/data-slot="dialog-content"\s+data-instant=\{instant \? "" : undefined\}/);
+  });
+
+  it("eases the checkbox on the house curve, not Tailwind's default", () => {
+    expect(slotClasses("components/ui/checkbox.tsx", "checkbox")).toEqual(expect.arrayContaining(["transition-colors", "duration-(--dp-dur-fast)", "ease-(--dp-ease-out)"]));
+  });
+});

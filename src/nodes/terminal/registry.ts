@@ -14,6 +14,7 @@ import { watchDevicePixelRatio } from "./dprWatch";
 import { BASE_FONT_SIZE, canvasMeasure, fontFor, gridFor, renderZoom, type FontMeasure } from "./crisp";
 import { bufferText } from "./bufferText";
 import { freshScreen, textSince } from "./freshScreen";
+import { clearDraft, trackInput } from "./draft";
 import { pasteImage, pastedImage, takeOverPaste } from "./imagePaste";
 import { keyAction, NEWLINE_SEQUENCE } from "./keys";
 import { openTerminalLink, terminalLinkHandler } from "./links";
@@ -146,7 +147,10 @@ function create(nodeId: string): Entry {
   });
   term.onData((data) => {
     entry.lastInput = Date.now();
-    if (acceptsInput(nodeId, entry.session)) void ptyWrite(nodeId, data).catch(() => undefined);
+    if (!acceptsInput(nodeId, entry.session)) return;
+    // What is written and not sent holds dummyPlane's own lines back (./draft.ts).
+    trackInput(nodeId, data);
+    void ptyWrite(nodeId, data).catch(() => undefined);
   });
   // Typing in a terminal where nothing runs starts it again.
   // onKey, not onData: xterm also answers the queries of a restored screen.
@@ -311,7 +315,9 @@ export function startUnseen(nodeId: string, payload: TerminalPayload) {
 }
 
 /** A new session starts: its screen and its silence are measured from here, not from the previous one's. */
-async function freshen(entry: Entry) {
+async function freshen(nodeId: string, entry: Entry) {
+  // Whatever was written in the old session's prompt went with it.
+  clearDraft(nodeId);
   entry.since?.dispose();
   entry.since = await freshScreen(entry.term);
   entry.lastOutput = undefined;
@@ -332,7 +338,7 @@ async function startFromKeystroke(nodeId: string, entry: Entry) {
   // after onKey, and it would reach the shell before the agent starts.
   entry.session.restarting = true;
   try {
-    await relaunchSession(nodeId, entry.term, payload, relaunchMode(payload), () => freshen(entry));
+    await relaunchSession(nodeId, entry.term, payload, relaunchMode(payload), () => freshen(nodeId, entry));
   } finally {
     entry.session.restarting = false;
   }
@@ -400,7 +406,7 @@ export function resumeTerminal(nodeId: string) {
   const entry = entries.get(nodeId) ?? create(nodeId);
   autostart.cancel(nodeId);
   adoptLive(nodeId);
-  void relaunchSession(nodeId, entry.term, payload, relaunchMode(payload), () => freshen(entry));
+  void relaunchSession(nodeId, entry.term, payload, relaunchMode(payload), () => freshen(nodeId, entry));
 }
 
 /** Resolves once the new process is spawned. */
@@ -409,7 +415,7 @@ export function relaunchTerminal(nodeId: string, payload: TerminalPayload, mode:
   const entry = entries.get(nodeId) ?? create(nodeId);
   autostart.cancel(nodeId);
   adoptLive(nodeId);
-  return relaunchSession(nodeId, entry.term, payload, mode, () => freshen(entry));
+  return relaunchSession(nodeId, entry.term, payload, mode, () => freshen(nodeId, entry));
 }
 
 export function stopTerminal(nodeId: string) {

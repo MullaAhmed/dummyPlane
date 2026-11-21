@@ -9,14 +9,18 @@ import { onPtyExit, ptyList } from "@/ipc/pty";
 import { installMcp } from "@/mcp/router";
 import { connectNotifications, loadNotifications } from "@/notifications/store";
 import { installMissionClock } from "@/mission/clock";
+import { installFleetDecisions } from "@/mission/decisions";
 import { installKeepAwake } from "@/mission/keepAwake";
 import { installMissionEvents } from "@/mission/events";
 import { installRedelivery } from "@/mission/redeliver";
+import { installCloseWatch } from "@/mission/closeWatch";
 import { installRestartWatch } from "@/mission/restartWatch";
+import { installMissionRestore } from "@/mission/restore";
 import { installSubagentNodes } from "@/nodes/subagent/sync";
 import { forgetLivePty, setLivePtys } from "@/nodes/terminal/registry";
 import { installFinishedStops } from "@/agents/finishedStop";
 import { installFollowWaiting } from "@/agents/followWaiting";
+import { installPanelFold } from "@/agents/panelFold";
 import { installWaitingAlerts } from "@/shell/waitingAlert";
 import { installFinishAlerts } from "@/shell/finishAlert";
 import { installBoardDoneAlerts } from "@/shell/boardDoneAlert";
@@ -94,16 +98,25 @@ export function boot(): Promise<void> {
     installRedelivery();
     // A mission member's restart, whoever asks for it: a full team it takes past Max agents is told, a failed one frees its seat.
     installRestartWatch();
+    // A member that exits or whose terminal is closed frees its seat: the queue starts on it at once.
+    installCloseWatch();
     installMissionClock();
     installKeepAwake();
+    // Before the alerts: a Fleet's decision is a wait (a plan's go-ahead, Land, Clean up), and one already standing is no news.
+    installFleetDecisions();
     installWaitingAlerts();
     installFollowWaiting();
+    // The panel folds while the review, the git window, Code Studio or Notes is open (the saved panel setting is read above).
+    installPanelFold();
     installFinishAlerts();
     // A board whose cards are all done, from here on: those already done say nothing.
     installBoardDoneAlerts();
-    setLivePtys(await ptyList());
+    const live = await ptyList();
+    setLivePtys(live);
     // Once the sessions alive in Rust are known: a finished agent still running after a webview reload stops too.
     installFinishedStops();
+    // Likewise: a mission dummyPlane's restart stopped starts again with its Fleet or its Manager (a reload stops none).
+    installMissionRestore(live);
     await getCurrentWindow().onCloseRequested(saveBeforeClose);
     setForgetWorkspaces(forgetWorkspaces);
     syncWindowTitle();

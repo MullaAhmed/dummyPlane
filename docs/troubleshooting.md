@@ -57,6 +57,10 @@ A fleet only starts with dummyPlane's own tools, served by a local server inside
 
 A mission works on git branches, which need a first commit. In the project's folder: `git add -A`, then `git commit -m "First commit"`, and launch the mission again.
 
+## Worktrees or branches of past missions are left behind
+
+A cleanup keeps a worktree it cannot remove without losing something (a terminal open in it, commits on no branch, a merge under way), and every branch whose work is not on your branch yet; older versions also kept every worktree holding an ignored file such as `.env.local`, and freed the fleet all the same. Click **Clean up leftovers** in the fleet's mission panel (or ask the fleet, which calls `clean_up_leftovers`): it lists each `dummyplane/*` worktree and branch and what becomes of it, and acts only when you click *Clean up*. When everything left is kept (only unlanded branches, say), it asks nothing: a notice names each one and why, and they stay until you land them or delete them yourself. Don't delete the folders by hand: git keeps its record of them, and a hand delete takes the ignored files with it. Files a cleanup kept are in `<project>.worktrees\.kept\`, one folder per worktree; delete that folder yourself once you have looked. If a cleanup's answer was "dummyPlane is not responding" (before this fix), it went on in the background: wait for its notice, then use *Clean up leftovers* for what it left.
+
 ## An overnight run did little, or did more than you wanted
 
 - **Agents stopped early.** Under *Edit files*, the default, edits and simple file commands (`mkdir`, `mv`, `cp`) run unasked, and an agent stops at its first other command until you are back: the morning report shows those tasks as not finished. *Edit files and run commands* avoids that, but agents then run any command unasked, and the network and the accounts logged in on this PC are open to them. Choose it knowingly.

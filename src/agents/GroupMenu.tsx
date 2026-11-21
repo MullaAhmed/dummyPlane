@@ -13,13 +13,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useUiRequest } from "@/commands/uiRequests";
 import { messages, useMessages } from "@/i18n";
 import { GroupNotesItem } from "@/notes/GroupNotesItem";
 import { uiStore } from "@/store/ui";
 import { shellMessages } from "@/shell/messages";
 import { workspacesStore } from "@/store/workspaces";
-import { useAgents } from "./agentsStore";
+import { agentsStore, isAvailable, useAgents } from "./agentsStore";
 import { pauseAll, resumeAll } from "./broadcast";
 import { agentInk, AGENTS, AGENTS_WITHOUT_OPTIONS } from "./catalog";
 import { arrangeAs } from "./arrangeAs";
@@ -40,35 +39,24 @@ function arrangeGroupAs(groupId: string, layout: ArrangeLayout) {
 /**
  * The menu of a group: the `⌄` of its label on the canvas, or `trigger`, the ⋯ of its header in the agents panel.
  */
-export function GroupMenu({ groupId, trigger, answersRequests = false }: { groupId: string; trigger?: ReactElement; answersRequests?: boolean }) {
+export function GroupMenu({ groupId, trigger }: { groupId: string; trigger?: ReactElement }) {
   const t = useMessages(agentsMessages);
   const layouts = useMessages(shellMessages).settings.arrangeLayouts;
   const [open, setOpen] = useState(false);
-  // Opened by the palette, not by its trigger: it shows at once (never animate what the keyboard asked for).
-  const [instant, setInstant] = useState(false);
   // Rename hands the keyboard to the label's name field once the menu has closed: focus must not come back then.
   const renaming = useRef(false);
   const agents = useAgents((s) => s.agents);
   const speciality = useCanvas((s) => s.frames.find((f) => f.id === groupId)?.group?.speciality);
   const pantheon = useCanvas((s) => s.frames.find((f) => f.id === groupId)?.group?.pantheon);
   const folded = useCanvas((s) => s.frames.find((f) => f.id === groupId)?.group?.folded === true);
-  const available = (id: string) => agents.some((agent) => agent.id === id && agent.available);
-  // "Add an agent…" of the palette opens the panel's copy of this menu.
-  useUiRequest(
-    "groupMenu",
-    (request) => {
-      if (request.id !== groupId) return false;
-      setInstant(true);
-      setOpen(true);
-      return true;
-    },
-    answersRequests,
-  );
+  // Only the agents found on this machine, as in the list of the ring's and the palette's Add agent (./GroupAgentMenu.tsx).
+  const addable = AGENTS_WITHOUT_OPTIONS.filter((id) => isAvailable(agents, id));
   return (
     <DropdownMenu
       open={open}
       onOpenChange={(next) => {
-        if (next) setInstant(false);
+        // Nothing is known of the agents before the first look: the submenu would open empty.
+        if (next && !agentsStore.getState().loaded) void agentsStore.getState().load().catch(() => undefined);
         setOpen(next);
       }}
     >
@@ -81,7 +69,7 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
             aria-label={t.panel.groupMenu}
             // A native title, like the label's fold chevron beside it: no tooltip over the canvas.
             title={t.panel.groupMenu}
-            className="pointer-events-auto ml-1 size-5 rounded-sm text-dp-text-2 hover:text-dp-text"
+            className="pointer-events-auto relative ml-1 size-5 rounded-sm text-dp-text-2 after:absolute after:-inset-0.5 hover:text-dp-text"
           >
             <ChevronDown className="size-3.5" />
           </Button>
@@ -90,7 +78,6 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
       <DropdownMenuContent
         align="start"
         className="w-48"
-        data-instant={instant ? "" : undefined}
         onCloseAutoFocus={(e) => {
           // On the canvas, focus must not come back to the ⌄: it would close Excalidraw's name editor. The panel's ⋯
           // gets it back, so the keyboard keeps its place, unless a pick handed it on: the name field, a dialog, the notes.
@@ -113,12 +100,11 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>{t.groupMenu.addAgent}</DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
-            {AGENTS_WITHOUT_OPTIONS.map((id) => {
+            {addable.map((id) => {
               const meta = AGENTS[id];
               return (
                 <DropdownMenuItem
                   key={id}
-                  disabled={!available(id)}
                   onSelect={() =>
                     void addAgentToGroup(groupId, id).catch((error: unknown) =>
                       toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext }),

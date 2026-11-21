@@ -220,6 +220,26 @@ describe("spawn wires heal themselves (a spawn wire shows the child's spawnedBy)
   });
 });
 
+it("joins a link again whose end lost its binding while the node there still lists it, the dead one off both lists, and logs it (17 Nov)", () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const board = { ...createNodeElement("kanban", { x: 1800, y: 900 }), id: "board" } as unknown as ExcalidrawElement;
+  const linked = withWire([fleet, board], fleet.id, board.id);
+  const wire = linked[linked.length - 1];
+  // As the log had it: "start unbound; end board ok; listed by the Fleet, the board".
+  const loose = linked.map((e) => (e.id === wire.id ? ({ ...e, startBinding: null } as ExcalidrawElement) : e));
+  scheduleWireUpkeep(api(loose), loose);
+  frames.shift()!(0);
+  const written: ExcalidrawElement[] = updateScene.mock.calls[0][0].elements;
+  expect(written.find((e) => e.id === wire.id)!.isDeleted).toBe(true);
+  const fresh = written.filter((e) => e.type === "arrow" && !e.isDeleted) as ExcalidrawArrowElement[];
+  expect(fresh).toHaveLength(1);
+  expect(fresh[0]).toMatchObject({ startBinding: { elementId: fleet.id }, endBinding: { elementId: board.id } });
+  expect(written.find((e) => e.id === fleet.id)!.boundElements).toEqual([{ id: fresh[0].id, type: "arrow" }]);
+  expect(written.find((e) => e.id === board.id)!.boundElements).toEqual([{ id: fresh[0].id, type: "arrow" }]);
+  expect(warn).toHaveBeenCalledWith(`wire ${wire.id} re-joined: ${fleet.id} to ${board.id}`);
+  warn.mockRestore();
+});
+
 it("revives a plain wire without the spawn mark", () => {
   const wired = withWire([fleet, frame, lone], fleet.id, frame.id);
   const wire = wired[wired.length - 1];

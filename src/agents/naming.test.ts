@@ -1,10 +1,12 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
+import { forgetScene, rememberScene } from "@/canvas/sceneCache";
 import { flushAll } from "@/lib/flush";
 import { nodeNameOf, nodesStore } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
+import { PANTHEONS } from "./names";
 import { assignMissingNames, nameForNewAgent, namesInWorkspace, pantheonForNewGroup, pantheonsForCopiedGroups } from "./naming";
 
 const terminal = (name?: string) =>
@@ -122,4 +124,70 @@ it("keeps the name of an agent being created, and frees that of a closed one (re
   nodesStore.getState().update("a", { name: "Superman" });
   expect(namesInWorkspace("w1")).not.toContain("Superman");
   canvasStore.setState({ api: null });
+});
+
+describe("the names a new agent must not take (27: a second Batgirl, Batman 2 beside a live Batman)", () => {
+  const fleet = (state: string, names: string[]) =>
+    JSON.stringify({
+      name: "Chef",
+      session: { title: "Chef", name: "Chef", agent: "claude", cwd: "C:/code", shell: "default", command: "", role: "orchestrator" },
+      mission: { state, maxAgents: 4, members: names.map((name) => ({ nodeId: `m-${name}`, name, task: "t", budgetMin: 10, linked: false, branch: "b", worktree: "w" })) },
+    });
+
+  beforeEach(async () => {
+    const workspace = (id: string, projectId: string) => ({ id, projectId, name: id, position: 0, pantheon: null, kind: "canvas", folder: null });
+    mockIPC((cmd) => {
+      if (cmd === "list_workspaces") return [workspace("w1", "p1"), workspace("w2", "p1"), workspace("w3", "p2")];
+      if (cmd === "get_setting") return null;
+      return undefined;
+    });
+    await workspacesStore.getState().load("p1");
+    for (const id of ["w2", "w3"]) nodesStore.getState().forgetWorkspace(id);
+    forgetScene("w2");
+  });
+
+  afterEach(() => {
+    forgetScene("w2");
+    for (const id of ["w2", "w3"]) nodesStore.getState().forgetWorkspace(id);
+  });
+
+  it("counts the live agents of every workspace of the project, and no other project's", () => {
+    nodesStore.getState().hydrate("w2", [{ id: "d", kind: "terminal", payloadJson: terminal("Superman") }]);
+    nodesStore.getState().hydrate("w3", [{ id: "e", kind: "terminal", payloadJson: terminal("Aquaman") }]);
+    expect(namesInWorkspace("w1").sort()).toEqual(["Batman", "Superman"]);
+  });
+
+  it("frees the name of a terminal closed in another workspace, read from that workspace's own scene", () => {
+    nodesStore.getState().hydrate("w2", [
+      { id: "d", kind: "terminal", payloadJson: terminal("Superman") },
+      { id: "f", kind: "terminal", payloadJson: terminal("Flash") },
+    ]);
+    // The canvas on screen is w1's: it knows nothing of d, which w2's cached scene says was closed.
+    canvasStore.setState({ api: { getSceneElementsIncludingDeleted: () => [{ id: "a" }, { id: "b" }, { id: "c" }] } as never });
+    rememberScene("w2", [{ id: "d", isDeleted: true }, { id: "f" }] as never, {} as never, {} as never, []);
+    expect(namesInWorkspace("w1").sort()).toEqual(["Batman", "Flash"]);
+    canvasStore.setState({ api: null });
+  });
+
+  it("keeps the members of a mission under way, closed or not, and frees those of a finished one", () => {
+    nodesStore.getState().hydrate("w2", [
+      { id: "g1", kind: "orchestrator", payloadJson: fleet("en_cours", ["Hulk", "Thor"]) },
+      { id: "g2", kind: "orchestrator", payloadJson: fleet("terminee", ["Loki"]) },
+    ]);
+    const taken = namesInWorkspace("w1");
+    expect(taken).toEqual(expect.arrayContaining(["Hulk", "Thor"]));
+    expect(taken).not.toContain("Loki");
+  });
+
+  it("names a new agent after none of them: another set's name once its own is all in use", async () => {
+    const dc = PANTHEONS[0].names;
+    // Eight DC agents on this canvas, eight more in the project's other workspace: the 17th is no "Batman 2".
+    nodesStore.getState().forgetWorkspace("w1");
+    nodesStore.getState().hydrate("w1", dc.slice(0, 8).map((name, i) => ({ id: `x${i}`, kind: "terminal", payloadJson: terminal(name) })));
+    nodesStore.getState().hydrate("w2", dc.slice(8).map((name, i) => ({ id: `y${i}`, kind: "terminal", payloadJson: terminal(name) })));
+    const name = await nameForNewAgent("w1", "dc");
+    expect(name).toBe("Thor");
+    expect(dc).not.toContain(name);
+    expect(name).not.toMatch(/\d$/);
+  });
 });

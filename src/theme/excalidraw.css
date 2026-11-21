@@ -125,6 +125,29 @@
   box-shadow: var(--dp-shadow);
 }
 
+/* A dummyPlane node selected alone (canvas/Canvas.tsx): Excalidraw's link bar above it, the node's
+   `dummyplane://` address with a pencil to edit it and a button to link it to an element, is nothing
+   the user changes; the node's actions are in its header, Edit included. Its "info" and its editor
+   (Ctrl+K) are the same box. A drawn shape selected alone keeps its bar. */
+[data-node-alone] .excalidraw-hyperlinkContainer {
+  display: none !important;
+}
+
+/* A node's controls are live whether or not it is the active node (canvas/liveControls.ts): Excalidraw
+   keeps the pointer from an inactive node (`pointer-events: none` on its container); its header's
+   buttons, an agent's foot, a Fleet's mission panel and a minimized card's Expand take it back, with the selection tool only (a
+   drawing tool's press on a node is the tool's: doubleClickSelect.ts). The rest of the node, a
+   sub-agent's task line included, stays where it is dragged and selected. The list is LIVE_CONTROL's. */
+[data-live-controls]
+  .excalidraw__embeddable-container
+  [data-node-chrome]
+  :is(button, a[href], input, textarea, select, [role="button"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="tab"], [role="combobox"]):not(
+    [data-task-line],
+    :disabled
+  ) {
+  pointer-events: auto;
+}
+
 /* Excalidraw inverts every canvas in dark mode (`.theme--dark canvas`), xterm's
    WebGL canvas inside our nodes included: nodes keep their own colors. */
 .excalidraw .excalidraw__embeddable-container canvas {

@@ -28,7 +28,7 @@ export const TOAST_CLASSES = {
 } as const
 
 /** The app passes its theme (`AppToaster`): sonner follows the palette, light for calm, dark for the two others. */
-const Toaster = ({ ...props }: ToasterProps) => {
+const Toaster = ({ style, ...props }: ToasterProps) => {
   return (
     <Sonner
       className="toaster group"
@@ -45,6 +45,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-text": "var(--dp-text)",
           "--normal-border": "var(--dp-line)",
           "--border-radius": "var(--radius-lg)",
+          // The caller's own (AppToaster's width) on top.
+          ...style,
         } as React.CSSProperties
       }
       toastOptions={{ classNames: TOAST_CLASSES }}

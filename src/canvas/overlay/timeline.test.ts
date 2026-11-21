@@ -18,7 +18,7 @@ describe("the steps' frieze", () => {
   });
 
   it("colors by state: done, running, to come, failed", () => {
-    expect(STEP_COLOR).toEqual({ fait: "var(--dp-ok)", en_cours: "var(--dp-working)", a_venir: "var(--dp-text-3)", echec: "var(--dp-danger)" });
+    expect(STEP_COLOR).toEqual({ fait: "var(--dp-ok)", en_cours: "var(--dp-accent)", a_venir: "var(--dp-text-3)", echec: "var(--dp-danger)" });
   });
 });
 

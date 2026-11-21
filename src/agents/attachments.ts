@@ -9,9 +9,12 @@ import { isManagerRecord, nodesStore } from "@/store/nodes";
  * anchor as one block:
  *
  * - inside a group, an item in its anchor's frame shares the anchor's place in
- *   the grid, where it stood beside it;
- * - an item outside the frame of its anchor's group never becomes a member of
- *   it (closing, ungrouping and the grid's free cells go by the frame). It
+ *   the grid, where it stood beside it. An agent in a group shows its output
+ *   there, a member of the frame (src/nodes/output/placement.ts), and "Group"
+ *   or a link that groups agents takes their outputs in with them;
+ * - Arrange never makes an item outside the frame of its anchor's group a
+ *   member of it (closing, ungrouping and the grid's free cells go by the
+ *   frame): one the user dragged out, or shown before outputs went in. It
  *   stays outside the frame and goes with the side of the frame it stands by,
  *   as the frame fits its members again; or, `beside`, it keeps its place
  *   beside its anchor wherever that goes in the grid, and the grid makes room

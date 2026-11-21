@@ -4,7 +4,9 @@ import { toast } from "sonner";
 import { arrive } from "@/canvas/arrive";
 import { canvasStore } from "@/canvas/canvasStore";
 import type { AgentId, AgentInfo } from "@/ipc/pty";
+import { projectsStore } from "@/store/projects";
 import { terminalStatusStore } from "@/store/terminalStatus";
+import { workspacesStore, type Workspace } from "@/store/workspaces";
 import { agentsStore } from "./agentsStore";
 import { installAgent, pullOllamaModel, watchTerminal } from "./installAgent";
 import { launchAgent } from "./launchAgent";
@@ -67,10 +69,10 @@ describe("installAgent", () => {
     expect(launch.mock.calls[0][1]).toMatchObject({ command: "npm install -g @google/gemini-cli", shell: "cmd" });
   });
 
-  it("lands at the center of the view without a point", async () => {
+  it("lands at the center of the work area without a point (6 px under the view's: the bars are 72 px, the band 60)", async () => {
     canvasStore.setState({ view: { ...canvasStore.getState().view, scrollX: 0, scrollY: 0, zoom: 1, offsetLeft: 0, offsetTop: 0, width: 800, height: 600 } });
     await installAgent("aider");
-    expect(launch.mock.calls[0][2]).toEqual({ x: 400, y: 300 });
+    expect(launch.mock.calls[0][2]).toEqual({ x: 400, y: 306 });
   });
 
   it("starts nothing for an agent outside the table", async () => {
@@ -88,7 +90,7 @@ describe("installAgent", () => {
     agentsStore.setState({ agents: available("codex", true) });
     await tick();
     expect(recheck).toHaveBeenCalledTimes(2);
-    expect(toast).toHaveBeenCalledWith("Codex is installed");
+    expect(toast).toHaveBeenCalledWith("Codex is installed", expect.objectContaining({ action: expect.objectContaining({ label: "Launch Codex" }) }));
     await tick();
     expect(recheck).toHaveBeenCalledTimes(2);
   });
@@ -103,7 +105,7 @@ describe("installAgent", () => {
   it("says so when there is no canvas to put the terminal on", async () => {
     launch.mockResolvedValue(null);
     expect(await installAgent("codex")).toBeNull();
-    expect(toast.error).toHaveBeenCalledWith("Open a project: the install runs in a terminal on its canvas.");
+    expect(toast.error).toHaveBeenCalledWith("Open a project: the install runs in a terminal on its canvas");
   });
 
   it("speaks English", async () => {
@@ -111,7 +113,63 @@ describe("installAgent", () => {
     expect(launch.mock.calls[0][1].title).toBe("Install · Codex");
     agentsStore.setState({ agents: available("codex", true) });
     await tick();
-    expect(toast).toHaveBeenCalledWith("Codex is installed");
+    expect(toast).toHaveBeenCalledWith("Codex is installed", expect.objectContaining({ action: expect.objectContaining({ label: "Launch Codex" }) }));
+  });
+
+  /** The "installed" toast's options, once the agent shows up. */
+  const installedToast = async (agent: AgentId) => {
+    await installAgent(agent);
+    agentsStore.setState({ agents: available(agent, true) });
+    await tick();
+    return vi.mocked(toast).mock.lastCall![1] as { action?: { label: string; onClick: () => void }; duration?: number } | undefined;
+  };
+
+  /** The project on screen, on a tab of `kind`. */
+  const onTab = (kind: Workspace["kind"]) => {
+    projectsStore.setState({ view: "project" });
+    workspacesStore.setState({ workspaces: [{ id: "w1", kind } as Workspace], activeId: "w1" });
+  };
+
+  it("offers to launch the agent just installed, long enough to take it: in the middle of the view, with the keyboard", async () => {
+    onTab("canvas");
+    const options = await installedToast("claude");
+    expect(vi.mocked(toast).mock.lastCall![0]).toBe("Claude is installed");
+    expect(options?.action?.label).toBe("Launch Claude");
+    expect(options?.duration).toBeGreaterThanOrEqual(10_000);
+    canvasStore.setState({ view: { ...canvasStore.getState().view, scrollX: 0, scrollY: 0, zoom: 1, width: 800, height: 600 } });
+    launch.mockClear();
+    launch.mockResolvedValue("node-2");
+    vi.mocked(arrive).mockClear();
+    options!.action!.onClick();
+    await vi.waitFor(() => expect(arrive).toHaveBeenCalledWith("node-2"));
+    expect(launch).toHaveBeenCalledWith("claude", expect.objectContaining({ command: "" }), { x: 400, y: 306 });
+  });
+
+  it("says to open a canvas when none is on screen (Code Studio, Home), and launches nothing", async () => {
+    const options = await installedToast("claude");
+    launch.mockClear();
+    onTab("code");
+    options!.action!.onClick();
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Open a canvas of the project first: the agent starts there"));
+    projectsStore.setState({ view: "home" });
+    vi.mocked(toast.error).mockClear();
+    options!.action!.onClick();
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Open a canvas of the project first: the agent starts there"));
+    expect(launch).not.toHaveBeenCalled();
+  });
+
+  it("says the same when the canvas has no workspace to take the agent", async () => {
+    onTab("canvas");
+    const options = await installedToast("claude");
+    launch.mockResolvedValue(null);
+    options!.action!.onClick();
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Open a canvas of the project first: the agent starts there"));
+  });
+
+  it("offers no launch for Ollama, which picks a model first", async () => {
+    const options = await installedToast("ollama");
+    expect(vi.mocked(toast).mock.lastCall![0]).toBe("Ollama is installed");
+    expect(options?.action).toBeUndefined();
   });
 });
 

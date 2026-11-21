@@ -13,8 +13,12 @@ import { linkAgentToBoard } from "./boardLinks";
 import { LinkMode } from "./LinkMode";
 import { withBoardLink } from "./wires";
 import { linkFleet } from "@/fleet/fleets";
+import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
+vi.mock("sonner", () => ({ toast: vi.fn() }));
+vi.mock("@/lib/errorToast", () => ({ toastError: vi.fn() }));
 vi.mock("@/fleet/fleets", () => ({ linkFleet: vi.fn() }));
 vi.mock("./agentLinks", async (importOriginal) => ({ ...(await importOriginal<typeof import("./agentLinks")>()), linkAgents: vi.fn() }));
 vi.mock("./boardLinks", async (importOriginal) => ({ ...(await importOriginal<typeof import("./boardLinks")>()), linkAgentToBoard: vi.fn() }));
@@ -112,6 +116,39 @@ it("links two agents from an agent's foot with no fleet on the canvas, and never
   await act(async () => canvasStore.setState({ api: null, links: {} }));
 });
 
+it("says why two agents it linked were not made a group, and stays quiet when they were", async () => {
+  mockIPC(() => undefined);
+  vi.mocked(toast).mockClear();
+  Object.defineProperty(document, "elementsFromPoint", { value: () => [], configurable: true });
+  const batman = { ...createNodeElement("terminal", { x: 400, y: 400 }), id: "batman" } as unknown as ExcalidrawElement;
+  const cyborg = { ...createNodeElement("terminal", { x: 1600, y: 400 }), id: "cyborg" } as unknown as ExcalidrawElement;
+  for (const [id, name] of [
+    ["batman", "Batman"],
+    ["cyborg", "Cyborg"],
+  ]) {
+    await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { title: id, name, agent: "claude", cwd: "C:/code", shell: "default", command: "" } });
+  }
+  const linkFrom = async (outcome: ReturnType<typeof linkAgents>) => {
+    vi.mocked(linkAgents).mockReturnValueOnce(outcome);
+    await act(async () => {
+      canvasStore.setState({ api: { getSceneElements: () => [batman, cyborg] } as never, view: EMPTY_VIEW, frames: [], links: {} });
+      uiStore.setState({ linking: "batman" });
+    });
+    const layer = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
+    await act(async () => layer.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: cyborg.x + 10, clientY: cyborg.y + 10 })));
+  };
+  await linkFrom({ kind: "notGrouped", reason: "otherGroups", groups: ["Justice League", "Teen Titans"] });
+  expect(toast).toHaveBeenCalledWith("Batman and Cyborg are linked, but not grouped: they stand in two groups, Justice League and Teen Titans. Move one into the other's group to group them.");
+  vi.mocked(toast).mockClear();
+  await linkFrom({ kind: "notGrouped", reason: "family", agent: "cyborg" });
+  expect(toast).toHaveBeenCalledWith("Batman and Cyborg are linked, but not grouped: Cyborg would be parted from its sub-agents or from the agent that opened it.");
+  vi.mocked(toast).mockClear();
+  await linkFrom({ kind: "grouped", groupId: "g" });
+  await linkFrom({ kind: "linked" });
+  expect(toast).not.toHaveBeenCalled();
+  await act(async () => canvasStore.setState({ api: null, links: {} }));
+});
+
 it("takes another node's Link for a place on that node, not for the linker's Done", async () => {
   mockIPC(() => undefined);
   vi.mocked(linkFleet).mockClear();
@@ -136,6 +173,58 @@ it("takes another node's Link for a place on that node, not for the linker's Don
   expect(toggle).not.toHaveBeenCalled();
   expect(linkFleet).toHaveBeenCalledWith("atlas", "batman");
   await act(async () => canvasStore.setState({ api: null, links: {} }));
+});
+
+describe("an agent's click on a Fleet never fails silently", () => {
+  const atlas = { ...createNodeElement("fleet", { x: 400, y: 400 }), id: "atlas" } as unknown as ExcalidrawElement;
+  const batman = { ...createNodeElement("terminal", { x: 1600, y: 400 }), id: "batman" } as unknown as ExcalidrawElement;
+  const session = { title: "", name: "Atlas", agent: "claude" as const, cwd: "C:/code", shell: "default" as const, command: "" };
+  const clickAtlas = async (links: Record<string, { nodeIds: string[]; groupIds: string[] }>) => {
+    mockIPC(() => undefined);
+    Object.defineProperty(document, "elementsFromPoint", { value: () => [], configurable: true });
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...session, title: "Batman", name: "Batman" } });
+    await nodesStore.getState().create("atlas", { workspaceId: "w1", kind: "fleet", payload: { name: "Atlas", session: { ...session, role: "orchestrator" } } });
+    await act(async () => {
+      canvasStore.setState({ api: { getSceneElements: () => [atlas, batman] } as never, view: EMPTY_VIEW, frames: [], links });
+      uiStore.setState({ linking: "batman" });
+    });
+    const layer = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
+    await act(async () => layer.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: atlas.x + 10, clientY: atlas.y + 10 })));
+  };
+  beforeEach(() => {
+    vi.mocked(linkFleet).mockReset();
+    vi.mocked(toast).mockClear();
+    vi.mocked(toastError).mockClear();
+  });
+  afterEach(async () => {
+    nodesStore.getState().update("atlas", { mission: undefined });
+    await act(async () => canvasStore.setState({ api: null, links: {} }));
+  });
+
+  it("says a Fleet that already commands the agent gets no second wire", async () => {
+    await clickAtlas({ atlas: { nodeIds: ["batman"], groupIds: [] } });
+    expect(linkFleet).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith(expect.stringContaining("already commands this agent"));
+  });
+
+  it("says when no wire could be drawn", async () => {
+    vi.mocked(linkFleet).mockReturnValue(false);
+    await clickAtlas({ atlas: { nodeIds: [], groupIds: [] } });
+    expect(toastError).toHaveBeenCalledWith("Could not link to Atlas", expect.objectContaining({ next: expect.stringContaining("canvas loads") }));
+  });
+
+  it("says nothing of a plain link, and what a mission's team agent gets from one: no hand_off", async () => {
+    vi.mocked(linkFleet).mockReturnValue(true);
+    await clickAtlas({ atlas: { nodeIds: [], groupIds: [] } });
+    expect(toast).not.toHaveBeenCalled();
+    nodesStore.getState().update("atlas", {
+      mission: { state: "en_cours", maxAgents: 4, startedAt: 1, members: [{ nodeId: "batman", name: "Batman", task: "t", budgetMin: 10, linked: true, branch: "b", worktree: "w", sentAt: 1 }] },
+    });
+    await act(async () => uiStore.setState({ linking: "batman" }));
+    const layer = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
+    await act(async () => layer.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: atlas.x + 10, clientY: atlas.y + 10 })));
+    expect(toast).toHaveBeenCalledWith(expect.stringContaining("works for a mission its Manager runs"));
+  });
 });
 
 /** A key pressed on `target`: a native keydown that bubbles and can be cancelled, as the webview sends it. */

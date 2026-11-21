@@ -45,6 +45,11 @@ export function OutputNode({ nodeId }: { nodeId: string }) {
   const sourceId = payload?.source ?? "";
   const sourceName = useNodes((s) => (terminalOf(s.nodes[sourceId]) ? nodeNameOf(s.nodes[sourceId]) || "the agent" : ""));
   const selected = useCanvas((s) => s.view.selectedIds.includes(nodeId));
+  // In its agent's group (./placement.ts), a folded group hides it with its members (NodeHost knows its terminals only).
+  const hidden = useCanvas((s) => {
+    const frameId = s.api?.getSceneElements().find((e) => e.id === nodeId)?.frameId;
+    return !!frameId && s.frames.some((f) => f.id === frameId && f.group?.folded);
+  });
   const [source, setSource] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const title = payload?.title || t.untitled;
@@ -77,6 +82,7 @@ export function OutputNode({ nodeId }: { nodeId: string }) {
     [sourceId, sourceName, title, t],
   );
 
+  if (hidden) return null;
   if (!payload) return <MissingNode text={t.missing} />;
   const line = sourceName ? t.from(sourceName) : t.fromGone;
   const updated = payload.updatedAt ? t.updated(formatClock(payload.updatedAt, Date.now())) : "";
@@ -101,7 +107,7 @@ export function OutputNode({ nodeId }: { nodeId: string }) {
         </NodeHeaderEnd>
       </NodeHeader>
       {/* A native scroller: on the zoomed canvas, a ScrollArea's thumb drag would misread the pointer. */}
-      <div ref={body} className="min-h-0 flex-1 overflow-auto p-3 select-text">
+      <div ref={body} className="min-h-0 flex-1 overflow-auto p-4 select-text">
         <GeneratedText text={payload.ui} actions={actions} source={source} />
       </div>
     </div>

@@ -2,7 +2,9 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { canvasStore } from "@/canvas/canvasStore";
+import { laneCover } from "@/agents/laneCover";
+import { laneStore } from "@/shell/lane";
+import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import { createNodeElement, type NodeKind } from "@/canvas/nodeElement";
 import { cachedElements, forgetScene, rememberScene } from "@/canvas/sceneCache";
 import { NODE_GAP } from "@/agents/groupLayout";
@@ -12,6 +14,7 @@ import type { Mission } from "@/mission/mission";
 import { nodesStore } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
 import type { KanbanPayload } from "@/nodes/types";
+import { MAX_ANSWER_CHARS } from "./compact";
 import { answer } from "./router";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "immediately", NEVER: "never" } }));
@@ -130,6 +133,23 @@ describe("the tools of an agent wired to a board", () => {
     });
     // Another agent, wired to nothing, sees nothing.
     expect(textOf(await call("cyborg", "linked_boards"))).toContain("No Kanban board is wired to you");
+  });
+
+  it("answer a board of sixty cards with long notes in one short list, and one card whole when asked (the answers that overflowed the token limit)", async () => {
+    wire("batman", "b1");
+    const cards = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [`k${i}`, { id: `k${i}`, title: `Issue ${i}`, notes: `${"A GitHub issue's body, on and on. ".repeat(100)}END-${i}`, priority: "none" as const }]));
+    nodesStore.getState().update("b1", { columns: [{ id: "todo", title: "To do", cardIds: Object.keys(cards) }, { id: "doing", title: "In progress", cardIds: [] }], cards });
+    const text = textOf(await call("batman", "linked_boards"));
+    // The same bound as the Fleet's and the Manager's board (`./answerSize.test.ts`).
+    expect(text.length).toBeLessThan(MAX_ANSWER_CHARS);
+    expect(JSON.parse(text).boards[0].columns[0].cards).toHaveLength(60);
+    expect(text).not.toContain("END-3");
+    expect(JSON.parse(text).note).toContain("linked_boards with card");
+    const one = JSON.parse(textOf(await call("batman", "linked_boards", { card: "k3" })));
+    expect(one).toMatchObject({ board: "b1", column: "To do", card: { id: "k3", title: "Issue 3" } });
+    expect(one.card.notes).toContain("END-3");
+    expect(JSON.parse(textOf(await call("batman", "linked_boards", { card: "issue 7" }))).card.id).toBe("k7");
+    expect(textOf(await call("batman", "linked_boards", { card: "zz" }))).toContain('No card "zz"');
   });
 
   it("serve a Fleet wired to a board the same way", async () => {
@@ -340,6 +360,23 @@ describe("open_board", () => {
   const kanbans = () => Object.values(nodesStore.getState().nodes).filter((record) => record.kind === "kanban").length;
   const live = (id: string) => scene.find((e) => e.id === id && !e.isDeleted);
   const overlap = (a: ExcalidrawElement, b: ExcalidrawElement) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+  it("opens it out from under the occupied lane: it arrives without moving the view", async () => {
+    // A 1440x900 view at the scene's origin, the Agents panel in the lane: right of Batman (752) runs under it (1022).
+    canvasStore.setState({ view: { ...EMPTY_VIEW, width: 1440, height: 900, zoom: 1 } });
+    laneStore.setState({ occupants: ["agents"] });
+    try {
+      const lane = laneCover(canvasStore.getState().view, true)!;
+      const view = opened(await call("batman", "open_board", { title: "Issues" }));
+      const placed = live(view.board)!;
+      expect(placed.x + placed.width).toBeLessThanOrEqual(lane.x);
+      for (const other of nodes) expect(overlap(placed, live(other.id)!), other.id).toBe(false);
+      expect(boardLinksOf(scene, "batman")).toEqual([view.board]);
+    } finally {
+      laneStore.setState({ occupants: [] });
+      canvasStore.setState({ view: EMPTY_VIEW });
+    }
+  });
 
   it("opens a board beside the agent, with its cards in the first column, wired to it and editable at once", async () => {
     const result = await call("batman", "open_board", {

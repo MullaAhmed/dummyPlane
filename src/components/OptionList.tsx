@@ -45,7 +45,7 @@ export function OptionItem({ value, label, help, disabled, className }: { value:
       aria-label={label}
       aria-describedby={help ? helpId : undefined}
       className={cn(
-        "h-auto min-h-8 w-full items-start justify-start gap-2 rounded-md px-2 py-1.5 text-left text-sm font-normal whitespace-normal text-dp-text transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-dp-accent/70 data-[state=on]:bg-dp-accent-soft disabled:opacity-100 disabled:text-dp-text-3",
+        "h-auto min-h-8 w-full items-start justify-start gap-2 rounded-md px-2 py-1.5 text-left text-sm font-normal whitespace-normal text-dp-text transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-dp-accent/70 data-[state=on]:bg-dp-accent-soft disabled:opacity-100 disabled:text-dp-text-3",
         className,
       )}
     >

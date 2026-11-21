@@ -13,7 +13,7 @@ export const notificationsMessages = defineMessages({
   markAllRead: "Mark all read",
   clear: "Clear",
   empty: "Nothing yet. An agent that finishes or asks you something, and a board whose cards are all done, are kept here.",
-  noneInFilter: "Nothing here.",
+  noneInFilter: "Nothing here",
   /** What a notification tells, shown on its row. */
   types: { finished: "Finished", board: "Board", question: "Question" },
   unread: "Unread",

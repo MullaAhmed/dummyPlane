@@ -10,7 +10,7 @@ import type { Step, StepState } from "@/nodes/steps";
  */
 export const TIMELINE_GAP = 3;
 
-/** A frieze's own height: an 8px dot, 1px, then one 12px line for the step's title (titles truncate, never wrap). */
+/** A frieze's own height: an 8px row for the step marks, 1px, then one 12px line for the step's title (titles truncate, never wrap). */
 export const TIMELINE_HEIGHT = 21;
 
 /**
@@ -23,7 +23,7 @@ export const TIMELINE_ROOM = TIMELINE_GAP + TIMELINE_HEIGHT;
 /** Done, running, to come, failed. */
 export const STEP_COLOR: Record<StepState, string> = {
   fait: "var(--dp-ok)",
-  en_cours: "var(--dp-working)",
+  en_cours: "var(--dp-accent)",
   a_venir: "var(--dp-text-3)",
   echec: "var(--dp-danger)",
 };

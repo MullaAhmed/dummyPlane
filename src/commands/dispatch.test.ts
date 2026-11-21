@@ -211,3 +211,16 @@ it("leaves the repeats of a Ctrl+Shift+G held in a terminal to the terminal, as 
   expect(run).not.toHaveBeenCalled();
   expect(reachedXterm).toHaveBeenCalledTimes(2);
 });
+
+it("opens the git window with Ctrl+Shift+B from inside a terminal: xterm sends a shell nothing for it, so no shell key is taken", () => {
+  uninstall();
+  const gitRun = vi.fn();
+  const git: Command = { id: "git.window", label: "Git window", section: "Navigation", keywords: [], shortcut: "Ctrl+Shift+B", available: () => true, run: gitRun };
+  uninstall = installShortcuts(window, [git], () => ctx);
+  const event = press({ key: "B", ctrlKey: true, shiftKey: true });
+  expect(gitRun).toHaveBeenCalledWith(ctx);
+  expect(event.defaultPrevented).toBe(true);
+  // Ctrl+B alone stays the shell's (back one character) and the editor's.
+  expect(press({ key: "b", ctrlKey: true }).defaultPrevented).toBe(false);
+  expect(gitRun).toHaveBeenCalledTimes(1);
+});

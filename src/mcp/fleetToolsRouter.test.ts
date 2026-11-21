@@ -46,6 +46,14 @@ it("mission() tells the Fleet which linked agents have their own model router on
   expect(linked.find((a) => a.name === "Robin")).not.toHaveProperty("router");
 });
 
+it("refuses message_manager while the mission is only planned: no Manager yet to type it into", async () => {
+  const result = await fleetTool("chef", "message_manager", { text: "Use the v2 API" });
+  expect(result.isError).toBe(true);
+  expect(result.content[0].text).toContain("No Manager runs a mission of yours yet");
+  // The Manager's own tool, called by the Fleet.
+  expect((await fleetTool("chef", "message_fleet", { text: "x" })).content[0].text).toBe("This tool is for a mission's Manager.");
+});
+
 describe("with Settings' model router on", () => {
   const view = async () => JSON.parse((await fleetTool("chef", "mission", {})).content[0].text) as { router: boolean; linked_agents: { name: string; router?: boolean }[]; plan: { model: string | null }[] | null };
   const sub = (titre: string, extra: Record<string, unknown> = {}) => ({ titre, consigne: "Do it", agent: "nouveau", budget_min: 20, ...extra });

@@ -22,7 +22,7 @@ function worded(base: Omit<Command, "label" | "keywords">, label: () => string, 
 export function loopCommands(): Command[] {
   return [
     worded(
-      { id: "loops.manage", section, available: (ctx) => ctx.project, run: () => requestUi({ kind: "loops" }) },
+      { id: "loops.manage", section, available: (ctx) => ctx.project, run: () => requestUi({ kind: "loops", instant: true }) },
       () => text().manage,
       () => text().manageKeywords,
     ),

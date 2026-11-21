@@ -16,7 +16,8 @@ export const homeMessages = defineMessages({
       addProjectHint: "A git repository folder",
       installGit: "No Git? Install it",
       launch: "Launch an agent",
-      launchHint: (keys: string) => `Right-click the canvas, or ${keys}`,
+      // The two routes that exist: the canvas's ring, and the palette's functions, where every agent is a "Launch …".
+      launchHint: (keys: string) => `Right-click the canvas, or ${keys} and type “launch”`,
       done: "done",
       agentsFailed: "Could not look for the installed agents",
     },
@@ -29,7 +30,7 @@ export const homeMessages = defineMessages({
       claudeHow: "In PowerShell:",
       copy: "Copy",
       copied: "Command copied",
-      copyFailed: "Could not copy: select the command and copy it by hand.",
+      copyFailed: "Could not copy: select the command and copy it by hand",
       guide: "Installation guide",
       install: "Install",
       installAgent: (label: string) => `Install ${label}`,

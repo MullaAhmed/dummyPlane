@@ -3,7 +3,7 @@ import { canvasStore, useCanvas } from "@/canvas/canvasStore";
 import { Button } from "@/components/ui/button";
 import { useMessages } from "@/i18n";
 import { shellMessages } from "./messages";
-import { TOP_ROW_HEIGHT } from "./layout";
+import { FLOAT_INSET, TOP_ROW_HEIGHT } from "./layout";
 
 /**
  * Zen (Alt+Z) and reading (Alt+R) hide the tools: a small dense-glass button
@@ -19,7 +19,7 @@ export function ModeExit() {
     <Button
       variant="ghost"
       onClick={leave}
-      style={{ top: TOP_ROW_HEIGHT + 12 }}
+      style={{ top: TOP_ROW_HEIGHT + FLOAT_INSET }}
       className="dp-glass-strong absolute right-3 z-30 h-8 gap-2 rounded-lg px-3 text-xs font-normal text-dp-text-2 transition-[color,background-color,scale] hover:bg-dp-hover hover:text-dp-text"
     >
       <X className="text-dp-text-3" />

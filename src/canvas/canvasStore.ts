@@ -1,4 +1,5 @@
 import { createStore, useStore } from "zustand";
+import type { Insets } from "@/shell/layout";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, ExcalidrawImperativeAPI, NormalizedZoomValue } from "@excalidraw/excalidraw/types";
 import { sameLinks, type Links } from "@/agents/wires";
@@ -56,18 +57,25 @@ export function viewFrom(appState: AppState): CanvasView {
   };
 }
 
+/** No inset: the whole viewport. */
+const WHOLE: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+
 /**
- * The view that shows an element at 100 %, centered. Set in one `updateScene`:
- * `scrollToContent` right after a zoom change keeps the zoom it read before it.
+ * The view that shows an element at 100 %, centered in the viewport less `area` (the work area, shell/layout.ts: the
+ * bars, the rails and an occupied lane). One wider than that keeps its left edge on the area's, where its lines start.
+ * Set in one `updateScene`: `scrollToContent` right after a zoom change keeps the zoom it read before it.
  */
 export function fullSizeView(
   element: { x: number; y: number; width: number; height: number },
   viewport: { width: number; height: number },
+  area: Insets = WHOLE,
 ) {
+  const room = viewport.width - area.left - area.right;
+  const left = element.width <= room ? area.left + (room - element.width) / 2 : area.left;
   return {
     zoom: { value: 1 as NormalizedZoomValue },
-    scrollX: viewport.width / 2 - (element.x + element.width / 2),
-    scrollY: viewport.height / 2 - (element.y + element.height / 2),
+    scrollX: left - element.x,
+    scrollY: (area.top + viewport.height - area.bottom) / 2 - (element.y + element.height / 2),
   };
 }
 
@@ -116,6 +124,9 @@ interface CanvasState {
   /** Each quick note's host, while that terminal or Fleet is on the canvas (src/nodes/note/link.ts). */
   noteHosts: Record<string, string>;
   setNoteHosts: (hosts: Record<string, string>) => void;
+  /** The node Excalidraw lets the pointer into (its active embeddable), null when none: the others keep out of the Tab order (NodeHost). */
+  activeNode: string | null;
+  setActiveNode: (id: string | null) => void;
 }
 
 export const canvasStore = createStore<CanvasState>()((set, get) => ({
@@ -164,6 +175,10 @@ export const canvasStore = createStore<CanvasState>()((set, get) => ({
   wires: [],
   setWires: (wires) => {
     if (!sameWirePaths(get().wires, wires)) set({ wires });
+  },
+  activeNode: null,
+  setActiveNode: (id) => {
+    if (get().activeNode !== id) set({ activeNode: id });
   },
 }));
 

@@ -6,9 +6,15 @@ export const canvasMessages = defineMessages(
   {
     saveFailed: "Could not save the canvas",
     imagesNotSaved: "Could not save the images of the canvas",
-    loadFailed: (error: string) => `Could not load this workspace: ${error}`,
+    loadFailed: "Could not load this workspace",
+    loadNext: "Try again, or open another workspace",
     retryLoad: "Try again",
     loading: "Loading…",
+    /** Over an empty canvas: the two ways to start an agent that exist (the ring of a right-click, the palette's functions). */
+    empty: {
+      rightClick: "Right-click to launch an agent",
+      palette: (keys: string) => `Or ${keys}, then type “launch”`,
+    },
     groupNameLabel: "Group name",
     foldGroup: "Fold the group",
     unfoldGroup: "Unfold the group",
@@ -112,9 +118,6 @@ export const canvasMessages = defineMessages(
       // Under a Fleet's switch: it routes the whole team of its mission, and every sub-agent opened under the Fleet or its team with spawn_agent, theirs too.
       // Unset, it follows Settings' "Model router"; turned on or off here, it holds for the whole mission until "Follow Settings".
       modelRouterFleet: `With it on, each agent of its team, and each sub-agent it or they open, takes the model of its task's level, never a model they name: ${ROUTER_LEVELS}; on Codex, the models set in Settings. Unset, it follows Settings; turned on or off here, it stays so until Follow Settings`,
-      // Under a terminal's switch: a sub-task a Fleet gives it, with its level; one without a level leaves its model as it is. Its spawn_agent sub-agents too, and
-      // theirs. Unset, it shows what it inherits (Settings, the Fleet or the agent it works under); turned on or off here, it holds, for every agent under it too, until "Follow".
-      modelRouterAgent: `With it on, a sub-task a Fleet gives it starts it on the model of its level, and so does each sub-agent it opens, and theirs: ${ROUTER_LEVELS}; on Codex, the models set in Settings. A sub-task with no level leaves its model as it is, and so does any sub-task while the router is off for it. Unset, it follows Settings, or the Fleet or agent it works under; turned on or off here, it stays so, for every agent under it too, until Follow`,
       remoteControl: "Remote Control",
       // Beside its box: where Remote Control stands; it applies to a running session at once.
       remoteStates: { on: "On", connecting: "Connecting…", pending: "At the end of its turn", requested: "Requested", nextStart: "At next start" },
@@ -139,7 +142,8 @@ export const canvasMessages = defineMessages(
       onCountShown: (on: number, shown: number) => `${shown} shown, ${on} on`,
       selectAll: "Select all",
       unselectAll: "Unselect all",
-      listFailed: (error: string) => `Could not read the list: ${error}`,
+      listFailed: "Could not read the list",
+      listNext: "Check that the folder can be read, then try again",
       retry: "Try again",
       sources: { user: "user", project: "project", local: "local", plugin: "plugin", builtin: "built-in", synced: "claude.ai", app: "dummyPlane" },
       sourceHints: {

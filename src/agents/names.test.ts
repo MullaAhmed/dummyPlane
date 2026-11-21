@@ -57,11 +57,27 @@ describe("nextName", () => {
     expect(nextName("throne-of-glass", [])).toBe("Celaena");
   });
 
-  it("adds 2, then 3, once every name is taken", () => {
+  it("takes a name of the next set once its own is all in use, so that no agent is named after one still there (27)", () => {
     const dc = PANTHEONS[0].names;
-    expect(nextName("dc", [...dc])).toBe("Batman 2");
-    expect(nextName("dc", [...dc, "Batman 2"])).toBe("Superman 2");
-    expect(nextName("dc", [...dc, ...dc.map((n) => `${n} 2`)])).toBe("Batman 3");
+    // The whole of DC in use, Batman among it: the 17th agent is no "Batman 2".
+    expect(nextName("dc", [...dc])).toBe("Thor");
+    expect(nextName("dc", [...dc, "Thor", "Hulk"])).toBe("Loki");
+    // The last set wraps round to the first.
+    expect(nextName("lord-of-the-rings", PANTHEONS[4].names)).toBe("Batman");
+    // A set before its own is used too, after those that follow.
+    expect(nextName("marvel", [...PANTHEONS[1].names, ...PANTHEONS[2].names, ...PANTHEONS[3].names, ...PANTHEONS[4].names])).toBe("Batman");
+  });
+
+  it("does not name an agent after a numbered one still there, nor the other way round", () => {
+    expect(nextName("dc", ["Batman 2"])).toBe("Superman");
+    expect(nextName("dc", ["Batman 2", "Superman 3"])).toBe("Aquaman");
+  });
+
+  it("adds 2, then 3, only once every name of every set is taken", () => {
+    const all = PANTHEONS.flatMap((p) => [...p.names]);
+    expect(nextName("dc", all)).toBe("Batman 2");
+    expect(nextName("dc", [...all, "Batman 2"])).toBe("Superman 2");
+    expect(nextName("dc", [...all, ...PANTHEONS[0].names.map((n) => `${n} 2`)])).toBe("Batman 3");
   });
 
   it("falls back to the first pantheon for an unknown id", () => {

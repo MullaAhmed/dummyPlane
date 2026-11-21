@@ -32,4 +32,13 @@ describe("insertFileNode", () => {
     expect(elements[0].x + elements[0].width / 2).toBe(500);
     expect(elements[0].y + elements[0].height / 2).toBe(400);
   });
+
+  it("puts it where asked: the ＋ menu opened from the radial menu", async () => {
+    await insertFileNode("README.md", { x: 30, y: 40 });
+    await Promise.resolve();
+    await Promise.resolve();
+    const [{ elements }] = updateScene.mock.calls[0];
+    expect(elements[0].x + elements[0].width / 2).toBe(30);
+    expect(elements[0].y + elements[0].height / 2).toBe(40);
+  });
 });

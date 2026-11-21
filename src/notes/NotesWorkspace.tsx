@@ -1,16 +1,21 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { BookOpen, Plus, RotateCw, X } from "lucide-react";
 import { useStore } from "zustand";
+import { EmptyState } from "@/components/EmptyState";
+import { InlineProblem } from "@/components/InlineProblem";
 import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger } from "@/components/PanelTabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMessages } from "@/i18n";
+import { logError } from "@/lib/errorToast";
 import { cn } from "@/lib/utils";
 import { AccentButton, IconButton } from "@/shell/buttons";
-import { TOP_ROW_HEIGHT } from "@/shell/layout";
+import { LANE_TOP } from "@/shell/layout";
+import { useWorkWindowPlace } from "@/shell/lane";
 import { CodeEditor } from "@/studio/CodeEditor";
 import { isDirty } from "@/studio/fileSession";
-import { BAR_FIELD, DiskBanner, errorText, ListMessage, Message } from "@/studio/parts";
+import { studioMessages } from "@/studio/messages";
+import { BAR_FIELD, DiskBanner, errorText } from "@/studio/parts";
 import { useDiskWatch, useSaveKey } from "@/studio/sessionEffects";
 import { UnsavedDialog } from "@/studio/UnsavedDialog";
 import { notesAll, notesWrite, type NoteList } from "./ipc";
@@ -32,13 +37,17 @@ type Tab = "edit" | "read" | "graph";
  */
 export default function NotesWorkspace({ projectId }: { projectId: string }) {
   const t = useMessages(notesMessages);
+  const place = useWorkWindowPlace();
+  // A note is a file of a session like Code Studio's: a refused one, a failed save or reload, say it in the same words.
+  const studio = useMessages(studioMessages);
   const session = useMemo(() => notesSession(projectId), [projectId]);
   const state = useStore(session);
   const nameField = useRef<HTMLInputElement>(null);
   const plus = useRef<HTMLButtonElement>(null);
   const badNameId = useId();
   const [list, setList] = useState<NoteList | null>(null);
-  const [listError, setListError] = useState<string | null>(null);
+  // What failed in the list, in the panel's words, and the error's own text for its detail line.
+  const [listError, setListError] = useState<{ title: string; next: string; detail: string } | null>(null);
   // Back on a note left modified: where it was being written.
   const [tab, setTab] = useState<Tab>(() => (isDirty(session.getState()) ? "edit" : "read"));
   const [query, setQuery] = useState("");
@@ -52,10 +61,11 @@ export default function NotesWorkspace({ projectId }: { projectId: string }) {
       setList(next);
       return next;
     } catch (failure) {
-      setListError(errorText(failure));
+      logError(t.listFailed, failure);
+      setListError({ title: t.listFailed, next: t.listNext, detail: errorText(failure) });
       return null;
     }
-  }, [projectId]);
+  }, [projectId, t]);
 
   useEffect(() => {
     void refresh();
@@ -67,7 +77,7 @@ export default function NotesWorkspace({ projectId }: { projectId: string }) {
   useDiskWatch(session);
   useSaveKey(() => void session.getState().save());
 
-  const { file, version, draft, loading, refused, pending, saving, error, disk } = state;
+  const { file, version, draft, loading, refused, pending, saving, error, failedTo, disk } = state;
   const dirty = isDirty(state);
 
   // What the session wrote or reloaded: backlinks and the graph read the list. On `version` alone:
@@ -111,16 +121,24 @@ export default function NotesWorkspace({ projectId }: { projectId: string }) {
       await state.open(name);
       if (outcome.status === "saved") setTab("edit");
     } catch (failure) {
-      setListError(errorText(failure));
+      logError(t.createFailed(name), failure);
+      setListError({ title: t.createFailed(name), next: t.createNext, detail: errorText(failure) });
     }
   };
 
   // What the reading and editing views show while no note is ready.
-  const waiting = !file ? <Message>{t.pickNote}</Message> : loading ? <Message>{t.readingNote}</Message> : refused ? <Message>{refused}</Message> : null;
+  const waiting = !file ? (
+    <EmptyState>{t.pickNote}</EmptyState>
+  ) : loading ? (
+    <EmptyState grace>{t.readingNote}</EmptyState>
+  ) : refused ? (
+    <InlineProblem title={studio.readFailed(file)} next={studio.readNext} error={refused} />
+  ) : null;
 
   // The rail on the right (activities) keeps its column, as in the code workspace.
   return (
-    <div data-notes aria-label={t.title} className="absolute inset-0 flex pr-18 pb-3 pl-3 text-dp-text" style={{ paddingTop: TOP_ROW_HEIGHT + 12 }}>
+    // Under the bars, left of the activity rail, or of an occupied lane where it fits (shell/layout.ts).
+    <div data-notes aria-label={t.title} className="absolute inset-0 flex pb-3 pl-3 text-dp-text" style={{ paddingTop: LANE_TOP, paddingRight: place.right }}>
       <section className="dp-glass-strong flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl">
         <PanelTabs value={tab} onValueChange={(next) => setTab(next as Tab)} className="min-h-0 flex-1">
           <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
@@ -131,7 +149,12 @@ export default function NotesWorkspace({ projectId }: { projectId: string }) {
                 {file}
               </span>
             )}
-            {dirty && <span data-dirty title={t.modified} aria-label={t.modified} className="size-2 shrink-0 rounded-full bg-dp-accent" />}
+            {/* Unsaved in words, as the Code Studio says it over its file: the round dot is an agent's mark. */}
+            {dirty && (
+              <span data-dirty className="shrink-0 text-xs text-dp-text-2">
+                {t.modified}
+              </span>
+            )}
             <PanelTabsList className="ml-auto">
               <PanelTabsTrigger value="edit">{t.tabEdit}</PanelTabsTrigger>
               <PanelTabsTrigger value="read">{t.tabRead}</PanelTabsTrigger>
@@ -199,13 +222,13 @@ export default function NotesWorkspace({ projectId }: { projectId: string }) {
               )}
               <div className="min-h-0 flex-1 overflow-y-auto pb-1">
                 {listError ? (
-                  <ListMessage danger>{listError}</ListMessage>
+                  <InlineProblem place="list" title={listError.title} next={listError.next} error={listError.detail} />
                 ) : !list ? (
-                  <ListMessage>{t.reading}</ListMessage>
+                  <EmptyState place="list" grace>{t.reading}</EmptyState>
                 ) : list.notes.length === 0 ? (
-                  <ListMessage>{t.empty}</ListMessage>
+                  <EmptyState place="list">{t.empty}</EmptyState>
                 ) : hits.length === 0 ? (
-                  <ListMessage>{t.noResult}</ListMessage>
+                  <EmptyState place="list">{t.noResult}</EmptyState>
                 ) : (
                   hits.map((hit) => (
                     // A row of the list, not a control: Button's centred box would be undone class by class.
@@ -231,10 +254,14 @@ export default function NotesWorkspace({ projectId }: { projectId: string }) {
             </div>
             <div className="flex min-w-0 flex-1 flex-col">
               {disk && <DiskBanner session={session} disk={disk} />}
-              {error && (
-                <p role="status" className="shrink-0 border-b border-dp-line px-3 py-2 text-xs text-dp-danger">
-                  {error}
-                </p>
+              {error && file && (
+                <InlineProblem
+                  place="band"
+                  role="status"
+                  title={failedTo === "reload" ? studio.reloadFailed(file) : studio.saveFailed(file)}
+                  next={failedTo === "reload" ? studio.reloadNext : studio.saveNext}
+                  error={error}
+                />
               )}
               <PanelTabsContent value="graph">
                 <NoteGraph notes={notes} current={file} onOpen={open} />

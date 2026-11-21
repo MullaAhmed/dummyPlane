@@ -118,7 +118,7 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
           )}
           {models && "models" in models && models.models.length === 0 && <p className="px-2 py-1 text-xs text-dp-text-2">{t.noModels}</p>}
           {installed.map((model) => (
-            <Button key={model} type="button" variant="ghost" data-model={model} onClick={() => onPick({ model, mode })} className={cn(ROW, "font-mono text-xs")}>
+            <Button key={model} type="button" variant="ghost" data-model={model} onClick={() => onPick({ model, mode })} className={cn(ROW, "min-h-8 font-mono text-(length:--text-ui)")}>
               {model}
             </Button>
           ))}

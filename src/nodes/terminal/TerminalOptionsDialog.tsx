@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { announceFolderMove } from "@/canvas/folderMove";
 import { canvasMessages } from "@/canvas/messages";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAgents } from "@/agents/agentsStore";
 import { LaunchOptionsForm } from "@/agents/LaunchOptionsForm";
@@ -11,7 +10,9 @@ import { nodesStore, useNodes } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
+import { AccentButton, QuietButton } from "@/shell/buttons";
 import { folderChange, folderLockOf } from "./folder";
+import { shellsFor } from "./launch";
 
 /**
  * Folder, shell and title of one terminal, and the command of a Custom one, used at its next launch.
@@ -65,16 +66,16 @@ export function TerminalOptionsDialog(props: { nodeId: string; payload: Terminal
         <form onSubmit={apply} className="grid gap-4">
           <LaunchOptionsForm
             value={lock ? { ...value, cwd: payload.cwd } : value}
-            shells={shells.length ? shells : [payload.shell]}
+            shells={shells.length ? shellsFor(payload.agent, shells) : [payload.shell]}
             showCommand={custom}
             folderLocked={lock ? (lock === "fleet" ? canvas.folderFleet : canvas.folderMission) : undefined}
             onChange={setValue}
           />
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onClose}>
-              {t.cancel}
-            </Button>
-            <Button type="submit">{t.apply}</Button>
+            <QuietButton onClick={onClose}>{t.cancel}</QuietButton>
+            <AccentButton type="submit" size="lg">
+              {t.apply}
+            </AccentButton>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -69,3 +69,40 @@ describe("agent activity store", () => {
     expect(state().activities).toEqual({});
   });
 });
+
+describe("an agent a dialog holds (hold)", () => {
+  const waiting = { activity: "waiting" as const, since: 100, message: "New MCP server found in this project: supabase" };
+
+  it("waits whatever Rust reads of its output meanwhile, then shows Rust's latest once it lets go", () => {
+    state().apply({ nodeId: "a", activity: "idle", since: 1 });
+    state().hold("a", waiting);
+    // Before Claude's first hook, its output alone says working or idle.
+    state().apply({ nodeId: "a", activity: "working", since: 150 });
+    state().apply({ nodeId: "a", activity: "idle", since: 160 });
+    expect(state().activities.a).toEqual(waiting);
+    // Another dialog in a row keeps its place.
+    state().hold("a", { ...waiting, since: 200, message: "Select login method:" });
+    expect(state().activities.a).toEqual({ ...waiting, message: "Select login method:" });
+    state().hold("a", null);
+    expect(state().activities.a).toEqual({ activity: "idle", since: 160 });
+    expect(state().under).toEqual({});
+    // Letting go twice changes nothing.
+    state().hold("a", null);
+    expect(state().activities.a).toEqual({ activity: "idle", since: 160 });
+  });
+
+  it("lets go of one Rust knew nothing of, of one whose terminal is gone, and across a reload's snapshot", () => {
+    state().hold("b", waiting);
+    state().hold("b", null);
+    expect(state().activities).toEqual({});
+    state().hold("c", waiting);
+    state().remove("c");
+    expect(state().activities).toEqual({});
+    expect(state().under).toEqual({});
+    state().hold("d", waiting);
+    state().load([{ nodeId: "d", activity: "idle", since: 50 }]);
+    expect(state().activities.d).toEqual(waiting);
+    state().hold("d", null);
+    expect(state().activities.d).toEqual({ activity: "idle", since: 50 });
+  });
+});

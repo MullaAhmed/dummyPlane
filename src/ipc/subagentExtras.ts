@@ -21,7 +21,7 @@ export interface SubagentExtras {
 export const EXTRA_KINDS = ["skills", "mcpServers", "plugins"] as const;
 export type ExtraKind = (typeof EXTRA_KINDS)[number];
 
-/** What restricts a sub-agent's spawner: its own pick, and the switches it set off in its Edit tab (`ExtensionChoice`, Claude). */
+/** What restricts a sub-agent's spawner: its own pick, and the switches it set off in its Edit panel (`ExtensionChoice`, Claude). */
 export interface Spawner {
   extras?: SubagentExtras;
   extensions?: unknown;

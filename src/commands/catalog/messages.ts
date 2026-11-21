@@ -73,6 +73,7 @@ export const catalogMessages = defineMessages({
       "commandBar.focus": e("Write an instruction", "instruction", "prompt", "command", "bar"),
       "agentsPanel.toggle": e("Agents panel", "agents", "panel"),
       "notes.open": e("Notes", "memory", "markdown", "wiki", "graph", "documentation"),
+      "git.window": e("Git window", "git", "branch", "changes", "commit", "push", "history", "diff"),
       "project.home": e("Home", "projects", "home"),
       "project.close": e("Close the project", "close", "project"),
       "palette.functions": e("Search for a function…", "function", "command", "action"),

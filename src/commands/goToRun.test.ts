@@ -36,7 +36,8 @@ describe("goTo", () => {
     goTo(item({ kind: "fleet", workspaceId: "w1", targetId: "chef" }));
     expect(arrive).toHaveBeenLastCalledWith("chef");
     goTo(item({ kind: "group", workspaceId: "w1", targetId: "g" }));
-    expect(focusGroup).toHaveBeenCalledWith("g");
+    // Go to is the keyboard: the view lands on the group at once.
+    expect(focusGroup).toHaveBeenCalledWith("g", "keyboard");
     expect(select).not.toHaveBeenCalled();
   });
 

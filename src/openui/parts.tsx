@@ -1,15 +1,17 @@
-import { Fragment, useEffect, useId, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, CircleCheck, Copy, Info, OctagonAlert, TriangleAlert } from "lucide-react";
+import { createContext, Fragment, useContext, useEffect, useId, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
+import { ArrowDown, ArrowDownRight, ArrowUp, ArrowUpRight, ChevronDown, CircleCheck, Copy, Info, OctagonAlert, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { usePalette } from "@/app/theme";
 import { Button } from "@/components/ui/button";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { Hint } from "@/shell/buttons";
+import { GreyedHint } from "@/shell/GreyedHint";
 import { LINK_CLASS, renderInline, renderMarkdown, type MarkdownOptions } from "@/studio/markdown";
 import { httpUrl, openLink, useOutputActions } from "./actions";
 import type { Token } from "./highlight";
 import { openuiMessages } from "./messages";
-import { isTone, TONE_SOFT, TONE_TEXT, type Tone } from "./tones";
+import { isTone, TONE_FILL, TONE_SOFT, TONE_TEXT, type Tone } from "./tones";
 
 /**
  * What generated output is drawn with: plain React on the palette's tokens.
@@ -24,9 +26,11 @@ export type RenderNode = (value: unknown) => ReactNode;
 const MARKDOWN: MarkdownOptions = {
   link: (href, label, key) =>
     httpUrl(href) ? (
-      <button key={key} type="button" title={href} className={LINK_CLASS} onClick={() => openLink(href)}>
-        {label}
-      </button>
+      <Hint key={key} label={<span className="break-all">{href}</span>}>
+        <button type="button" className={LINK_CLASS} onClick={() => openLink(href)}>
+          {label}
+        </button>
+      </Hint>
     ) : null,
 };
 
@@ -48,17 +52,77 @@ export function Children(props: { items: unknown; renderNode: RenderNode }) {
 
 const GAPS = { sm: "gap-2", md: "gap-3", lg: "gap-4" } as const;
 type Gap = keyof typeof GAPS;
-const gapOf = (gap: unknown) => GAPS[(gap as Gap) in GAPS ? (gap as Gap) : "md"];
+const isGap = (gap: unknown): gap is Gap => typeof gap === "string" && gap in GAPS;
+const gapOf = (gap: unknown, fallback: Gap = "md") => GAPS[isGap(gap) ? gap : fallback];
 
-export function Stack(props: { children: unknown; gap?: unknown; renderNode: RenderNode }) {
-  return <div className={cn("flex min-w-0 flex-col", gapOf(props.gap))}><Children items={props.children} renderNode={props.renderNode} /></div>;
+/**
+ * How deep a part sits: the output's own sections (its root Stack's children)
+ * stand further apart than the lines of one group, tight inside, generous
+ * between. A panel's small print (`compact`) starts one level down.
+ */
+export const Depth = createContext(0);
+
+/** `children` one level deeper. */
+function Deeper(props: { children: ReactNode }) {
+  return <Depth.Provider value={useContext(Depth) + 1}>{props.children}</Depth.Provider>;
 }
 
-/** Side by side, wrapping when the node is narrow: each child takes an equal share, 7rem at least (four Stats fit an output's width). */
-export function Row(props: { children: unknown; gap?: unknown; renderNode: RenderNode }) {
+/** Between the root's sections, unless the agent gave a gap: a step past lg. */
+export const SECTION_GAP = "gap-5";
+
+export function Stack(props: { children: unknown; gap?: unknown; renderNode: RenderNode }) {
+  const root = useContext(Depth) === 0;
   return (
-    <div className={cn("flex min-w-0 flex-wrap *:min-w-28 *:flex-1", gapOf(props.gap))}>
-      <Children items={props.children} renderNode={props.renderNode} />
+    <div className={cn("flex min-w-0 flex-col", root && !isGap(props.gap) ? SECTION_GAP : gapOf(props.gap))}>
+      <Deeper>
+        <Children items={props.children} renderNode={props.renderNode} />
+      </Deeper>
+    </div>
+  );
+}
+
+const listOf = (items: unknown): unknown[] => (Array.isArray(items) ? items : items == null ? [] : [items]);
+
+/** What keeps its own width in a Row: a control or a word, never stretched to a share. */
+const FIT = new Set(["Button", "Badge", "Link"]);
+const fits = (item: unknown) => isElement(item) && FIT.has(item.typeName);
+
+/**
+ * Side by side, wrapping when the node is narrow. Stats only: one strip of
+ * figures. Buttons, Links and Badges keep their own width, a cluster; any
+ * other child takes an equal share, 7rem at least.
+ */
+export function Row(props: { children: unknown; gap?: unknown; renderNode: RenderNode }) {
+  const items = listOf(props.children);
+  if (items.length > 1 && items.every((item) => isElement(item) && item.typeName === "Stat")) return <Stats items={items} renderNode={props.renderNode} />;
+  const cluster = items.every(fits);
+  return (
+    <div className={cn("flex min-w-0 flex-wrap", items.some(fits) && "items-center", gapOf(props.gap, cluster ? "sm" : "md"))}>
+      {items.map((item, i) => (
+        <div key={i} className={fits(item) ? "max-w-full min-w-0 flex-none" : "flex min-w-28 flex-1 flex-col *:grow"}>
+          <Children items={[item]} renderNode={props.renderNode} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A Row of Stats: one strip, a hairline between figures, in as many columns as
+ * fit (four across an output) and onto a second line when narrow. The grid is
+ * pulled a pixel up and left under its clipped frame, so the first row and
+ * column draw no line of their own against it.
+ */
+function Stats(props: { items: unknown[]; renderNode: RenderNode }) {
+  return (
+    <div data-stats className="min-w-0 overflow-hidden rounded-lg border border-dp-line">
+      <div className="-mt-px -ml-px grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))]">
+        {props.items.map((item, i) => (
+          <div key={i} className="min-w-0 border-t border-l border-dp-line px-3 py-2.5">
+            {props.renderNode(item)}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -82,7 +146,9 @@ export function Card(props: { title?: unknown; children: unknown; collapsed?: un
     return (
       <section className="flex min-w-0 flex-col gap-2 rounded-lg border border-dp-line bg-dp-card p-3">
         {title && <h3 className="text-sm font-medium text-dp-text">{title}</h3>}
-        <Children items={props.children} renderNode={props.renderNode} />
+        <Deeper>
+          <Children items={props.children} renderNode={props.renderNode} />
+        </Deeper>
       </section>
     );
   return (
@@ -95,7 +161,9 @@ export function Card(props: { title?: unknown; children: unknown; collapsed?: un
       </h3>
       {open && (
         <div id={body} className="flex min-w-0 flex-col gap-2 px-3 pb-3">
-          <Children items={props.children} renderNode={props.renderNode} />
+          <Deeper>
+            <Children items={props.children} renderNode={props.renderNode} />
+          </Deeper>
         </div>
       )}
     </section>
@@ -146,19 +214,21 @@ export function Tabs(props: { tabs: unknown; renderNode: RenderNode }) {
               tabIndex={i === active ? 0 : -1}
               onClick={() => setChosen(i)}
               className={cn(
-                "-mb-px flex max-w-full items-baseline gap-1 border-b-2 px-1.5 py-1.5 text-(length:--text-ui) font-medium",
+                "-mb-px flex max-w-full items-center gap-1.5 border-b-2 px-1.5 py-1.5 text-(length:--text-ui) font-medium",
                 FOCUS,
                 i === active ? "border-dp-accent-ink text-dp-text" : "border-transparent text-dp-text-2 hover:text-dp-text",
               )}
             >
               <span className="truncate">{cellText(tab.props.label)}</span>
-              {count != null && count !== "" && <span className="text-xs tabular-nums text-dp-text-3">{cellText(count)}</span>}
+              {count != null && count !== "" && <span className={cn("rounded-sm px-1 text-xs leading-4 tabular-nums", TONE_TEXT.neutral, TONE_SOFT.neutral)}>{cellText(count)}</span>}
             </button>
           );
         })}
       </div>
       <div id={`${id}-panel`} role="tabpanel" aria-labelledby={tabId(active)} className="flex min-w-0 flex-col gap-3">
-        <Children key={active} items={panel.children} renderNode={props.renderNode} />
+        <Deeper>
+          <Children key={active} items={panel.children} renderNode={props.renderNode} />
+        </Deeper>
       </div>
     </div>
   );
@@ -176,7 +246,8 @@ const HEADINGS = ["text-lg font-medium", "text-base font-medium", "text-sm font-
 export function Heading(props: { text: unknown; level?: unknown }) {
   const level = props.level === 2 || props.level === 3 ? props.level : 1;
   const Tag = `h${level + 1}` as "h2";
-  return <Tag className={cn("text-dp-text", HEADINGS[level - 1])}>{inline(props.text)}</Tag>;
+  // More air above a heading than below it: it opens what follows.
+  return <Tag className={cn("text-balance text-dp-text not-first:mt-2", HEADINGS[level - 1])}>{inline(props.text)}</Tag>;
 }
 
 export function Text(props: { text: unknown; tone?: unknown }) {
@@ -276,6 +347,8 @@ export function Table(props: { columns: unknown; rows: unknown; renderNode?: Ren
     setSort((now) => (now?.column !== column ? { column, descending: false } : now.descending ? null : { column, descending: true }));
   const cell = (value: unknown) =>
     isElement(value) && props.renderNode ? props.renderNode(value) : typeof value === "string" ? inline(value) : cellText(value);
+  // The outer columns sit on the output's edges, as its other parts do: their text and their rules stop where a Stat's frame or a Tab's line does.
+  const flush = (i: number) => cn(i === 0 && "pl-0", i === width - 1 && "pr-0");
   return (
     <div className="flex min-w-0 flex-col">
       <div className="min-w-0 overflow-x-auto">
@@ -291,17 +364,18 @@ export function Table(props: { columns: unknown; rows: unknown; renderNode?: Ren
                       key={i}
                       scope="col"
                       aria-sort={by ? (by.descending ? "descending" : "ascending") : undefined}
-                      className={cn("px-1 py-1 text-xs font-medium text-dp-text-2", numeric[i] ? "text-right" : "text-left")}
+                      className={cn("px-1 py-1 text-xs font-medium text-dp-text-2", numeric[i] ? "text-right" : "text-left", flush(i))}
                     >
-                      <button
-                        type="button"
-                        title={t.sortBy(columns[i] ?? "")}
-                        onClick={() => cycle(i)}
-                        className={cn("inline-flex max-w-full items-center gap-1 rounded-sm px-1 py-0.5 hover:text-dp-text", numeric[i] && "flex-row-reverse", by && "text-dp-text", FOCUS)}
-                      >
-                        <span className="truncate">{columns[i] ?? ""}</span>
-                        {by && <Arrow aria-hidden className="size-3 shrink-0" />}
-                      </button>
+                      <Hint label={t.sortBy(columns[i] ?? "")}>
+                        <button
+                          type="button"
+                          onClick={() => cycle(i)}
+                          className={cn("inline-flex max-w-full items-center gap-1 rounded-sm px-1 py-0.5 hover:text-dp-text", numeric[i] && "flex-row-reverse", by && "text-dp-text", FOCUS, flush(i))}
+                        >
+                          <span className="truncate">{columns[i] ?? ""}</span>
+                          {by && <Arrow aria-hidden className="size-3 shrink-0" />}
+                        </button>
+                      </Hint>
                     </th>
                   );
                 })}
@@ -312,7 +386,7 @@ export function Table(props: { columns: unknown; rows: unknown; renderNode?: Ren
             {shown.map((row, r) => (
               <tr key={r} className="border-b border-dp-line last:border-b-0 hover:bg-dp-hover">
                 {indexes.map((i) => (
-                  <td key={i} className={cn("px-2 py-1.5 align-top text-dp-text", numeric[i] && "text-right tabular-nums", isWord(row[i]) && "whitespace-nowrap")}>
+                  <td key={i} className={cn("px-2 py-1.5 align-top text-dp-text", numeric[i] && "text-right tabular-nums", isWord(row[i]) && "whitespace-nowrap", flush(i))}>
                     {cell(row[i])}
                   </td>
                 ))}
@@ -321,6 +395,7 @@ export function Table(props: { columns: unknown; rows: unknown; renderNode?: Ren
           </tbody>
         </table>
       </div>
+      {rows.length === 0 && <p className="py-2 text-xs text-dp-text-3">{t.tableEmpty}</p>}
       {folds && (
         <button
           type="button"
@@ -339,11 +414,11 @@ export function Table(props: { columns: unknown; rows: unknown; renderNode?: Ren
 export function KeyValue(props: { items: unknown }) {
   const items = (Array.isArray(props.items) ? props.items : []).filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null);
   return (
-    <dl className="grid grid-cols-[minmax(0,max-content)_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
+    <dl className="grid grid-cols-[fit-content(40%)_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm">
       {items.map((item, i) => (
         <Fragment key={i}>
           <dt className="truncate text-dp-text-2" title={cellText(item.label)}>{cellText(item.label)}</dt>
-          <dd className="min-w-0 break-words text-dp-text">{typeof item.value === "string" ? inline(item.value) : cellText(item.value)}</dd>
+          <dd className="min-w-0 text-dp-text [overflow-wrap:anywhere]">{typeof item.value === "string" ? inline(item.value) : cellText(item.value)}</dd>
         </Fragment>
       ))}
     </dl>
@@ -352,15 +427,35 @@ export function KeyValue(props: { items: unknown }) {
 
 const toneOf = (tone: unknown, fallback: Tone): Tone => (isTone(tone) ? tone : fallback);
 
-/** A figure, read first: its tone (other than neutral) inks the figure and its change line. */
+/** A change's direction, from its sign: "+12", "−22 ms" (a minus, an en dash or a hyphen). */
+export function trendOf(delta: string): "up" | "down" | null {
+  const sign = /^\s*([+\-\u2212\u2013])\s*\d/.exec(delta)?.[1];
+  return sign === undefined ? null : sign === "+" ? "up" : "down";
+}
+
+/**
+ * A figure, read first: its tone (other than neutral) inks the figure and its
+ * change line, which draws an arrow from its sign. A lone figure keeps the
+ * font's own digits; columns of them (a Table) take tabular ones.
+ */
 export function Stat(props: { label: unknown; value: unknown; delta?: unknown; tone?: unknown }) {
   const tone = toneOf(props.tone, "neutral");
   const ink = tone === "neutral" ? "text-dp-text" : TONE_TEXT[tone];
+  const label = cellText(props.label);
+  const value = cellText(props.value);
+  const delta = props.delta == null ? "" : cellText(props.delta);
+  const trend = trendOf(delta);
+  const Arrow = trend === "up" ? ArrowUpRight : ArrowDownRight;
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="truncate text-xs text-dp-text-2">{cellText(props.label)}</span>
-      <span className={cn("truncate text-2xl leading-8 font-medium tracking-tight tabular-nums", ink)}>{cellText(props.value)}</span>
-      {props.delta != null && props.delta !== "" && <span className={cn("truncate text-xs tabular-nums", TONE_TEXT[tone])}>{cellText(props.delta)}</span>}
+      <span className="truncate text-xs text-dp-text-2" title={label}>{label}</span>
+      <span className={cn("truncate text-2xl leading-8 font-medium tracking-tight", ink)} title={value}>{value}</span>
+      {delta && (
+        <span className={cn("flex min-w-0 items-center gap-0.5 text-xs tabular-nums", TONE_TEXT[tone])}>
+          {trend && <Arrow aria-hidden data-trend={trend} className="size-3 shrink-0" />}
+          <span className="truncate">{delta}</span>
+        </span>
+      )}
     </div>
   );
 }
@@ -413,7 +508,7 @@ export function Code(props: { code: unknown; language?: unknown }) {
   const copy = () => void navigator.clipboard.writeText(code).then(() => toast(t.copied), () => undefined);
   return (
     <div className="group/code relative min-w-0 rounded-md border border-dp-line bg-dp-surface">
-      <pre className="overflow-x-auto p-2 font-mono text-xs leading-5 text-dp-text" data-lang={language || undefined}>
+      <pre className="overflow-x-auto py-2 pr-9 pl-2.5 font-mono text-xs leading-5 text-dp-text" data-lang={language || undefined}>
         <code>
           {lines
             ? lines.map((line, i) => (
@@ -429,26 +524,37 @@ export function Code(props: { code: unknown; language?: unknown }) {
             : code}
         </code>
       </pre>
-      <Button type="button" variant="ghost" size="icon-xs" aria-label={t.copyCode} title={t.copyCode} onClick={copy} className="absolute top-1 right-1 text-dp-text-2">
-        <Copy />
-      </Button>
+      <Hint label={t.copyCode}>
+        <Button type="button" variant="ghost" size="icon-xs" aria-label={t.copyCode} onClick={copy} className="absolute top-1 right-1 text-dp-text-2">
+          <Copy />
+        </Button>
+      </Hint>
     </div>
   );
 }
 
-export function Progress(props: { value: unknown; max?: unknown; label?: unknown }) {
+/**
+ * A ratio against its limit: the bar in the accent, or in its tone's ink when
+ * the ratio is news (coverage under its floor, a quota nearly spent). Out of a
+ * max other than 100, the figures show beside the share.
+ */
+export function Progress(props: { value: unknown; max?: unknown; label?: unknown; tone?: unknown }) {
   const max = typeof props.max === "number" && props.max > 0 ? props.max : 100;
   const value = typeof props.value === "number" && Number.isFinite(props.value) ? Math.min(Math.max(props.value, 0), max) : 0;
   const percent = Math.round((value / max) * 100);
   const label = typeof props.label === "string" ? props.label : "";
+  const fill = isTone(props.tone) ? TONE_FILL[props.tone] : "bg-dp-accent";
   return (
-    <div className="flex min-w-0 flex-col gap-1">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-2 text-xs">
         <span className="truncate text-dp-text-2">{label}</span>
-        <span className="tabular-nums text-dp-text">{percent}%</span>
+        <span className="flex shrink-0 items-baseline gap-1.5 tabular-nums">
+          {max !== 100 && <span className="text-dp-text-2">{`${cellText(value)} / ${cellText(max)}`}</span>}
+          <span className="font-medium text-dp-text">{percent}%</span>
+        </span>
       </div>
-      <div role="progressbar" aria-label={label || undefined} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value} className="h-1.5 overflow-hidden rounded-sm bg-dp-line">
-        <div className="h-full bg-dp-accent" style={{ width: `${percent}%` }} />
+      <div role="progressbar" aria-label={label || undefined} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value} className="h-2 overflow-hidden rounded-sm bg-dp-line">
+        <div className={cn("h-full rounded-sm", fill)} style={{ width: `${percent}%` }} />
       </div>
     </div>
   );
@@ -460,9 +566,11 @@ export function Link(props: { label: unknown; url: unknown }) {
   const label = cellText(props.label) || String(props.url ?? "");
   if (!url) return <span className="text-sm text-dp-text">{label}</span>;
   return (
-    <button type="button" title={t.openLink(url)} className={cn(LINK_CLASS, "w-fit text-left text-sm")} onClick={() => openLink(url)}>
-      {label}
-    </button>
+    <Hint label={<span className="break-all">{t.openLink(url)}</span>}>
+      <button type="button" className={cn(LINK_CLASS, "w-fit text-left text-sm")} onClick={() => openLink(url)}>
+        {label}
+      </button>
+    </Hint>
   );
 }
 
@@ -478,8 +586,10 @@ export function ActionButton(props: { label: unknown; message: unknown }) {
   const message = cellText(props.message).trim();
   const disabled = !send || !message;
   return (
-    <Button type="button" variant="outline" size="sm" className="w-fit max-w-full" disabled={disabled} title={send ? message : t.noAgent} onClick={() => send?.(message, label)}>
-      <span className="truncate">{label}</span>
-    </Button>
+    <GreyedHint label={send ? message : t.noAgent} className="flex w-fit max-w-full">
+      <Button type="button" variant="outline" size="sm" className="w-fit max-w-full" disabled={disabled} onClick={() => send?.(message, label)}>
+        <span className="truncate">{label}</span>
+      </Button>
+    </GreyedHint>
   );
 }

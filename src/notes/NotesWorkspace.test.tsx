@@ -148,7 +148,8 @@ describe("the notes", () => {
     await open("Plain");
     await click(tab("Edit"));
     await typeInEditor(" More.");
-    expect(dialog().querySelector("[data-dirty]")).not.toBeNull();
+    // Unsaved in words, as the Code Studio says it over its file: no dot, the agent's mark.
+    expect(dialog().querySelector("[data-dirty]")?.textContent).toBe("Unsaved changes");
     await click(tab("Read"));
     expect(reader().textContent).toContain("Nothing. More.");
     await pressSave();
@@ -320,6 +321,9 @@ describe("the notes", () => {
     await pressEnter(nameField());
     await settle();
     expect(dialog().textContent).toContain("path refused : x");
+    // The panel's words first, the error's own line under them, never as the title.
+    const lines = [...dialog().querySelectorAll("[data-problem] p")].map((p) => p.textContent);
+    expect(lines).toEqual(["Could not create the note x", "Check that .dummyplane/notes can be written, then try again", "path refused : x"]);
   });
 
   it("says when notes were left out", async () => {

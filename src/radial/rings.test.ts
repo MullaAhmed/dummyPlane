@@ -5,16 +5,22 @@ import { ClipboardPaste, Group, Ungroup as UngroupIcon } from "lucide-react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { toStoredKind } from "@/canvas/nodeElement";
-import type { CommandContext } from "@/commands/command";
+import { labelOf, type CommandContext } from "@/commands/command";
 import { COMMANDS } from "@/commands/registry";
 import { agentsStore } from "@/agents/agentsStore";
 import { AGENTS } from "@/agents/catalog";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
-import { ARCS, arcLines, lineOf, moreSlotOf, ringLines, RINGS, wedgeCountOf, type RingKind, type RingSlot } from "./rings";
+import { arrangeWorkspace } from "@/agents/arrangeCanvas";
+import { pendingUiRequest } from "@/commands/uiRequests";
+import { ARCS, arcLines, lineOf, moreSlotOf, ringLines, RINGS, wedgeCountOf, type RingKind, type RingLine, type RingSlot } from "./rings";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
+vi.mock("@/agents/arrangeCanvas", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/agents/arrangeCanvas")>()),
+  arrangeWorkspace: vi.fn(),
+}));
 vi.mock("@/nodes/terminal/registry", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/nodes/terminal/registry")>()),
   terminalSelection: vi.fn(() => ""),
@@ -59,19 +65,19 @@ describe("the rings", () => {
   });
 
   it("names each ring's positions clockwise from the top, More last", () => {
-    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "New terminal in folder…", "Fleet", "Paste", "Arrange as…", "Other agent…", "Kanban"]);
+    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "New terminal in folder…", "Fleet", "Paste", "Arrange", "Other agent…", "Kanban"]);
     expect(labels("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Quick note on this terminal", "Pause", "More"]);
-    expect(labels("group")).toEqual(["Add an agent…", "Rename the group", "Link a fleet", "Pause group", "Close the group", "Arrange the group as…", "Resume group", "More"]);
+    expect(labels("group")).toEqual(["Add an agent…", "Rename the group", "Link a fleet", "Pause group", "Close the group", "Arrange the group", "Resume group", "More"]);
     expect(labels("fleet")).toEqual(["Write an instruction", "Rename", "Delete", "Link", "Paste", "Quick note on this Fleet", "More"]);
-    expect(labels("selection")).toEqual(["Copy", "Paste", "Duplicate", "Bring to front", "Delete", "Send to back", "Arrange as…", "More"]);
+    expect(labels("selection")).toEqual(["Copy", "Paste", "Duplicate", "Bring to front", "Delete", "Send to back", "Arrange the selection", "More"]);
   });
 
   it("puts what the ring has no room for in its More arc, clockwise", () => {
     // The canvas ring has Kanban in More's place, and no arc (12 Nov).
     expect(arcLabels("canvas")).toEqual([]);
-    expect(arcLabels("terminal")).toEqual(["Stop the process", "Duplicate", "Review changes", "Remove from group", "Arrange the group as…"]);
+    expect(arcLabels("terminal")).toEqual(["Stop the process", "Duplicate", "Review changes", "Remove from group", "Arrange the group"]);
     expect(arcLabels("group")).toEqual(["Ungroup", "Fold the group", "Zoom to group"]);
-    expect(arcLabels("fleet")).toEqual(["Arrange as…", "Remove from group"]);
+    expect(arcLabels("fleet")).toEqual(["Arrange", "Remove from group"]);
     // Excalidraw's own full menu last: nothing of it is lost.
     expect(arcLabels("selection")).toEqual(["Lock", "More drawing options…"]);
   });
@@ -79,7 +85,7 @@ describe("the rings", () => {
   it("keeps every function the rings had before their arcs, on the ring or in its arc", () => {
     const before: Record<RingKind, string[]> = {
       // Overview, export, import and PNG left the canvas ring for Kanban (12 Nov): the palette keeps them.
-      canvas: ["agent.launch.claude", "agent.launch.shell", "agent.inFolder", "agent.fleet", "drawing.paste", "scene.arrangeAs", "agent.other", "studio.kanban"],
+      canvas: ["agent.launch.claude", "agent.launch.shell", "agent.inFolder", "agent.fleet", "drawing.paste", "scene.arrange", "agent.other", "studio.kanban"],
       terminal: ["terminal.copy", "terminal.paste", "terminal.rename", "terminal.relaunch", "terminal.close", "terminal.note", "terminal.pause", "terminal.stop"],
       group: ["group.addAgent", "group.rename", "group.linkFleet", "group.pause", "group.close", "group.ungroup", "group.resume", "group.frame"],
       fleet: ["fleet.write", "fleet.rename", "fleet.remove", "fleet.link", "fleet.paste", "fleet.note"],
@@ -91,32 +97,79 @@ describe("the rings", () => {
     }
   });
 
-  it("points every Arrange wedge at the list of layouts instead of arranging at once, each in its place and still named Arrange", () => {
+  it("makes every Arrange wedge arrange at once with the saved layout, no list, each in its place and still named Arrange", () => {
     // No ring gains or loses a slot: the wedge keeps its place and its name.
-    expect(RINGS.canvas[5]).toMatchObject({ command: "scene.arrangeAs", short: "arrange" });
-    expect(RINGS.group[5]).toMatchObject({ command: "group.arrangeAs", short: "arrange" });
-    expect(RINGS.selection[6]).toMatchObject({ command: "scene.arrangeAs", short: "arrange" });
+    expect(RINGS.canvas[5]).toMatchObject({ command: "scene.arrange", short: "arrange" });
+    expect(RINGS.group[5]).toMatchObject({ command: "group.arrange", short: "arrange" });
+    expect(RINGS.selection[6]).toMatchObject({ command: "scene.arrangeSelection", short: "arrange" });
     expect(ARCS.terminal.filter((slot) => slot.short === "arrange")).toHaveLength(1);
     expect(ARCS.fleet.filter((slot) => slot.short === "arrange")).toHaveLength(1);
-    // None is left that arranges at once: whatever the ring, the command of an Arrange wedge asks for a layout.
+    // Whatever the ring, the command of an Arrange wedge arranges directly; the layout list stays in the palette's Arrange as….
     const arranging = [...Object.values(RINGS), ...Object.values(ARCS)].flat().filter((slot) => slot.short === "arrange");
     expect(arranging).toHaveLength(5);
     for (const slot of arranging) {
       for (const context of [ctx, { ...ctx, terminalId: "nobody", groupId: undefined }]) {
         const id = typeof slot.command === "function" ? slot.command(context) : slot.command;
-        expect(id).toMatch(/^(scene|group)\.arrangeAs$/);
+        expect(id).toMatch(/^(scene\.arrange|scene\.arrangeSelection|group\.arrange)$/);
       }
     }
+  });
+
+  it("never puts the list of layouts on a ring: no slot of any ring or arc resolves to an Arrange as… command, in any context", () => {
+    const contexts: CommandContext[] = [ctx, { ...ctx, terminalId: "nobody", groupId: undefined }, { ...ctx, selectionIds: ["a", "b"] }, { ...ctx, selectionIds: [] }];
+    for (const slot of [...Object.values(RINGS), ...Object.values(ARCS)].flat()) {
+      for (const context of contexts) expect(idOf(slot, context), String(slot.short)).not.toMatch(/arrangeAs$/);
+    }
+  });
+
+  it("arranges at once from every ring's Arrange wedge, in the saved layout: the canvas's, the group's, the selection's, and More's of a terminal and a Fleet", async () => {
+    const loose = { ...ctx, terminalId: "nobody", groupId: undefined };
+    const wedge = (slot: RingSlot, context: CommandContext) => lineOf(slot, context)!;
+    const arrangeSlot = (kind: RingKind) => ARCS[kind].find((slot) => slot.short === "arrange")!;
+    const cases: [string, RingLine, object][] = [
+      // The whole canvas, or what Excalidraw has selected (nothing here).
+      ["canvas", wedge(RINGS.canvas[5]!, ctx), { only: [], undoable: true }],
+      ["group", wedge(RINGS.group[5]!, ctx), { only: ["g1"], undoable: true }],
+      // The selection alone, never the whole canvas: no `layout`, so the saved one.
+      ["selection", wedge(RINGS.selection[6]!, { ...ctx, selectionIds: ["a", "b"] }), { only: ["a", "b"], scope: "selection", undoable: true }],
+      // A terminal in a group arranges its group; a loose one, and the Fleet, the whole canvas.
+      ["terminal in a group", wedge(arrangeSlot("terminal"), ctx), { only: ["g1"], undoable: true }],
+      ["loose terminal", wedge(arrangeSlot("terminal"), loose), { only: [], undoable: true }],
+      ["fleet", wedge(arrangeSlot("fleet"), ctx), { only: [], undoable: true }],
+    ];
+    expect(cases).toHaveLength(6);
+    for (const [name, line, options] of cases) {
+      expect(line.enabled, name).toBe(true);
+      vi.mocked(arrangeWorkspace).mockClear();
+      await line.command!.run(line.context);
+      expect(arrangeWorkspace, name).toHaveBeenCalledTimes(1);
+      expect(arrangeWorkspace, name).toHaveBeenLastCalledWith("w1", options);
+      // The wedge never asks for a layout, and sets none: the saved one decides.
+      expect(pendingUiRequest()?.kind, name).not.toBe("arrangeMenu");
+      expect(vi.mocked(arrangeWorkspace).mock.calls[0]![1], name).not.toHaveProperty("layout");
+    }
+  });
+
+  it("keeps the list of layouts for the palette's Arrange as… and Arrange the group as…, which ask and arrange nothing", async () => {
+    const palette: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: null, groupId: "g1" };
+    const asking = (id: string) => COMMANDS.find((c) => c.id === id)!;
+    expect([labelOf(asking("scene.arrangeAs"), palette), labelOf(asking("group.arrangeAs"), palette)]).toEqual(["Arrange as…", "Arrange the group as…"]);
+    vi.mocked(arrangeWorkspace).mockClear();
+    await asking("scene.arrangeAs").run(palette);
+    expect(pendingUiRequest()).toMatchObject({ kind: "arrangeMenu", workspaceId: "w1", target: { kind: "scene" } });
+    await asking("group.arrangeAs").run(palette);
+    expect(pendingUiRequest()).toMatchObject({ kind: "arrangeMenu", workspaceId: "w1", target: { kind: "group", id: "g1" } });
+    expect(arrangeWorkspace).not.toHaveBeenCalled();
   });
 
   it("arranges a node's group from its More, or else the whole canvas, never Excalidraw's selection elsewhere", () => {
     const arrange = (kind: RingKind, context: CommandContext) => lineOf(ARCS[kind].find((slot) => slot.short === "arrange")!, context)!;
     // Batman stands in g1: its group, inside the frame.
-    expect([arrange("terminal", ctx).command!.id, arrange("terminal", ctx).context.groupId]).toEqual(["group.arrangeAs", "g1"]);
+    expect([arrange("terminal", ctx).command!.id, arrange("terminal", ctx).context.groupId]).toEqual(["group.arrange", "g1"]);
     // A terminal in no group, the Fleet in none: the canvas, whole.
     const loose = { ...ctx, terminalId: "nobody", groupId: undefined };
-    expect([arrange("terminal", loose).command!.id, arrange("terminal", loose).context.selectionIds]).toEqual(["scene.arrangeAs", []]);
-    expect([arrange("fleet", ctx).command!.id, arrange("fleet", ctx).context.selectionIds]).toEqual(["scene.arrangeAs", []]);
+    expect([arrange("terminal", loose).command!.id, arrange("terminal", loose).context.selectionIds]).toEqual(["scene.arrange", []]);
+    expect([arrange("fleet", ctx).command!.id, arrange("fleet", ctx).context.selectionIds]).toEqual(["scene.arrange", []]);
     // The ring's own context is left as it was.
     expect(ctx.selectionIds).toBeUndefined();
   });
@@ -216,7 +269,7 @@ describe("the selection ring with terminals selected", () => {
     selecting({ a: true, b: true });
     expect(wedgeCountOf("selection")).toBe(8);
     expect([second().label, second().short, second().Icon, second().enabled]).toEqual(["Group selection", "Group", Group, true]);
-    expect(labels("selection")).toEqual(["Copy", "Group selection", "Duplicate", "Bring to front", "Delete", "Send to back", "Arrange as…", "More"]);
+    expect(labels("selection")).toEqual(["Copy", "Group selection", "Duplicate", "Bring to front", "Delete", "Send to back", "Arrange the selection", "More"]);
   });
 
   it("keeps Paste with a drawing, or a single terminal, selected", () => {

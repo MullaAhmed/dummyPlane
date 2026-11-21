@@ -195,3 +195,57 @@ describe("whenReady", () => {
     expect(a.pressed).toEqual([]);
   });
 });
+
+describe("whenReady's held", () => {
+  it("tells once what holds the session, as soon as it stands still, then null once the user answered it (issues #3, #14)", async () => {
+    // Held 5 minutes by the MCP question; answered, the prompt comes up.
+    const a = agent(MCP);
+    const told: (string | null)[] = [];
+    let answeredAt: number | null = null;
+    const probe: ReadyProbe = {
+      ...a.probe,
+      screen: () => {
+        if (answeredAt === null && a.now() >= 5 * 60_000) answeredAt = a.now();
+        return answeredAt === null ? MCP : MCP_ANSWERED;
+      },
+      quietMs: () => (answeredAt === null ? a.now() : a.now() - answeredAt),
+      waitLonger: () => true,
+      held: (dialog) => told.push(dialog && `${dialog.kind}: ${dialog.title}`),
+    };
+    expect(await whenReady(probe, a.wait)).toBe(true);
+    expect(told).toEqual(["mcp: New MCP server found in this project: supabase", null]);
+    expect(a.pressed).toEqual([]);
+  });
+
+  it("never counts the trust prompt it answers itself, and lets go of a dialog on its way out", async () => {
+    const trusting = agent(TRUST, (keys, show) => show(keys === "\r" ? CLAUDE : TRUST_YES));
+    const told: unknown[] = [];
+    expect(await whenReady({ ...trusting.probe, held: (dialog) => told.push(dialog) }, trusting.wait)).toBe(true);
+    expect(told).toEqual([]);
+    // One it may not answer holds it until it gives up: it hears null then.
+    const held = agent(TRUST);
+    const kinds: (string | null)[] = [];
+    expect(await whenReady({ ...held.probe, held: (dialog) => kinds.push(dialog?.kind ?? null) }, held.wait, false)).toBe(false);
+    expect(kinds).toEqual(["trust", null]);
+  });
+});
+
+describe("whenReady's held, after its own Enter", () => {
+  it("never takes the trust menu it just answered for a dialog, while Claude takes its time to redraw", async () => {
+    // Under load, Claude redraws a second after the Enter; until then the menu stands still, on « Yes ».
+    let enteredAt: number | null = null;
+    const a = agent(TRUST, (keys, show) => {
+      if (keys === "\r") enteredAt = a.now();
+      else show(TRUST_YES);
+    });
+    const told: unknown[] = [];
+    const probe: ReadyProbe = {
+      ...a.probe,
+      screen: () => (enteredAt !== null && a.now() - enteredAt >= 1000 ? CLAUDE : a.probe.screen()),
+      quietMs: () => (enteredAt !== null && a.now() - enteredAt >= 1000 ? a.now() - enteredAt - 1000 : a.probe.quietMs()),
+      held: (dialog) => told.push(dialog),
+    };
+    expect(await whenReady(probe, a.wait)).toBe(true);
+    expect(told).toEqual([]);
+  });
+});

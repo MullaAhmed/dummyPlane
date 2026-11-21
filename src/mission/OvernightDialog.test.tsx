@@ -24,7 +24,7 @@ vi.mock("sonner", () => ({ toast: { info: vi.fn(), error: vi.fn(), success: vi.f
 let host: HTMLDivElement;
 let root: Root;
 
-const session = { title: "Chef", name: "Chef", agent: "claude" as const, cwd: "C:/p", shell: "default" as const, command: "", role: "orchestrator" as const, claudeSessionId: "s1" };
+const session = { title: "Chef", name: "Chef", agent: "claude" as "claude" | "codex", cwd: "C:/p", shell: "default" as const, command: "", role: "orchestrator" as const, claudeSessionId: "s1" };
 
 async function show(mission: Partial<Mission> = {}, withSession?: Partial<typeof session> & { linear?: true }) {
   await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef", ...(withSession ? { session: { ...session, ...withSession } } : {}), mission: { ...NEW_MISSION, ...mission } } });
@@ -136,6 +136,20 @@ it("says plainly what each permission costs a night, as Claude Code applies it",
   expect(missionNow().permission).toBe("work");
 });
 
+it("tells a Codex night that its deletes outside the worktree are not blocked in Work", async () => {
+  // Codex 0.167's hook is skipped until the user trusts it, and dummyPlane does not bypass that: only its prompt asks.
+  const notBlocked = "Recursive deletes outside the worktree are not blocked: only the agent's prompt says not to";
+  await show({}, { agent: "codex" });
+  expect(text()).toContain(`No sandbox, since Codex's would block commits: everything runs unasked. The network and the accounts signed in on this PC are open to agents. ${notBlocked}`);
+  // The other two options say nothing of it: Edit files has Codex's sandbox, Ask follows the user's own settings.
+  expect(text().split(notBlocked)).toHaveLength(2);
+});
+
+it("says nothing of unblocked deletes for a Claude night: its delete guard asks", async () => {
+  await show({}, { agent: "claude" });
+  expect(text()).not.toContain("not blocked");
+});
+
 it("says the push block is no security boundary, with how it was passed (review)", async () => {
   await show();
   const block = document.querySelector("[data-no-push]")!.textContent;
@@ -172,7 +186,10 @@ it("blocks on checks that failed, with a retry, instead of reading them as passe
     return { git: true, gh: true };
   });
   await show({}, {});
-  await vi.waitFor(() => expect(document.querySelector("[data-checks]")?.textContent).toContain("The project could not be checked: gh timed out"));
+  // What failed in the app's words, what to do, then the error's own text as a detail: never in the title (Alerts).
+  await vi.waitFor(() => expect(document.querySelector("[data-checks]")?.textContent).toContain("The project could not be checked"));
+  expect(document.querySelector('[data-check="blocked"]')?.textContent).toContain("Check that git and gh run in a terminal, then try again");
+  expect(document.querySelector('[data-check="blocked"]')?.textContent).toContain("gh timed out");
   expect(document.querySelector('[data-check="blocked"]')?.getAttribute("role")).toBe("alert");
   expect(button("Prepare the night").disabled).toBe(true);
   fail = false;
@@ -261,7 +278,11 @@ it("scrolls its sections between a header and a footer that stay in view", async
   expect(body.className).toContain("overflow-y-auto");
   expect(body.className).toContain("min-h-0");
   expect(body.contains(button("Prepare the night"))).toBe(false);
-  expect(document.querySelector('[role="dialog"]')!.className).toContain("flex-col");
+  expect(body.getAttribute("data-slot")).toBe("dialog-body");
+  // The dialog turns into a column when it holds a body: the body is what shrinks, under the title bar at 960x600.
+  expect(document.querySelector('[role="dialog"]')!.className.split(/\s+/)).toEqual(
+    expect.arrayContaining(["has-data-[slot=dialog-body]:flex", "has-data-[slot=dialog-body]:flex-col", "max-h-[calc(100dvh-92px)]"]),
+  );
 });
 
 it("has one way out, the footer's Cancel: no corner ✕, a quiet dismiss beside the accent's primary", async () => {

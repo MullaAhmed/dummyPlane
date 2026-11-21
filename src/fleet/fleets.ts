@@ -80,11 +80,17 @@ export async function addFleet(workspaceId: string, center: Point): Promise<stri
   return element.id;
 }
 
-/** One click of "Link". */
-export function linkFleet(fleetId: string, targetId: string) {
+/** One click of "Link". False when nothing was written: its canvas was never read, or no wire could be added (the caller says why). */
+export function linkFleet(fleetId: string, targetId: string): boolean {
   const workspaceId = nodesStore.getState().nodes[fleetId]?.workspaceId ?? workspacesStore.getState().activeId;
   const scene = workspaceId ? sceneAccess(workspaceId) : null;
-  scene?.write(withWire(scene.elements(), fleetId, targetId));
+  if (!scene) return false;
+  const before = scene.elements();
+  const after = withWire(before, fleetId, targetId);
+  // Already wired, or an end gone: no empty undo step.
+  if (after.length === before.length && after.every((e, i) => e === before[i])) return false;
+  scene.write(after);
+  return true;
 }
 
 type Bound = { id: string; type: string; isDeleted?: boolean; startBinding?: { elementId: string } | null; endBinding?: { elementId: string } | null };

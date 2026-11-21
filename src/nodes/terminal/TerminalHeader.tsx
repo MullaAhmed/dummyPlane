@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { RoleMark } from "@/components/marks";
 import { accountsMessages } from "@/accounts/messages";
 import { useAccounts } from "@/accounts/store";
 import { useUiRequest } from "@/commands/uiRequests";
@@ -22,7 +23,7 @@ import { modelLabel } from "@/mission/router";
 import { openReview } from "@/review/reviewStore";
 import { ROLES } from "@/agents/roles";
 import type { AgentId } from "@/ipc/pty";
-import { NodeRouterToggle, RouterMenuItem, routerInertText } from "@/mission/RouterToggle";
+import { RouterMenuItem, routerInertText } from "@/mission/RouterToggle";
 import { cn } from "@/lib/utils";
 import type { TerminalPayload } from "@/nodes/types";
 import type { AgentActivity } from "@/store/agentActivity";
@@ -32,6 +33,7 @@ import { newConversation, switchedAgent, type LaunchMode } from "./launch";
 import { restartByHand } from "./restartByHand";
 import { leaveShellAgent } from "./shellAgent";
 import { minimizeTerminal } from "./minimize";
+import { EditButton } from "./EditButton";
 import { NameField } from "./NameField";
 import { spawnedTask } from "@/agents/taskSummary";
 import { HeaderButton, HeaderMenu, keepFocusAfterMenu, NodeHeader, NodeHeaderEnd, NodeTitle, WIDE_ONLY } from "./NodeHeader";
@@ -104,7 +106,7 @@ function TerminalMenu(props: { nodeId: string; payload: TerminalPayload; running
           {t.relaunch}
         </DropdownMenuItem>
       )}
-      {/* The router's switch is in the header from 28rem on; here it is, at any width. Greyed out where it has nothing to route. */}
+      {/* The router's switch is in an agent's foot, beside Link; here it is on every terminal, with Follow. Greyed out where it has nothing to route. */}
       <DropdownMenuSeparator />
       <RouterMenuItem nodeId={nodeId} inert={routerInertText(payload)} />
       {/* The model chip says it from 28rem of header on; here it is said, and cleared, at any width. */}
@@ -191,7 +193,7 @@ function ModelChip({ nodeId, model }: { nodeId: string; model: string }) {
 /**
  * Header of a terminal node. A row of essentials: the
  * agent, the name, where the process stands when the foot does not say it,
- * Remote Control's state, "⋯" for the rest, Close. Chips of the account and
+ * Remote Control's state, Edit, "⋯" for the rest, Close. Chips of the account and
  * the model join them from 28rem of header on.
  */
 export function TerminalHeader(props: {
@@ -266,9 +268,7 @@ export function TerminalHeader(props: {
           status dot alone). A terminal in no group shows nothing. */}
       {role && (
         <Hint label={ROLES[role].label}>
-          <span role="img" aria-label={ROLES[role].label} data-role={role} className="grid h-5 w-2 shrink-0 place-items-center">
-            <span className="h-3.5 w-0.5 rounded-sm" style={{ backgroundColor: ROLES[role].color }} />
-          </span>
+          <RoleMark color={ROLES[role].color} label={ROLES[role].label} data-role={role} />
         </Hint>
       )}
       {/* Renaming, the 28px field takes the row alone: with the task line under it, it would not fit in 36px. */}
@@ -290,10 +290,9 @@ export function TerminalHeader(props: {
         <div className={cn(WIDE_ONLY, "items-center gap-1")}>
           {payload.agent === "claude" && <AccountChip accountId={payload.accountId} />}
           {payload.model && <ModelChip nodeId={nodeId} model={payload.model} />}
-          {/* On every terminal; greyed out, with why, where it has nothing to route (a Manager, a CLI without dummyPlane's tools). */}
-          <NodeRouterToggle nodeId={nodeId} inert={routerInertText(payload)} />
         </div>
         {payload.agent === "claude" && <RemoteButton nodeId={nodeId} wanted={payload.remoteControl === true} running={running} />}
+        <EditButton nodeId={nodeId} />
         <TerminalMenu nodeId={nodeId} payload={payload} running={running} onDuplicate={onDuplicate} />
         {onClose && (
           <HeaderButton label={close} onClick={onClose}>

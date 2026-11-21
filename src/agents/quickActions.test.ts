@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { open as pickDirectory } from "@tauri-apps/plugin-dialog";
+import { arrive } from "@/canvas/arrive";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import { projectsStore, type Project } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
@@ -15,6 +16,7 @@ vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }))
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 vi.mock("@/fleet/fleets", () => ({ addFleet: vi.fn(() => Promise.resolve()) }));
 vi.mock("./naming", async (importOriginal) => ({ ...(await importOriginal<typeof import("./naming")>()), nameForNewAgent: vi.fn(() => Promise.resolve("Batman")) }));
+vi.mock("@/canvas/arrive", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/canvas/arrive")>()), arrive: vi.fn(() => true) }));
 vi.mock("./terminals", async (importOriginal) => ({ ...(await importOriginal<typeof import("./terminals")>()), addTerminal: vi.fn(() => Promise.resolve("node")) }));
 
 const project = { id: "p1", name: "api", path: "D:\\code\\api", lastOpenedAt: 0, missing: false } as Project;
@@ -66,6 +68,21 @@ describe("a launch the user asks for", () => {
     await newConsole();
     await settle();
     expect(added().payload).toMatchObject({ agent: "claude", cwd: "D:\\work\\lib" });
+  });
+
+  it("gives the new terminal the keyboard, in the view the launch showed (the ring, the palette, the Agents panel)", async () => {
+    vi.mocked(arrive).mockClear();
+    launchAt("claude");
+    await settle();
+    expect(arrive).toHaveBeenCalledExactlyOnceWith("node", { moveView: false });
+  });
+
+  it("gives nothing the keyboard when nothing was placed", async () => {
+    vi.mocked(arrive).mockClear();
+    vi.mocked(addTerminal).mockResolvedValueOnce(null);
+    launchAt("claude");
+    await settle();
+    expect(arrive).not.toHaveBeenCalled();
   });
 
   it("takes the options it is given over the launch folder", async () => {

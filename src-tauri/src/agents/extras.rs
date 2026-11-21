@@ -1807,6 +1807,42 @@ mod tests {
         assert!(for_codex(&Pick::default(), &found).unwrap().is_empty());
     }
 
+    /// spawn_agent requires all three kinds of a call (`REQUIRED_EXTRA_KINDS` in `@/agents/spawn`), `[]` for a kind the
+    /// task needs none of: every sub-agent's pick names all three, so the empty one is the common case of both CLIs.
+    #[test]
+    fn an_empty_list_for_every_kind_is_checked_and_applied_on_both_clis() {
+        let none = pick(Some(&[]), Some(&[]), Some(&[]));
+        // Not "no pick": the command checks it (a pick of nothing, not the CLI's defaults), and Codex lists all three kinds.
+        assert!(!none.is_empty());
+        assert_eq!(Kinds::of(&none), Kinds::ALL);
+
+        let (_root, places) = claude_places();
+        let found = claude_installed(&places);
+        assert_eq!(check(&none, &found, "Claude").unwrap(), none);
+        let extras = for_claude(&none, None, &places).unwrap();
+        let settings = extras.settings.unwrap();
+        assert_eq!(settings["skillOverrides"]["deploy"], json!("off"));
+        assert_eq!(settings["skillOverrides"]["review"], json!("off"));
+        assert_eq!(settings["enabledPlugins"]["stripe@market"], json!(false));
+        // Only dummyPlane's own server stays (written by the launch, not by the pick); Chrome is switched off.
+        assert!(extras.servers.unwrap().is_empty());
+        assert_eq!(extras.chrome, Some(false));
+
+        let found = codex_installed(&codex(SKILLS), Kinds::of(&none)).unwrap();
+        assert_eq!(check(&none, &found, "Codex").unwrap(), none);
+        assert_eq!(
+            for_codex(&none, &found).unwrap(),
+            vec![
+                "-c",
+                "skills.config=[{name='dummyindex',enabled=false},{name='imagegen',enabled=false}]",
+                "-c",
+                "plugins.pdf@openai-runtime.enabled=false",
+                "-c",
+                "mcp_servers.supabase.enabled=false",
+            ]
+        );
+    }
+
     #[test]
     fn a_codex_pick_turns_on_a_server_the_user_turned_off() {
         let found = codex_installed(&codex(SKILLS), Kinds::ALL).unwrap();

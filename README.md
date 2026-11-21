@@ -27,7 +27,7 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
 - **Teams.** Compose groups with a role and a speciality, link agents, fold a group away, save a team as a preset and deploy it in any project.
 - **One instruction box.** Address `@all`, a group, an agent or several at once; a line starting with `/` goes to the agents' CLI as a command.
 - **Live states.** See whether each agent is starting, ready, running, waiting for you, stopped or done, and get a notice when one waits for you.
-- **A fleet that plans, a Manager that runs it.** Missions run on a git branch and worktree per agent, merge into a mission branch, and never push. An **overnight run** works through a queue of tickets while you are away: [read how it works, and its warnings first](docs/fleet.md).
+- **A fleet that plans, a Manager that runs it.** Missions run on a git branch and worktree per agent, merge into a mission branch, reach your own branch only when you click *Land*, and never push. An **overnight run** works through a queue of tickets while you are away: [read how it works, and its warnings first](docs/fleet.md).
 - **Review and ship.** Review an agent's changes and send your remarks back in one message, commit and push from the git window, fix a file in Code Studio, keep Markdown notes.
 - **Know your usage.** Session and weekly limits in the title bar, and tokens per day, model and agent.
 - **And more:** loops with brakes, several Claude accounts, Remote Control from your phone, one-click agent installs.

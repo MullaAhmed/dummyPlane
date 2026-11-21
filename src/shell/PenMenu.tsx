@@ -77,7 +77,7 @@ export function PenMenu({ active }: { active: boolean }) {
             ))}
             {/* No shadcn colour picker: the native one, behind a swatch of the same size. */}
             <Hint label={t.custom}>
-              <label className="relative grid size-6 cursor-pointer place-items-center overflow-hidden rounded-full border border-dp-line text-dp-text-2 transition-[color,background-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-dp-accent/70 motion-reduce:transition-none">
+              <label className="relative grid size-6 cursor-pointer place-items-center overflow-hidden rounded-full border border-dp-line text-dp-text-2 transition-[color,background-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] motion-reduce:active:scale-100 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-dp-accent/70 motion-reduce:transition-[color,background-color]">
                 <Pipette aria-hidden className="size-3.5" />
                 <input
                   type="color"

@@ -139,7 +139,7 @@ describe("an agent that opened sub-agents (spawn_agent)", () => {
     await act(async () => uiStore.getState().setClosing(asked));
     const dialog = document.querySelector('[role="dialog"]')!;
     expect(dialog.textContent).toContain("Close Superman?");
-    expect(dialog.textContent).not.toContain("Superman is stopped.");
+    expect(dialog.textContent).not.toContain("Superman is stopped");
   });
 
   it("offers to close them too, ticked, and closes them with it once confirmed", async () => {
@@ -176,7 +176,7 @@ describe("an agent that opened sub-agents (spawn_agent)", () => {
   it("says a stopped agent is stopped: only its sub-agents made it ask", async () => {
     await act(async () => uiStore.getState().setClosing(asked));
     const dialog = document.querySelector('[role="dialog"]')!;
-    expect(dialog.textContent).toContain("Superman is stopped.");
+    expect(dialog.textContent).toContain("Superman is stopped");
     expect(dialog.textContent).not.toContain("still running");
     await act(async () => button("Cancel").click());
   });

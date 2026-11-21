@@ -9,10 +9,12 @@ import { workspacesStore } from "@/store/workspaces";
 import { arrangeLayoutStore } from "@/app/arrangeLayoutSetting";
 import { setSetting } from "@/ipc/db";
 import { arrangeWorkspace } from "./arrangeCanvas";
-import { setGroupFolded } from "./groups";
+import { AGENT_IDS, type AgentInfo } from "@/ipc/pty";
+import { agentsStore } from "./agentsStore";
+import { addAgentToGroup, setGroupFolded } from "./groups";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("./groups", async (importOriginal) => ({ ...(await importOriginal<typeof import("./groups")>()), setGroupFolded: vi.fn() }));
+vi.mock("./groups", async (importOriginal) => ({ ...(await importOriginal<typeof import("./groups")>()), setGroupFolded: vi.fn(), addAgentToGroup: vi.fn(() => Promise.resolve()) }));
 vi.mock("./arrangeCanvas", () => ({ arrangeWorkspace: vi.fn(() => true) }));
 vi.mock("@/ipc/db", () => ({ getSetting: vi.fn(), setSetting: vi.fn(() => Promise.resolve()) }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -107,6 +109,28 @@ it("lists the seven layouts under Arrange, and arranges the group once in the on
   // For this group, this once: not the setting the Settings row and Auto-arrange read.
   expect(arrangeLayoutStore.getState().layout).toBe("column");
   expect(setSetting).not.toHaveBeenCalled();
+  await act(async () => root.unmount());
+  document.body.replaceChildren();
+});
+
+it("lists under Add an agent the agents this machine has and no more, none greyed, and adds the one picked to the group", async () => {
+  mockIPC(() => []);
+  vi.clearAllMocks();
+  const found = (...ids: string[]): AgentInfo[] => AGENT_IDS.map((id) => ({ id, available: id === "shell" || id === "custom" || ids.includes(id) }));
+  agentsStore.setState({ agents: found("claude", "aider"), loaded: true });
+  canvasStore.setState({ frames: [frame(false)] as never });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<GroupMenu groupId="g" />));
+  await act(async () => host.querySelector("button")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  const trigger = [...document.querySelectorAll<HTMLElement>('[data-slot="dropdown-menu-sub-trigger"]')].find((i) => i.textContent === "Add an agent")!;
+  await act(async () => void trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+  const rows = () => [...document.querySelectorAll<HTMLElement>('[data-slot="dropdown-menu-sub-content"] [role="menuitem"]')];
+  expect(rows().map((i) => i.textContent?.trim())).toEqual(["Claude", "Aider", "Shell"]);
+  expect(rows().some((i) => i.hasAttribute("data-disabled"))).toBe(false);
+  await act(async () => rows()[1].click());
+  expect(addAgentToGroup).toHaveBeenCalledWith("g", "aider");
   await act(async () => root.unmount());
   document.body.replaceChildren();
 });

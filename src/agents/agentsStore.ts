@@ -30,6 +30,9 @@ export function useAgents<T>(selector: (state: AgentsState) => T): T {
   return useStore(agentsStore, selector);
 }
 
+/** Whether this agent's program was found on the PATH (a Shell and a Custom command always are): the one answer of every list of agents. */
+export const isAvailable = (agents: readonly AgentInfo[], id: AgentId): boolean => agents.some((a) => a.id === id && a.available);
+
 /** The agents, looked for first if they never were: a launch before the list loads must not fall back to a Shell. */
 export async function loadedAgents(): Promise<AgentInfo[]> {
   if (!agentsStore.getState().loaded) await agentsStore.getState().load().catch(() => undefined);

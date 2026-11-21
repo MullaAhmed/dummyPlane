@@ -1,11 +1,12 @@
-import { memo, useEffect, useRef } from "react";
+import { Fragment, memo, useEffect, useRef } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { RoleMark } from "@/components/marks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { renameGroup, setGroupFolded } from "@/agents/groups";
 import { GroupMenu } from "@/agents/GroupMenu";
-import { agentStateIn } from "@/agents/agentState";
-import { countsText, membersIn, waitingText } from "@/agents/groupSummary";
+import { agentStateIn, type AgentState } from "@/agents/agentState";
+import { membersIn, summaryParts } from "@/agents/groupSummary";
 import { screenRectOf } from "@/agents/placement";
 import { ROLES } from "@/agents/roles";
 import { useActivities } from "@/store/agentActivity";
@@ -42,7 +43,7 @@ export function GroupLabels() {
   const statuses = useStore(terminalStatusStore, (s) => s.statuses);
   const nodes = useNodes((s) => s.nodes);
   // The reading every count shares (agentState): a stopped process, an agent that exited or a plain shell is never at work.
-  const members = (group: SceneGroup, state: "working" | "waiting") =>
+  const members = (group: SceneGroup, state: AgentState | readonly AgentState[]) =>
     membersIn(group.memberIds, state, (id) => agentStateIn(id, nodes, statuses, activities));
   const groups = frames.filter(isGroup);
   const renaming = useUi((s) => s.renamingGroup);
@@ -69,6 +70,7 @@ export function GroupLabels() {
               renaming={group.id === renaming}
               working={members(group, "working")}
               waiting={members(group, "waiting")}
+              ready={members(group, ["ready", "done"])}
             />
           ),
         )}
@@ -77,9 +79,8 @@ export function GroupLabels() {
   );
 }
 
-const GroupLabel = memo(function GroupLabel(props: { group: SceneGroup; zoom: number; working: number; waiting: number; renaming: boolean }) {
-  const { group, zoom, working, waiting, renaming } = props;
-  const waits = waitingText(waiting);
+const GroupLabel = memo(function GroupLabel(props: { group: SceneGroup; zoom: number; working: number; waiting: number; ready: number; renaming: boolean }) {
+  const { group, zoom, working, waiting, ready, renaming } = props;
   const rect = screenRectOf(group, scrollLayerPlace(zoom));
   const { role: roleId, speciality, folded } = group.group;
   const t = useMessages(canvasMessages);
@@ -103,11 +104,12 @@ const GroupLabel = memo(function GroupLabel(props: { group: SceneGroup; zoom: nu
         aria-label={folded ? t.unfoldGroup : t.foldGroup}
         title={folded ? t.unfoldGroup : t.foldGroup}
         onClick={() => setGroupFolded(group.id, !folded)}
-        className="pointer-events-auto h-full w-4 rounded-sm p-0 text-dp-text-2 hover:text-dp-text"
+        className="pointer-events-auto relative h-full w-4 rounded-sm p-0 text-dp-text-2 after:absolute after:-inset-x-1 hover:text-dp-text"
       >
         {folded ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
       </Button>
-      <span className="mr-1.5 size-1.5 shrink-0 rounded-full" /* chevron 16 + dot 6 + gap 6 = the 28 px the native name is aligned on */ style={{ backgroundColor: role.color }} />
+      {/* The role as a bar (the round dot is an agent's), in a 6 px box: chevron 16 + mark 6 + gap 6 = the 28 px the native name is aligned on. */}
+      <RoleMark color={role.color} className="mr-1.5 w-1.5" />
       {renaming ? (
         <NameField name={group.name} onDone={(name) => name !== null && renameGroup(group.id, name)} />
       ) : (
@@ -118,8 +120,15 @@ const GroupLabel = memo(function GroupLabel(props: { group: SceneGroup; zoom: nu
           {speciality}
         </span>
       )}
-      <span className="ml-2 font-mono text-dp-text-2">{countsText(group.memberIds.length, working)}</span>
-      {waits && <span className="ml-1 font-mono text-dp-wait">{waits}</span>}
+      {/* Worst first: who waits for the user stands in the wait tone, ahead of who works. */}
+      <span className="ml-2 font-mono text-dp-text-2">
+        {summaryParts({ members: group.memberIds.length, waiting, working, ready }).map((part, i) => (
+          <Fragment key={part.text}>
+            {i > 0 && " · "}
+            {part.waiting ? <span className="text-dp-wait">{part.text}</span> : part.text}
+          </Fragment>
+        ))}
+      </span>
       <GroupMenu groupId={group.id} />
     </div>
   );

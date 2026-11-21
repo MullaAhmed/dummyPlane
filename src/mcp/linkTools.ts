@@ -2,8 +2,9 @@ import { talk } from "@/agents/talkWires";
 import { AGENTS } from "@/agents/catalog";
 import { linkedAgentsOf, type LinkedAgent } from "@/agents/agentLinks";
 import { wakeable, wakeFinished, wakingUp } from "@/agents/finishedStop";
+import { fullCap, whoWaits } from "@/agents/seats";
 import { MAX_TITLE } from "@/agents/spawn";
-import { isLaunching, spawnedByOf, unmarkReported } from "@/agents/spawnFamily";
+import { atWork, hasReported, holdWake, isCapped, isLaunching, releaseWake, spawnedByOf, unmarkReported } from "@/agents/spawnFamily";
 import { clip } from "@/agents/taskSummary";
 import { messages } from "@/i18n";
 import { notify, sendCommand } from "@/mission/events";
@@ -141,17 +142,29 @@ function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResul
   if (!text) return refused(l.nothingToSend);
   // A finished agent dummyPlane stopped to free its memory, or starting again already: the message waits for its
   // session, typed earlier it would land in its shell (`@/agents/finishedStop`).
-  const asleep = wakingUp(peer.nodeId) !== undefined || wakeable(peer.nodeId, nodeId);
+  const starting = wakingUp(peer.nodeId) !== undefined;
+  const asleep = starting || wakeable(peer.nodeId, nodeId);
   if (!asleep && !isRunning(peer.nodeId)) return refused(l.stopped(peer.name));
   // A sub-agent just spawned runs its shell before its Claude: the line would run there as a command.
   if (!asleep && isLaunching(peer.nodeId)) return refused(l.starting(peer.name));
   // Before the message is typed: typing it clears the report that says its last task is done (`onNewWork`).
   const work = newWork(nodeId, peer.nodeId, text, args.title);
-  if (work) {
-    nodesStore.getState().update(peer.nodeId, work);
+  // A line typed into a sub-agent that reported, whoever sends it, is new work (`onNewWork` clears its report), and
+  // its stopped session started again works too: either takes a seat it holds none of now, with no spawn_agent's cap
+  // check in front of it. It is read from its saved report (`hasReported`), not from who sends: after an app restart
+  // a peer's line is as much work as its parent's. Past the cap, the one refused is told who holds the seats. A
+  // message to an agent still at work takes none and goes through whatever the cap; so does a second message to one
+  // already starting again, whose seat the first one took. A mission's team agent has Max active agents, not this cap.
+  const takesSeat = isCapped(peer.nodeId) && !atWork(peer.nodeId) && (hasReported(peer.nodeId) || (asleep && !starting));
+  if (takesSeat) {
+    const full = fullCap();
+    if (full) return refused(l.wakeFull(peer.name, full, whoWaits(nodeId) === "manager" ? "manager" : "agent"));
+    // Held from now: its report stands until the message is typed, and a session starts again slowly.
+    holdWake(peer.nodeId);
     // Its report freed its seat for the app's run; working again, it takes one.
     unmarkReported(peer.nodeId);
   }
+  if (work) nodesStore.getState().update(peer.nodeId, work);
   const send = () => {
     // A Manager answers its team with write: it has no message_agent.
     notify(peer.nodeId, isManagerNode(peer.nodeId) ? l.toManager(nameOf(nodeId), text) : l.message(nameOf(nodeId), text));
@@ -163,7 +176,12 @@ function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResul
   if (asleep) {
     // Answered now: its session may take longer to open than the call may last.
     const woken = wakingUp(peer.nodeId) ?? wakeFinished(peer.nodeId, () => notify(nodeId, l.wakeSlow(peer.name)));
-    void woken.then((ready) => (ready ? send() : notify(nodeId, l.notWoken(peer.name))));
+    void woken.then((ready) => {
+      if (ready) return send();
+      // It never started: the seat the message held is free again.
+      releaseWake(peer.nodeId);
+      notify(nodeId, l.notWoken(peer.name));
+    });
     talk(nodeId, peer.nodeId);
     return said(l.waking(peer.name));
   }

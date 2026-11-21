@@ -64,7 +64,8 @@ export function pillOf(status: TerminalStatus, activity?: PillActivity, indigo =
     case "exited":
       return {
         label: status.code === null ? t.exited : t.exitedWith(status.code),
-        tone: status.code === null || status.code === 0 ? "done" : "failed",
+        // A process that ended by itself rests in the neutral ring, as a stopped one: "done" says an agent reported.
+        tone: status.code === null || status.code === 0 ? "stopped" : "failed",
       };
     case "error":
       return { label: status.kind === "toolsUnavailable" ? t.toolsUnavailable : status.kind === "pickRefused" ? t.pickRefused : t.error, tone: "failed" };

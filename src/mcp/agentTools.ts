@@ -4,13 +4,18 @@ import { talk } from "@/agents/talkWires";
 import { messages } from "@/i18n";
 import { declaredSteps, markedSteps, MAX_STEPS } from "@/nodes/steps";
 import { notify } from "@/mission/events";
-import { oneLine, type ReportStatus } from "@/mission/mission";
-import { finishMissionCard, flagMissionCard } from "@/kanban/fleetBoards";
+import { oneLine, type Member, type Report, type ReportStatus } from "@/mission/mission";
+import { adHocReported } from "@/kanban/adHocCards";
+import { flagMissionCard, reportedMissionCard } from "@/kanban/fleetBoards";
+import { deliveryPending } from "@/mission/launch";
 import { afterReport } from "@/mission/queue";
 import { LEVELS } from "@/mission/router";
-import { isFleetClosed, memberOf, missionOf, missionRunner, updateMember } from "@/mission/store";
-import { listExtras, spawnAgent } from "@/agents/spawn";
+import { trackChildReport } from "@/mission/stalls";
+import { isFleetClosed, memberOf, missionOf, missionRunner, unsentMemberOf, updateMember } from "@/mission/store";
+import { EXTRA_ARGS, listExtras, missingExtras, REQUIRED_EXTRA_KINDS, spawnAgent } from "@/agents/spawn";
+import { followChildReport } from "@/agents/carriedSteps";
 import { markReported, MAX_SPAWN_DEPTH, spawnedByOf } from "@/agents/spawnFamily";
+import { WORK_KINDS } from "@/agents/spawnModel";
 import { onAgentReported } from "@/nodes/terminal/minimize";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
@@ -81,10 +86,18 @@ export function spawnAgentSpec(fleet = false) {
         skills: { type: "array", items: { type: "string" }, description: d.spawnSkills },
         mcp_servers: { type: "array", items: { type: "string" }, description: d.spawnMcpServers },
         plugins: { type: "array", items: { type: "string" }, description: d.spawnPlugins },
-        // An agent's only: a Fleet splits its work through its mission, and its sub-agent does the work.
-        ...(fleet ? {} : { role: { type: "string", enum: ["manager"], description: d.spawnRole } }),
+        // An agent's only: a Fleet splits its work through its mission, and its sub-agent does the work. kind too: a
+        // Fleet's ad-hoc sub-agents are lookups and checks, held to low or medium while its mission runs.
+        ...(fleet
+          ? {}
+          : {
+              role: { type: "string", enum: ["manager"], description: d.spawnRole },
+              step: { type: "string", maxLength: 40, description: d.spawnStep },
+              kind: { type: "string", enum: [...WORK_KINDS], description: d.spawnKind },
+            }),
       },
-      required: ["task"],
+      // Every kind of a pick, the spawner's choice for this task (`[]` for none): none is left to the CLI's defaults.
+      required: ["task", ...REQUIRED_EXTRA_KINDS.map((kind) => EXTRA_ARGS[kind])],
     },
   };
 }
@@ -129,8 +142,14 @@ export async function installedExtrasTool(nodeId: string): Promise<ToolResult> {
   return result.error ? refused(result.text) : said(result.text);
 }
 
-/** spawn_agent: a sub-agent opens as a terminal beside the caller (`@/agents/spawn`). */
+/**
+ * spawn_agent: a sub-agent opens as a terminal beside the caller (`@/agents/spawn`). The call must pick every kind
+ * (`REQUIRED_EXTRA_KINDS`) even though the schema says so: a session keeps the tool list it read at its start, and a
+ * model may ignore it. Refused first, naming what is missing: nothing is read or opened.
+ */
 export async function spawnAgentTool(nodeId: string, args: Record<string, unknown>): Promise<ToolResult> {
+  const missing = missingExtras(args);
+  if (missing) return refused(missing);
   const result = await spawnAgent(nodeId, args);
   return result.error ? refused(result.text) : said(result.text);
 }
@@ -158,10 +177,28 @@ function reportToParent(nodeId: string, summary: string, status: ReportStatus): 
   const name = nodeNameOf(nodes[nodeId]) || "A sub-agent";
   // Its task is done: it no longer counts against the sub-agents at work.
   markReported(nodeId);
+  // The step of its parent's frieze it carried follows its report.
+  followChildReport(nodeId, status);
   talk(nodeId, parentId);
   if (!sessionOf(nodes[parentId]) || !isRunning(parentId)) return said(t().agent.unheardParent);
-  notify(parentId, `${t().agent.reported(name, outReport(status), oneLine(summary))}${boardNote(parentId, status)}`);
+  // Typed, it is watched: a parent that compacted while idle may never take it up (`@/mission/stalls`).
+  notify(parentId, `${t().agent.reported(name, outReport(status), oneLine(summary))}${boardNote(parentId, status)}`, () =>
+    trackChildReport(parentId, name, outReport(status), oneLine(summary)),
+  );
   return said(t().agent.sentToParent(nodeNameOf(nodes[parentId]) || "your parent agent"));
+}
+
+/**
+ * A member's report as the mission's record, its Kanban card following: "Reported, not merged" on "done" (Done is the
+ * merge's), on alert on "blocked" or "failed" (in "Blocked" on a board a Manager runs). The agent's own `report`, and a
+ * Manager recording the work of an agent that finished without reporting (`merge` with agent) both come here: the same
+ * seat freed, the same card, the same queue (`afterReport`, the caller's).
+ */
+export function recordMemberReport(fleetId: string, member: Pick<Member, "nodeId" | "task">, report: Report, patch: Partial<Member> = {}) {
+  updateMember(fleetId, member.nodeId, { report, ...patch });
+  const plan = missionOf(nodesStore.getState().nodes[fleetId])?.plan;
+  if (report.status === "termine") void reportedMissionCard(fleetId, plan, member.task).catch(() => undefined);
+  else void flagMissionCard(fleetId, plan, member.task, report.status === "bloque" ? "blocked" : "failed").catch(() => undefined);
 }
 
 /**
@@ -172,26 +209,32 @@ function reportToParent(nodeId: string, summary: string, status: ReportStatus): 
  */
 export function report(nodeId: string, args: Record<string, unknown>, ui?: string): ToolResult {
   onAgentReported(nodeId, args.statut, args.resume, ui);
-  const found = memberOf(nodeId, { evenClosed: true });
+  // A sub-task dummyPlane gave up typing and another hand gave (its Manager's `write`, the user's paste, a
+  // `message_agent`) is the agent's all the same: its report is the mission's, or `merge` finds nobody done, its seat
+  // stays held and the queue stalls (12 Nov, wt-be-upload-land: 4 agents, the report "passed on" to a Manager that
+  // never recorded it). Not while dummyPlane still means to type it: a word of the agent's last sub-task, then.
+  const sent = memberOf(nodeId, { evenClosed: true });
+  const unsent = sent || deliveryPending(nodeId) ? null : unsentMemberOf(nodeId);
+  const found = sent ?? unsent;
   const spawned = spawnedByOf(nodeId) !== undefined;
   if (!found && !spawned) return said(t().agent.noMission);
   const summary = typeof args.resume === "string" ? args.resume.trim() : "";
   const status = args.statut;
   if (!summary) return refused(t().agent.summarize);
   if (status !== "termine" && status !== "bloque" && status !== "echec") return refused(t().agent.unknownStatus(String(status)));
+  // An agent its Fleet opened beside the plan has a card on the mission's board: it follows (none for any other agent).
+  void adHocReported(nodeId, status).catch(() => undefined);
   // A team agent under its Manager reports once, to its mission: its parent is the one that runs it.
   const runner = found ? missionRunner(found.fleetId) : undefined;
   const toParent = runner !== undefined && spawnedByOf(nodeId) === runner ? null : reportToParent(nodeId, summary, status);
   if (!found) return toParent!;
   // `merge` merges every "done" branch again: a merged one stays so until then (final review H2).
   const check = typeof args.check === "string" ? oneLine(args.check) : "";
-  updateMember(found.fleetId, nodeId, { report: { summary, status, at: Date.now(), ...(check ? { check } : {}) } });
+  // Its text is dropped with its delivery: a restart of its terminal would type it on top of what it did since.
+  const at = Date.now();
+  recordMemberReport(found.fleetId, found.member, { summary, status, at, ...(check ? { check } : {}) }, unsent ? { sentAt: at, brief: undefined } : {});
   const listener = runner ?? found.fleetId;
   talk(nodeId, listener);
-  // Its Kanban card follows: done, or on alert (in "Blocked" on a board a Manager runs).
-  const plan = missionOf(nodesStore.getState().nodes[found.fleetId])?.plan;
-  if (status === "termine") void finishMissionCard(found.fleetId, plan, found.member.task).catch(() => undefined);
-  else void flagMissionCard(found.fleetId, plan, found.member.task, status === "bloque" ? "blocked" : "failed").catch(() => undefined);
   // Queued even when nobody listens: a relaunched or restored Manager or fleet hears it then (final review R3).
   // Under a Manager, the Fleet never hears it: the team's news is the Manager's.
   notify(listener, t().agent.reported(found.member.name, outReport(status), oneLine(summary)));

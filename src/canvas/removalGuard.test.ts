@@ -42,6 +42,36 @@ describe("the removal guard (Annuler never ends a running agent unasked)", () =>
     expect(verdict.ask).toEqual({ agents: ["batman"], remove: ["batman"] });
   });
 
+  // Suppr on a running agent: Excalidraw deletes it and frees the ends of the arrows bound to it, which the guard
+  // used to leave so: the wires became orphans, deleted by the upkeep while the user was still being asked (09:21 on 19 Nov).
+  it("puts back the arrows that joined a running agent put back, with their ends as they were", () => {
+    running.add("batman");
+    const batman = element("batman", { boundElements: [{ id: "link", type: "arrow" }, { id: "spawn", type: "arrow" }] });
+    const robin = element("robin", { boundElements: [{ id: "link", type: "arrow" }] });
+    const chef = element("chef", { boundElements: [{ id: "spawn", type: "arrow" }] });
+    const link = element("link", { type: "arrow", startBinding: { elementId: "batman" }, endBinding: { elementId: "robin" } });
+    const spawn = element("spawn", { type: "arrow", startBinding: { elementId: "chef" }, endBinding: { elementId: "batman" } });
+    const unrelated = element("other", { type: "arrow", startBinding: { elementId: "robin" }, endBinding: { elementId: "chef" } });
+    const check = createRemovalGuard(isRunning, [batman, robin, chef, link, spawn, unrelated]);
+    // What Excalidraw leaves after its delete: the agent gone, the arrows alive and freed at its end.
+    const freed = (e: ExcalidrawElement, side: "startBinding" | "endBinding") => ({ ...e, [side]: null, version: e.version + 1 }) as unknown as ExcalidrawElement;
+    const verdict = check([gone(batman), robin, chef, freed(link, "startBinding"), freed(spawn, "endBinding"), unrelated], ["batman"]);
+    expect(ids(verdict.restore)).toEqual(["batman", "link", "spawn"]);
+    expect(verdict.restore.find((e) => e.id === "link")).toBe(link);
+    expect(verdict.restore.find((e) => e.id === "spawn")).toBe(spawn);
+    expect(verdict.ask).toEqual({ agents: ["batman"], remove: ["batman"] });
+  });
+
+  it("puts back an arrow the same removal deleted, and leaves one it did not touch", () => {
+    running.add("batman");
+    const batman = element("batman");
+    const link = element("link", { type: "arrow", startBinding: { elementId: "batman" }, endBinding: { elementId: "robin" } });
+    const check = createRemovalGuard(isRunning, [batman, link]);
+    expect(ids(check([gone(batman), gone(link)], ["batman"]).restore)).toEqual(["batman", "link"]);
+    const again = createRemovalGuard(isRunning, [batman, link]);
+    expect(ids(again([gone(batman), link], ["batman"]).restore)).toEqual(["batman"]);
+  });
+
   it("brings a whole group back, frame and members, and asks to close the group (undoing a group launch)", () => {
     running.add("robin");
     const group = frame("g");

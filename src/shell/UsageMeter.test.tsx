@@ -7,6 +7,7 @@ import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { usageStore } from "@/usage/usageStore";
 import { UsageMeter } from "./UsageMeter";
+import { tabTo } from "@/components/ui/tabTo";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 
@@ -52,14 +53,14 @@ it("says no Claude session yet when none is running, whatever the Git Bash state
   await act(async () => root.render(<UsageMeter />));
   expect(meter().textContent).toBe("Usage· no Claude session yet");
   expect(meter().hasAttribute("title"), "a hint, not a native title").toBe(false);
-  await act(async () => meter().focus());
+  await act(async () => tabTo(meter()));
   expect(hint()).toContain("first reply");
 });
 
 it("waits for a Claude session's first answer before showing the limits", async () => {
   await act(async () => terminalStatusStore.getState().set("batman", { state: "running" }));
   expect(meter().textContent).toBe("Usage· waiting for the first answer");
-  await act(async () => meter().focus());
+  await act(async () => tabTo(meter()));
   expect(hint()).toContain("first reply");
 });
 

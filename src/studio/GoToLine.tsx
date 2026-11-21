@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createStore, useStore } from "zustand";
 import { Input } from "@/components/ui/input";
 import { useMessages } from "@/i18n";
-import { TITLE_BAR_HEIGHT } from "@/shell/layout";
+import { OVERLAY_TOP } from "@/shell/overlayBounds";
 import { projectsStore } from "@/store/projects";
 import { isCode, useWorkspaces, workspacesStore } from "@/store/workspaces";
 import { parseLineTarget } from "./fileSearch";
@@ -54,7 +54,8 @@ function GoToLineField() {
     <div data-goto-line className="fixed inset-0 z-50" onPointerDown={(e) => e.target === e.currentTarget && closeGoToLine(true)}>
       <form
         className="dp-glass-strong absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg"
-        style={{ top: TITLE_BAR_HEIGHT + 6, width: "min(320px, calc(100vw - 32px))", boxShadow: "var(--dp-shadow)" }}
+        // Where the palette stands: one overlay margin under the title bar (shell/overlayBounds.ts).
+        style={{ top: OVERLAY_TOP, width: "min(320px, calc(100vw - 32px))", boxShadow: "var(--dp-shadow)" }}
         onSubmit={(e) => {
           e.preventDefault();
           // The editor takes the keyboard when it reaches the line.

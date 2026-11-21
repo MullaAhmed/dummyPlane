@@ -1,7 +1,7 @@
 import { talk } from "@/agents/talkWires";
 import { AGENTS } from "@/agents/catalog";
 import { sceneAccess } from "@/agents/sceneAccess";
-import { spawnedByOf } from "@/agents/spawnFamily";
+import { lineage, onMissionTeam } from "@/agents/missionTeam";
 import { fleetLinks, fleetsOf } from "@/agents/wires";
 import { framesFromScene } from "@/canvas/groups";
 import { messages } from "@/i18n";
@@ -16,7 +16,7 @@ import { levelsRequired, teamAgent } from "@/mission/teamModel";
 import { levelModel, modelLabel, readLevel, type Level } from "@/mission/router";
 import { missionRouterOn } from "@/mission/routerState";
 import { agentState, isFleetClosed, missionOf } from "@/mission/store";
-import { isManagerNode, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
+import { nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { refused, said, type ToolResult } from "./agentTools";
 import { enqueueTasks } from "./fleetTools";
@@ -41,26 +41,6 @@ const nameOf = (nodeId: string) => {
   return payload ? payload.name || AGENTS[payload.agent].label : "An agent";
 };
 
-/** `nodeId`, then the agent that spawned it, and so up: a sub-agent sits in its parent's group and works for its parent's mission. */
-function lineage(nodeId: string): string[] {
-  const line = [nodeId];
-  for (let up = spawnedByOf(nodeId); up && !line.includes(up); up = spawnedByOf(up)) line.push(up);
-  return line;
-}
-
-/**
- * Whether `nodeId` works for a mission that is under way: its Manager, an agent of its team, or a sub-agent of theirs (it
- * lands in their group, which the Fleet may be wired to). Such an agent is not the user's to hand tasks off.
- */
-function onMissionTeam(nodeId: string): boolean {
-  const line = lineage(nodeId);
-  if (line.some(isManagerNode)) return true;
-  return Object.values(nodesStore.getState().nodes).some((record) => {
-    const mission = missionOf(record);
-    return (mission?.state === "en_cours" || mission?.state === "lancement") && mission.members.some((m) => line.includes(m.nodeId));
-  });
-}
-
 /**
  * The Fleets the user wired `nodeId` to, directly or through a group: read from its workspace's scene, on screen or
  * stored. Empty for a mission's team, and for a Fleet's own sub-agent (it reports to the Fleet); null when that scene was never read.
@@ -77,11 +57,13 @@ export function commandingFleets(nodeId: string): string[] | null {
 }
 
 /**
- * hand_off's spec: listed to an agent wired to a Fleet when its session starts (tools/list is read once per session).
- * An agent wired later reaches its Fleet with message_agent, which linked_agents names.
+ * hand_off's spec: listed to every ordinary agent, wired to a Fleet or not. The client reads tools/list once per
+ * session and dummyPlane's MCP server cannot tell it the list changed, so a tool listed only once a wire exists
+ * stayed missing for an agent the user linked afterwards. Unlinked, the call is refused and says how to link
+ * (`fleetOf`). Never listed to a Fleet, nor to a Manager or a mission's team: they cannot hand off.
  */
 export function handOffTools(nodeId: string) {
-  if (!commandingFleets(nodeId)?.length) return [];
+  if (nodesStore.getState().nodes[nodeId]?.kind !== "terminal" || onMissionTeam(nodeId)) return [];
   const d = t().tools;
   return [
     {

@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Bell, CircleCheck, Info, MessageSquareText, OctagonX, TriangleAlert, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { LANE_CORNER } from "@/shell/laneAnchor";
 import { TOAST_TONES } from "@/components/ui/sonner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useMessages } from "@/i18n";
@@ -53,11 +54,15 @@ function Row(props: {
         <Icon aria-hidden className={cn("mt-0.5 size-4", tone)} />
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2">
-            <span className={cn("min-w-0 flex-1 text-(length:--text-ui) break-words", entry.read ? "text-dp-text-2" : "font-medium text-dp-text")}>
+            {/* Unread is the row's weight and ink, its title and its time: no dot, the round dot is an agent's mark. */}
+            <span
+              data-unread-dot={entry.read ? undefined : true}
+              className={cn("min-w-0 flex-1 text-(length:--text-ui) break-words", entry.read ? "text-dp-text-2" : "font-medium text-dp-text")}
+            >
               {!entry.read && <span className="sr-only">{`${t.unread}. `}</span>}
               {entry.title}
             </span>
-            <time dateTime={new Date(entry.at).toISOString()} className="shrink-0 font-mono text-xs text-dp-text-3 tabular-nums">
+            <time dateTime={new Date(entry.at).toISOString()} className={cn("shrink-0 font-mono text-xs tabular-nums", entry.read ? "text-dp-text-3" : "text-dp-text")}>
               {formatAgo(entry.at, now)}
             </time>
           </span>
@@ -69,7 +74,6 @@ function Row(props: {
             {` · ${where}`}
           </span>
         </span>
-        {!entry.read && <span aria-hidden data-unread-dot className="mt-1.5 size-2 shrink-0 rounded-full bg-dp-accent" />}
       </Button>
     </li>
   );
@@ -232,11 +236,15 @@ export function NotificationsButton() {
           )}
         </ToolButton>
       </PopoverTrigger>
+      {/* It opens in the right lane, on its edge and its top, over the lane's occupant (shell/layout.ts). */}
+      <PopoverAnchor virtualRef={LANE_CORNER} />
       <PopoverContent
         ref={content}
-        side="left"
-        align="start"
-        sideOffset={12}
+        side="bottom"
+        align="end"
+        sideOffset={0}
+        // The toasts lift clear of it (shell/toastLift.ts).
+        data-rail-overlay=""
         aria-label={t.title}
         className="flex w-96 max-h-[min(36rem,var(--radix-popover-content-available-height))] flex-col overflow-hidden p-0"
         // The keyboard starts on the first notification, so the arrows and Enter work at once.

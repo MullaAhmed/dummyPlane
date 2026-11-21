@@ -897,6 +897,40 @@ export function orphanWires(elements: readonly ExcalidrawElement[]): string[] {
     .map((arrow) => arrow.id);
 }
 
+/** An orphan wire `rejoinableWires` mends: the two ends it joined, start then end. */
+export interface Rejoin {
+  wireId: string;
+  fromId: string;
+  toId: string;
+}
+
+/**
+ * Orphan wires (`orphanWires`) one end of which lost its binding while the node there still lists the wire: the
+ * binding went, not the link, as a user who pulls a wire's end off a node takes it off that node's list too (17 Nov,
+ * a Fleet's wires to its boards lost their start this way, and its board tools found no board). A link, or a
+ * Fleet's wire, joins those two ends again: a fresh wire in its place. A spawn wire comes back from the fact its
+ * nodes keep (`withSpawnWires`); a talk wire was only a message's trace.
+ */
+export function rejoinableWires(elements: readonly ExcalidrawElement[]): Rejoin[] {
+  const byId = new Map(elements.map((e) => [e.id, e]));
+  const rejoins: Rejoin[] = [];
+  for (const wireId of orphanWires(elements)) {
+    const wire = byId.get(wireId);
+    if (!wire || isSpawnWire(wire) || isTalkWire(wire)) continue;
+    const { startBinding, endBinding } = wire as ExcalidrawArrowElement;
+    const held = (binding: { elementId: string } | null) => (binding && isWireEnd(byId.get(binding.elementId)) ? binding.elementId : null);
+    const start = held(startBinding);
+    const end = held(endBinding);
+    // Only an end with no binding at all: one bound to a node that is gone (closed, deleted) leaves for good.
+    const loose = start === null && !startBinding && end !== null ? "start" : end === null && !endBinding && start !== null ? "end" : null;
+    if (!loose) continue;
+    const listing = elements.filter((e) => e.type !== "arrow" && e.id !== (start ?? end) && isWireEnd(e) && e.boundElements?.some((b) => b.id === wireId)).map((e) => e.id);
+    if (listing.length !== 1) continue;
+    rejoins.push(loose === "start" ? { wireId, fromId: listing[0], toId: end! } : { wireId, fromId: start!, toId: listing[0] });
+  }
+  return rejoins;
+}
+
 /** What a wire joins: an agent to the sub-agent it spawned, two ends a message passed between, a fleet to what it commands, or two agents linked by hand. */
 export type WireKind = "spawn" | "talk" | "fleet" | "link";
 

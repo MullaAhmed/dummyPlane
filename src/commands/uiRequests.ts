@@ -9,15 +9,23 @@ export type UiRequest =
   | { kind: "renameWorkspace"; id: string }
   | { kind: "renameTerminal"; id: string }
   | { kind: "renameFleet"; id: string }
+  /** The ＋ menu opened by a command, on one of its views; `at`, a scene point, is where its agent starts. */
+  | { kind: "agentMenu"; view: "agents" | "options" | "ollama" | { install: AgentId }; at?: Point }
   /**
-   * The ＋ menu opened by a command. `only: "agents"`: the ring's and the palette's "Other agent…" want the agents
-   * alone, not the whole menu; the menu keeps it until it closes, so a sub-view's Back returns to them.
+   * The list of the agents an "Other agent…" offers (src/agents/OtherAgentMenu.tsx), at `at`, a point of the window.
+   * `place`, a scene point, is where the picked agent starts: the radial menu's press; none from the palette, where the
+   * agent follows the pointer until a click on the canvas places it.
    */
-  | { kind: "agentMenu"; view: "agents" | "options" | "ollama" | { install: AgentId }; only?: "agents"; at?: Point }
+  | { kind: "otherAgentMenu"; at: Point; place?: Point }
   | { kind: "composeGroup" }
   | { kind: "savePreset" }
-  | { kind: "loops" }
-  | { kind: "groupMenu"; id: string }
+  /** `instant`: a command asked (the palette), the dialog shows at once; the indicator's click lets it fade in. */
+  | { kind: "loops"; instant?: boolean }
+  /**
+   * The list of agents of a group's "Add an agent" (src/agents/GroupAgentMenu.tsx), at `at`, a point of the window: the agent
+   * picked starts in the group `id`.
+   */
+  | { kind: "groupAgentMenu"; id: string; at: Point }
   /** The list of layouts of an "Arrange as…", at `at`, a point of the window. */
   | { kind: "arrangeMenu"; workspaceId: string; target: ArrangeTarget; at: Point };
 

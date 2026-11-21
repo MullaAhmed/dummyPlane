@@ -23,7 +23,12 @@ it("says that a workspace could not load, and tries again, the keyboard kept on 
   const root = createRoot(host);
   await act(async () => root.render(<Canvas workspaceId="w1" />));
   const status = host.querySelector<HTMLElement>("[role='status']")!;
-  expect(status.textContent).toContain("Could not load this workspace: Error: database is locked");
+  // The app's words, what to do, then the error's own line, without its class name: never the error as the title.
+  const lines = [...status.querySelectorAll("[data-problem] p")].map((p) => p.textContent);
+  expect(lines).toEqual(["Could not load this workspace", "Try again, or open another workspace", "database is locked"]);
+  expect(status.textContent).not.toContain("Error:");
+  // The status around it speaks: the problem is no second live region.
+  expect(status.querySelector("[data-problem]")!.getAttribute("role")).toBeNull();
   const retry = [...status.querySelectorAll("button")].find((button) => button.textContent === "Try again")!;
   expect(retry).toBeDefined();
   retry.focus();

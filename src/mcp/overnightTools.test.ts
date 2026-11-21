@@ -77,7 +77,7 @@ describe("tickets", () => {
 
   it("says when no source was chosen, and when the source fails", async () => {
     await setup({});
-    expect(await fleetTool("chef", "tickets", {})).toMatchObject({ isError: true, content: [{ text: 'No ticket source: the user chooses it in "Overnight run".' }] });
+    expect(await fleetTool("chef", "tickets", {})).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('No ticket source: tickets reads the one the user chooses in "Overnight run"') }] });
     await setup({ tickets: { kind: "github", label: "nuit" } });
     vi.mocked(readTickets).mockRejectedValueOnce(new Error("gh introuvable"));
     expect(await fleetTool("chef", "tickets", {})).toMatchObject({ isError: true, content: [{ text: "Tickets unreadable: gh introuvable" }] });
@@ -85,7 +85,7 @@ describe("tickets", () => {
 
   it("says so in English", async () => {
     await setup({});
-    expect(textOf(await fleetTool("chef", "tickets", {}))).toBe('No ticket source: the user chooses it in "Overnight run".');
+    expect(textOf(await fleetTool("chef", "tickets", {}))).toContain('No ticket source: tickets reads the one the user chooses in "Overnight run"');
   });
 
   it("answers within the 30 s Rust gives a tool when gh never does, saying GitHub is slow", async () => {

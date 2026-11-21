@@ -1,6 +1,5 @@
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Check, ChevronDown, Plus } from "lucide-react";
-import { toast } from "sonner";
 import { toastError } from "@/lib/errorToast";
 import { cn } from "@/lib/utils";
 import { GeneratedText } from "@/openui/GeneratedText";
@@ -17,7 +16,9 @@ import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { useNow } from "@/lib/useNow";
 import { StatusLine } from "@/nodes/foot/StatusLine";
 import { AccentButton, Hint, HintedButton } from "@/shell/buttons";
+import { AgentDot } from "@/nodes/terminal/AgentDot";
 import type { DotState } from "@/nodes/terminal/StatusDot";
+import type { TerminalReportStatus } from "@/nodes/types";
 import { useActivities } from "@/store/agentActivity";
 import { FLEET_CAPABLE } from "@/fleet/capable";
 import { nodeNameOf, terminalOf, useNodes } from "@/store/nodes";
@@ -25,11 +26,17 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { openReview } from "@/review/reviewStore";
 import { uiStore, useUi } from "@/store/ui";
 import { confirmAction } from "@/components/confirm";
-import { cleanMission, launchMission } from "./launch";
+import { approveAmendment, changesOf, declineAmendment } from "./amendment";
+import { cleanFromPanel } from "./cleanup";
+import { launchMission } from "./launch";
+import { answerLeftovers, askLeftovers, useLeftoversAsk, type LeftoversRequest } from "./leftovers";
+import { answerLand } from "./land";
 import { subTaskModel } from "./teamModel";
 import { stopMission } from "./stop";
-import { budgetBar, budgetOf, MAX_AGENTS, memberTime, nightMin, remainingGlobal, type Mission, type MissionState, type Report, type SubTask } from "./mission";
+import { budgetBar, budgetOf, MAX_AGENTS, memberTime, NEW_AGENT, nightMin, remainingGlobal, sameName, type LandRequest, type Mission, type MissionState, type Report, type SubTask } from "./mission";
 import { missionMessages } from "./messages";
+import { useFootLift } from "./footLift";
+import { useKeepToastsOff } from "@/shell/toastLift";
 import { morningShown } from "./morning";
 import { NightSummary } from "./NightSummary";
 import { MorningReportView } from "./MorningReportView";
@@ -58,6 +65,9 @@ const MISSION_DOT: Record<MissionState, DotState> = {
   terminee: "done",
 };
 
+/** A member's report as its dot reads it: the word at the row's end and the dot say one thing. */
+const DOT_REPORT: Record<Report["status"], TerminalReportStatus> = { termine: "done", bloque: "blocked", echec: "failed" };
+
 /** Under the fleet's terminal: settings, plan and go-ahead, team, summary. */
 export function MissionPanel({ nodeId }: { nodeId: string }) {
   const mission = useNodes((s) => missionOf(s.nodes[nodeId]));
@@ -77,17 +87,26 @@ function MissionView({ nodeId, mission }: { nodeId: string; mission: Mission }) 
   // No key typed on the status line reaches the canvas: Backspace on its button would delete the node.
   useNativeKeyDown(header, () => undefined);
   const setup = mission.state === "redaction" || mission.state === "plan";
+  const leftovers = useLeftoversAsk(nodeId);
+  const body = useRef<HTMLDivElement>(null);
+  // Its rows and its actions (Launch the mission, Clean up, Stop): the toasts keep off the panel where it stands in view.
+  const panel = useRef<HTMLElement>(null);
+  const panelRef = useKeepToastsOff(panel);
   return (
     <section
+      ref={panelRef}
       data-mission={nodeId}
+      // Its actions take a press whether or not the Fleet is the active node (canvas/liveControls.ts).
+      data-node-chrome=""
       aria-label={t.title(mission.name ?? "")}
       className="flex max-h-[55%] shrink-0 flex-col border-t border-dp-line text-xs text-dp-text-2"
     >
       <header ref={header} className="shrink-0">
         <StatusLine
-          dot={mission.error ? "error" : MISSION_DOT[mission.state]}
+          // A running mission with changes to its waiting tasks proposed asks for the user, as a plan does.
+          dot={mission.error ? "error" : mission.state === "en_cours" && mission.amendment ? "waiting" : MISSION_DOT[mission.state]}
           // The words agree with the red dot, which a screen reader does not hear.
-          label={mission.error ? t.stateError : t.state[mission.state]}
+          label={mission.error ? t.stateError : mission.state === "en_cours" && mission.amendment ? t.amendment.state : t.state[mission.state]}
           title={mission.error}
           facts={[mission.name, mission.state === "redaction" && t.writeTask]}
           end={
@@ -99,7 +118,7 @@ function MissionView({ nodeId, mission }: { nodeId: string; mission: Mission }) 
           }
         />
       </header>
-      <div data-mission-body className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3 empty:hidden">
+      <div ref={body} data-mission-body className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3 empty:hidden">
         {mission.overnight && mission.state !== "terminee" && <NightSummary nodeId={nodeId} mission={mission} />}
         {setup && <Setup nodeId={nodeId} mission={mission} />}
         {mission.plan && (mission.state === "plan" || mission.state === "lancement") && <Plan nodeId={nodeId} mission={mission} />}
@@ -112,13 +131,32 @@ function MissionView({ nodeId, mission }: { nodeId: string; mission: Mission }) 
         {(mission.state === "en_cours" || mission.state === "terminee") && mission.manager && <RunBy mission={mission} />}
         {(mission.state === "en_cours" || mission.state === "terminee") && <Team mission={mission} />}
         {mission.queue && mission.queue.length > 0 && <Queue mission={mission} />}
+        {mission.state === "en_cours" && mission.amendment && <AmendmentView mission={mission} />}
         {mission.state === "terminee" && <GeneratedText text={mission.summaryUi ?? mission.summary ?? ""} compact className="text-dp-text" />}
       </div>
       {/* Actions stay out of the scrolling body, so they are always visible. */}
-      {mission.plan && (mission.state === "plan" || mission.state === "lancement") && <PlanActions nodeId={nodeId} mission={mission} />}
-      {mission.state === "en_cours" && <RunningActions nodeId={nodeId} mission={mission} />}
-      {mission.state === "terminee" && <SummaryActions nodeId={nodeId} />}
+      <MissionFoot nodeId={nodeId} body={body}>
+        {mission.landing && (mission.state === "en_cours" || mission.state === "terminee") && <LandPrompt nodeId={nodeId} landing={mission.landing} />}
+        {leftovers && <LeftoversPrompt nodeId={nodeId} ask={leftovers} />}
+        {mission.plan && (mission.state === "plan" || mission.state === "lancement") && <PlanActions nodeId={nodeId} mission={mission} />}
+        {mission.state === "en_cours" && <RunningActions nodeId={nodeId} mission={mission} />}
+        {mission.state === "terminee" && <SummaryActions nodeId={nodeId} />}
+        {mission.state === "redaction" && !leftovers && <IdleActions nodeId={nodeId} />}
+      </MissionFoot>
     </section>
+  );
+}
+
+/**
+ * The actions' row: when the node runs below the window, it rises over the body until it stands above the command
+ * bar (footLift), on the head's colour. Its own component, so a pan re-renders it alone.
+ */
+function MissionFoot({ nodeId, body, children }: { nodeId: string; body: RefObject<HTMLDivElement | null>; children: ReactNode }) {
+  const lift = useFootLift(nodeId, body);
+  return (
+    <div data-mission-foot className="shrink-0 bg-dp-terminal-head empty:hidden" style={lift > 0 ? { transform: `translateY(${-lift}px)` } : undefined}>
+      {children}
+    </div>
   );
 }
 
@@ -305,7 +343,7 @@ function Plan({ nodeId, mission }: { nodeId: string; mission: Mission }) {
                 </span>
               )}
               <span className="ml-auto shrink-0 font-mono text-dp-text-3 tabular-nums">
-                {task.agent}
+                {sameName(task.agent, NEW_AGENT) ? t.newAgent : task.agent}
                 {task.group ? ` → ${task.group.name}` : ""} · {task.budgetMin} {t.min}
               </span>
             </div>
@@ -328,6 +366,7 @@ function Queue({ mission }: { mission: Mission }) {
         {queue.map((task) => (
           <li key={task.title} className="flex items-center gap-2 rounded-md bg-dp-card px-2 py-1">
             <span className="min-w-0 truncate">{task.title}</span>
+            {task.waitsFor && task.waitsFor.length > 0 && <span className="min-w-0 truncate text-dp-text-3">{t.waitsFor(task.waitsFor.join(", "))}</span>}
             <span className="ml-auto shrink-0 font-mono text-dp-text-3 tabular-nums">
               {task.group ? `${task.group.name} · ` : ""}
               {task.budgetMin} {t.min}
@@ -339,6 +378,49 @@ function Queue({ mission }: { mission: Mission }) {
   );
 }
 
+/**
+ * The Fleet's proposed change to the waiting tasks, laid out as the first plan was: what the user asked as the Fleet
+ * restated it, then the tasks it adds, edits and drops. Nothing changes until the user applies it, in the footer.
+ */
+function AmendmentView({ mission }: { mission: Mission }) {
+  const t = useMessages(missionMessages);
+  const amendment = mission.amendment;
+  if (!amendment) return null;
+  const { added, edited, dropped } = changesOf(mission.queue ?? [], amendment);
+  const groups = [
+    { key: "added", title: t.amendment.added(added.length), tasks: added },
+    { key: "edited", title: t.amendment.edited(edited.length), tasks: edited },
+    { key: "dropped", title: t.amendment.dropped(dropped.length), tasks: dropped },
+  ].filter((group) => group.tasks.length > 0);
+  return (
+    <div data-amendment className="flex flex-col gap-2">
+      <span className="font-medium text-dp-text">{t.amendment.title}</span>
+      <GeneratedText text={amendment.task} compact />
+      {groups.map((group) => (
+        <div key={group.key} data-amendment-group={group.key} className="flex flex-col gap-1">
+          <span className="text-dp-text-3">{group.title}</span>
+          <ol className="flex flex-col gap-1">
+            {group.tasks.map((task) => (
+              <li key={task.title} className="rounded-md bg-dp-card px-2 py-1">
+                <div className="flex items-center gap-2 text-dp-text">
+                  <span className={cn("min-w-0 truncate font-medium", group.key === "dropped" && "line-through")}>{task.title}</span>
+                  {task.level && <span className="shrink-0 text-dp-text-3">{t.level[task.level]}</span>}
+                  <span className="ml-auto shrink-0 font-mono text-dp-text-3 tabular-nums">
+                    {task.group ? `${task.group.name} · ` : ""}
+                    {task.budgetMin} {t.min}
+                  </span>
+                </div>
+                {group.key !== "dropped" && <p className="line-clamp-2">{task.brief}</p>}
+                {group.key !== "dropped" && task.waitsFor && task.waitsFor.length > 0 && <p className="text-dp-text-3">{t.waitsFor(task.waitsFor.join(", "))}</p>}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PlanActions({ nodeId, mission }: { nodeId: string; mission: Mission }) {
   const t = useMessages(missionMessages);
   const total = (mission.plan ?? []).reduce((sum, s) => sum + s.budgetMin, 0);
@@ -346,7 +428,13 @@ function PlanActions({ nodeId, mission }: { nodeId: string; mission: Mission }) 
   return (
     <footer data-mission-actions className="flex shrink-0 items-center gap-2 border-t border-dp-line px-3 py-2">
       <span className="font-mono tabular-nums">{t.total(total, nightMin(mission))}</span>
-      <AccentButton size="sm" disabled={launching} onClick={() => void launchMission(nodeId)} className="ml-auto">
+      {/* Not while it launches: its worktrees being made are no leftovers. */}
+      {!launching && (
+        <span className="ml-auto">
+          <LeftoversButton nodeId={nodeId} />
+        </span>
+      )}
+      <AccentButton size="sm" disabled={launching} onClick={() => void launchMission(nodeId)} className={cn(launching && "ml-auto")}>
         {launching ? t.launching : t.launch}
       </AccentButton>
     </footer>
@@ -394,8 +482,10 @@ function Team({ mission }: { mission: Mission }) {
       {members.map((member) => {
         const steps = terminalOf(nodes[member.nodeId])?.steps ?? [];
         const done = steps.filter((s) => s.state === "fait").length;
+        const state = agentState(member.nodeId);
         return (
           <li key={member.nodeId || member.name} data-member={member.name} className="flex items-center gap-2 rounded-md bg-dp-card px-2 py-1">
+            <AgentDot nodeId={member.nodeId} report={member.report && DOT_REPORT[member.report.status]} />
             <span className="font-medium text-dp-text">{member.name}</span>
             <span className="min-w-0 truncate">{member.task}</span>
             {member.done && member.done.length > 0 && (
@@ -412,7 +502,8 @@ function Team({ mission }: { mission: Mission }) {
               </Hint>
             )}
             {member.model && <span className="shrink-0 font-mono text-dp-text-3">{modelLabel(member.model)}</span>}
-            <span className="ml-auto shrink-0">{t.agent[agentState(member.nodeId)]}</span>
+            {/* An agent at rest that reported says its report, once: the report word at the row's end is its state. */}
+            <span className="ml-auto shrink-0">{state === "inactif" && member.report ? null : t.agent[state]}</span>
             {steps.length > 0 && (
               <span className="shrink-0 font-mono tabular-nums">
                 {done}/{steps.length}
@@ -457,7 +548,8 @@ function ReportWord({ report, merged }: { report: Report; merged: boolean }) {
       tabIndex={report.summary.trim() ? 0 : undefined}
       className={cn(
         "shrink-0 rounded-sm focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none",
-        report.status === "termine" ? "text-dp-text" : "text-dp-danger",
+        // Blocked waits for the user and takes the wait tone, as its dot does; only a failure is red.
+        report.status === "termine" ? "text-dp-text" : report.status === "bloque" ? "text-dp-wait" : "text-dp-danger",
       )}
     >
       {t.report[report.status]}
@@ -501,7 +593,26 @@ function RunningActions({ nodeId, mission }: { nodeId: string; mission: Mission 
     if (yes) stopMission(nodeId, { by: "user" });
   };
   return (
-    <footer data-mission-actions className="flex shrink-0 justify-end border-t border-dp-line px-3 py-2">
+    <footer data-mission-actions className="flex shrink-0 items-center gap-2 border-t border-dp-line px-3 py-2">
+      {/* The go-ahead of the Fleet's changes to the waiting tasks, as "Launch the mission" was the plan's. */}
+      {mission.amendment && (
+        <>
+          <Hint label={t.amendment.applyTitle}>
+            <AccentButton size="sm" onClick={() => approveAmendment(nodeId)}>
+              {t.amendment.apply}
+            </AccentButton>
+          </Hint>
+          <Hint label={t.amendment.declineTitle}>
+            <Button variant="outline" size="sm" onClick={() => declineAmendment(nodeId)}>
+              {t.amendment.decline}
+            </Button>
+          </Hint>
+        </>
+      )}
+      {/* The leftovers of past missions: this one's own are never among them. */}
+      <span className="ml-auto">
+        <LeftoversButton nodeId={nodeId} />
+      </span>
       <Button variant="outline" size="sm" onClick={() => void stop()}>
         {t.stop}
       </Button>
@@ -509,18 +620,120 @@ function RunningActions({ nodeId, mission }: { nodeId: string; mission: Mission 
   );
 }
 
+/**
+ * `land`'s question, where the user watches the mission: which commits their branch would get, Land and Not now. This
+ * click, or the toast's, is the only way a mission lands (`./land.ts`): never an agent's word.
+ */
+function LandPrompt({ nodeId, landing }: { nodeId: string; landing: LandRequest }) {
+  const t = useMessages(missionMessages).land;
+  const more = landing.count - landing.commits.length;
+  return (
+    <div data-mission-land role="group" aria-label={t.title(landing.target)} className="flex shrink-0 flex-col gap-1.5 border-t border-dp-line px-3 py-2">
+      <p className="font-medium text-dp-text">{t.title(landing.target)}</p>
+      <p>{t.body(landing.target, landing.count, landing.branch)}</p>
+      {!landing.fastForward && <p>{t.moved(landing.target, landing.branch)}</p>}
+      <ul className="max-h-24 overflow-y-auto font-mono text-dp-text-3">
+        {landing.commits.map((line) => (
+          <li key={line} className="truncate">
+            {line}
+          </li>
+        ))}
+        {more > 0 && <li>{t.more(more)}</li>}
+      </ul>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" className="text-dp-text-2 hover:text-dp-text" onClick={() => void answerLand(nodeId, landing.at, false)}>
+          {t.notNow}
+        </Button>
+        <AccentButton size="sm" onClick={() => void answerLand(nodeId, landing.at, true)}>
+          {t.land}
+        </AccentButton>
+      </div>
+    </div>
+  );
+}
+
+/** "Clean up the mission": the one path the Fleet's clean_up_mission takes too (`cleanFromPanel`), its toast shown once. */
 function SummaryActions({ nodeId }: { nodeId: string }) {
   const t = useMessages(missionMessages);
-  const clean = async () => {
-    const result = await cleanMission(nodeId);
-    if (typeof result === "string") toastError(messages(missionMessages).cleanFailed, { error: result });
-    else toast.success(messages(missionMessages).cleaned(result.removed, result.kept));
-  };
   return (
-    <footer data-mission-actions className="flex shrink-0 justify-end border-t border-dp-line px-3 py-2">
-      <Button variant="outline" size="sm" onClick={() => void clean()}>
+    <footer data-mission-actions className="flex shrink-0 justify-end gap-2 border-t border-dp-line px-3 py-2">
+      <LeftoversButton nodeId={nodeId} />
+      <Button variant="outline" size="sm" onClick={() => void cleanFromPanel(nodeId)}>
         {t.clean}
       </Button>
     </footer>
+  );
+}
+
+/** "Clean up leftovers": reads what past missions left in the project and asks first (`askLeftovers`); it acts on nothing. */
+function LeftoversButton({ nodeId }: { nodeId: string }) {
+  const t = useMessages(missionMessages).leftovers;
+  const [reading, setReading] = useState(false);
+  const ask = async () => {
+    setReading(true);
+    try {
+      const asked = await askLeftovers(nodeId);
+      if (asked.refused) toastError(t.failed, { error: asked.text });
+    } finally {
+      setReading(false);
+    }
+  };
+  return (
+    <HintedButton variant="ghost" size="sm" className="text-dp-text-2 hover:text-dp-text" hint={t.hint} disabled={reading} onClick={() => void ask()}>
+      {t.button}
+    </HintedButton>
+  );
+}
+
+/** Between missions: the way to the leftovers of past ones. */
+function IdleActions({ nodeId }: { nodeId: string }) {
+  return (
+    <footer data-mission-actions className="flex shrink-0 justify-end border-t border-dp-line px-3 py-2">
+      <LeftoversButton nodeId={nodeId} />
+    </footer>
+  );
+}
+
+/**
+ * The question "Clean up leftovers" asks, where the user watches the Fleet: every worktree and branch of past missions,
+ * with what becomes of each and why what stays, stays. Its Clean up, or the toast's, is the only way they are cleaned
+ * up (`./leftovers.ts`): never an agent's word. Not now does nothing.
+ */
+function LeftoversPrompt({ nodeId, ask }: { nodeId: string; ask: LeftoversRequest }) {
+  const t = useMessages(missionMessages).leftovers;
+  const { worktrees, branches, trash, strays, keptFolder, target } = ask.leftovers;
+  const worktreeLine = (w: LeftoversRequest["leftovers"]["worktrees"][number]) => {
+    if (w.kept) return t.kept(w.kept);
+    if (w.gone) return t.gone;
+    const steps = [w.wip ? t.wip(w.branch) : "", w.moveCount > 0 ? t.moves(w.moves, w.moveCount, `${keptFolder}\\${w.name}`) : "", t.worktreeGoes];
+    return steps.filter(Boolean).join("; ");
+  };
+  return (
+    <div data-mission-leftovers role="group" aria-label={t.title} className="flex shrink-0 flex-col gap-1.5 border-t border-dp-line px-3 py-2">
+      <p className="font-medium text-dp-text">{t.title}</p>
+      <p>{t.body(worktrees.length, branches.length)}</p>
+      <ul className="max-h-40 overflow-y-auto font-mono text-dp-text-3">
+        {worktrees.map((w) => (
+          <li key={`w-${w.name}`} className={cn(w.kept && "text-dp-text-2")}>
+            {w.name}: {worktreeLine(w)}
+          </li>
+        ))}
+        {branches.map((b) => (
+          <li key={`b-${b.name}`} className={cn(b.kept && "text-dp-text-2")}>
+            {b.name}: {b.kept ? t.kept(b.kept) : t.deleted(target ?? "")}
+          </li>
+        ))}
+        {trash.length > 0 && <li>{t.trash(trash.length)}</li>}
+        {strays.length > 0 && <li>{t.strays(strays.join(", "))}</li>}
+      </ul>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" className="text-dp-text-2 hover:text-dp-text" onClick={() => void answerLeftovers(nodeId, ask.at, false)}>
+          {t.notNow}
+        </Button>
+        <AccentButton size="sm" onClick={() => void answerLeftovers(nodeId, ask.at, true)}>
+          {t.clean}
+        </AccentButton>
+      </div>
+    </div>
   );
 }

@@ -32,8 +32,8 @@ function arrangeInput(
 }
 
 /**
- * Whether an Arrange of `only` (as the palette's Arrange asks it: the selection from two blocks or one group, else the
- * canvas) takes the whole canvas of this workspace, whether or not anything would move. False without a scene.
+ * Whether an Arrange of `only` (as the palette's Arrange asks it: the selection when it holds several elements or lies in
+ * one group, else the canvas) takes the whole canvas of this workspace, whether or not anything would move. False without a scene.
  */
 export function arrangeCoversCanvas(workspaceId: string, only?: readonly string[]): boolean {
   const scene = sceneAccess(workspaceId);
@@ -42,8 +42,8 @@ export function arrangeCoversCanvas(workspaceId: string, only?: readonly string[
 
 /**
  * Arranges a workspace's canvas (see ./arrange.ts) in the chosen layout (the
- * "Arrange layout" setting): the selection `only` when it holds two blocks or
- * more, else everything (or as `scope` asks: the whole canvas, or the selection
+ * "Arrange layout" setting): the selection `only` when it holds several elements
+ * (never the whole canvas then, even for one block), else everything (or as `scope` asks: the whole canvas, or the selection
  * alone), attached items with their anchors (./attachments.ts), in `layout`
  * when one is asked for (the group's "Arrange as a tree"); the wires of
  * whatever moved routed again. Asked for by the user, one undoable step; by Auto-arrange,

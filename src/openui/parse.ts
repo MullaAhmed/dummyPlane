@@ -37,8 +37,13 @@ export interface OpenUICheck {
   warnings: string[];
 }
 
+/** What the check knows beyond the program: the output's title, which its header shows. */
+export interface CheckContext {
+  title?: string;
+}
+
 /** Whether `text` can be shown as an output, and if not, why, in plain words (show_output's answer). */
-export function checkOpenUI(text: string): OpenUICheck {
+export function checkOpenUI(text: string, context: CheckContext = {}): OpenUICheck {
   const errors: string[] = [];
   const warnings: string[] = [];
   if (!text.trim()) return { errors: ["The ui is empty: write an OpenUI Lang program, starting with root = Stack([...])."], warnings };
@@ -62,15 +67,30 @@ export function checkOpenUI(text: string): OpenUICheck {
   if (Object.keys(result.stateDeclarations).length) errors.push("$variables are not supported: output is static.");
   if (!result.root && errors.length === 0) errors.push("Nothing to show: root does not resolve to a component.");
   if (result.meta.orphaned.length) warnings.push(`Defined but not reachable from root, so not shown: ${result.meta.orphaned.join(", ")}.`);
-  if (errors.length === 0) warnings.push(...readability(result.root));
+  if (errors.length === 0) warnings.push(...readability(result.root, context));
   return { errors, warnings };
 }
 
-/** Past these, an output reads like the terminal it should beat: show_output says so, and shows it anyway. */
+/**
+ * Past these, an output reads like the terminal it should beat, or breaks the
+ * design rules (`./skill/SKILL.md`): show_output says so, and shows it anyway.
+ */
 export const LONG_TEXT = 320;
 export const LONG_ITEM = 140;
 export const MANY_ITEMS = 8;
 export const MANY_CARDS = 3;
+/** One verdict stands out; past two, none does. */
+export const MANY_CALLOUTS = 2;
+/** A strip of figures holds four across an output. */
+export const MANY_STATS = 4;
+/** One or two bars are figures, not a chart. */
+export const FEW_BARS = 3;
+/** Past six parts, a split bar's slivers cannot be told apart. */
+export const MANY_PARTS = 6;
+/** Past four lines, a chart is a tangle. */
+export const MANY_SERIES = 4;
+/** Past five columns, a Table crowds a 560-pixel output and may scroll sideways. */
+export const MANY_COLUMNS = 5;
 const MAX_READABILITY_WARNINGS = 5;
 
 type Element = { type: "element"; typeName: string; props: Record<string, unknown> };
@@ -82,14 +102,42 @@ const opening = (text: string) => {
   return line.length > 40 ? `${line.slice(0, 40)}…` : line;
 };
 
-/** What will read badly in an output that parses: long prose, lists of sentences, a column of open Cards. */
-function readability(root: unknown): string[] {
+const count = (value: unknown) => (Array.isArray(value) ? value.length : 0);
+const plain = (text: string) => text.replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * What will read badly in an output that parses: long prose, lists of
+ * sentences, a column of open Cards, a Card in a Card, the title said twice,
+ * too many Callouts, a strip of too many figures, a chart of one bar or of too
+ * many parts or lines, a Table wider than the output.
+ */
+function readability(root: unknown, context: CheckContext): string[] {
   const warnings: string[] = [];
-  const visit = (node: unknown): void => {
-    if (Array.isArray(node)) return node.forEach(visit);
+  let callouts = 0;
+  let headings = 0;
+  const title = plain(context.title ?? "");
+  const visit = (node: unknown, inCard = false): void => {
+    if (Array.isArray(node)) return node.forEach((child) => visit(child, inCard));
     if (!isElement(node)) return;
     const p = node.props;
     const text = typeof p.text === "string" ? p.text : "";
+    const name = typeof p.title === "string" ? p.title : "";
+    if (node.typeName === "Callout") callouts++;
+    if (node.typeName === "Heading" && headings++ === 0 && title && plain(text) === title)
+      warnings.push(`The Heading "${opening(text)}" repeats the output's title, which its header already shows: remove it.`);
+    if (node.typeName === "Card" && inCard) warnings.push(`The Card "${opening(name)}" sits inside another Card: lay its content out in the outer one, or make the two Tabs.`);
+    if (node.typeName === "Row" && Array.isArray(p.children)) {
+      const stats = p.children.filter((child) => isElement(child) && child.typeName === "Stat").length;
+      if (stats > MANY_STATS) warnings.push(`A Row of ${stats} Stats: keep two to four headline figures; put the rest in a Table, or a Breakdown when they add up to a whole.`);
+    }
+    if (node.typeName === "BarChart" && count(p.values) > 0 && count(p.values) < FEW_BARS)
+      warnings.push(`The BarChart${name ? ` "${opening(name)}"` : ""} has ${count(p.values)} bar${count(p.values) === 1 ? "" : "s"}: show ${count(p.values) === 1 ? "it as a Stat" : "them as Stats in a Row"}, or a Progress for a share of a limit.`);
+    if (node.typeName === "Breakdown" && count(p.items) > MANY_PARTS)
+      warnings.push(`The Breakdown${name ? ` "${opening(name)}"` : ""} has ${count(p.items)} parts: fold the smallest into "Other", or compare them in a BarChart.`);
+    if (node.typeName === "LineChart" && count(p.series) > MANY_SERIES)
+      warnings.push(`The LineChart${name ? ` "${opening(name)}"` : ""} has ${count(p.series)} lines: keep the four that matter, or split them into two charts.`);
+    if (node.typeName === "Table" && count(p.columns) > MANY_COLUMNS)
+      warnings.push(`A Table of ${count(p.columns)} columns crowds the output and may scroll sideways: keep five, and fold the rest into a collapsed Card or a Tab.`);
     if ((node.typeName === "Text" || node.typeName === "Markdown") && text.length > LONG_TEXT)
       warnings.push(
         `The ${node.typeName} "${opening(text)}" runs ${text.length} characters: an output is looked at, not read. Cut it to a sentence or two, or fold it in a Card with collapsed true.`,
@@ -105,8 +153,9 @@ function readability(root: unknown): string[] {
       const open = p.children.filter((child) => isElement(child) && child.typeName === "Card" && child.props.collapsed !== true).length;
       if (open > MANY_CARDS) warnings.push(`${open} open Cards one under another: put them in Tabs, one Tab each with its count, or fold the details with collapsed true.`);
     }
-    for (const value of Object.values(p)) if (typeof value === "object" && value !== null) visit(value);
+    for (const value of Object.values(p)) if (typeof value === "object" && value !== null) visit(value, inCard || node.typeName === "Card");
   };
   visit(root);
+  if (callouts > MANY_CALLOUTS) warnings.push(`${callouts} Callouts: when everything stands out, nothing does. Keep one verdict, two at most; make the rest Badges in a Table.`);
   return warnings.slice(0, MAX_READABILITY_WARNINGS);
 }

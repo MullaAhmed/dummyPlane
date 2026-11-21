@@ -265,3 +265,112 @@ describe("dragging a whole tree", () => {
     expect(updateScene).not.toHaveBeenCalled();
   });
 });
+
+describe("a mission follows its Fleet (./missionLayout.ts)", () => {
+  const dragging = (ids: string[], on: boolean) => ({ selectedElementIds: Object.fromEntries(ids.map((id) => [id, true as const])), selectedElementsAreBeingDragged: on });
+  const node = (kind: "fleet" | "kanban", id: string, x: number, y: number) => ({ ...(createNodeElement(kind, { x: 0, y: 0 }) as unknown as ExcalidrawElement), id, x, y }) as ExcalidrawElement;
+  const mission = ["board", "mgr", "m1", "m2"];
+  const where = (elements: readonly ExcalidrawElement[], ids: readonly string[]) => ids.map((id) => ({ x: at(elements, id).x, y: at(elements, id).y }));
+  const shifted = (points: readonly { x: number; y: number }[], dx: number, dy: number) => points.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+
+  /** A Fleet, its board docked right of it, the Manager under the board and two agents of its team, as the go-ahead lays them out; `helpers`, the Fleet's own sub-agents. */
+  function missionScene(helpers: string[] = []): ExcalidrawElement[] {
+    const manager = { ...record(), payload: { ...record().payload, role: "manager", fleet: "fleet" } };
+    nodesStore.setState({
+      nodes: {
+        fleet: { workspaceId: "w", kind: "fleet", payload: { name: "Chef", mission: { board: "board", manager: "mgr" } } },
+        board: { workspaceId: "w", kind: "kanban", payload: {} },
+        mgr: manager,
+        m1: record("mgr"),
+        m2: record("mgr"),
+        ...Object.fromEntries(helpers.map((id) => [id, record("fleet")])),
+      } as never,
+    });
+    let elements = [node("fleet", "fleet", 0, 0), node("kanban", "board", 640 + GROUP_GAP, 0), terminal("mgr", 600, 496), terminal("m1"), terminal("m2"), ...helpers.map((id) => terminal(id))];
+    elements = withWire(withWire(elements, "fleet", "board"), "board", "mgr");
+    for (const id of ["m1", "m2"]) elements = withWire(elements, "mgr", id, "calm", true);
+    for (const id of helpers) elements = withWire(elements, "fleet", id, "calm", true);
+    scene.elements = elements;
+    reflowSpawnTree("w", "mgr");
+    if (helpers.length > 0) reflowSpawnTree("w", "fleet");
+    return scene.elements as ExcalidrawElement[];
+  }
+
+  /** The drag of `ids` by (dx, dy), as Excalidraw hands it to the watch, its end's frames run. */
+  function drag(laid: readonly ExcalidrawElement[], ids: string[], dx: number, dy: number): ExcalidrawElement[] {
+    const watch = createSpawnDragWatch("w");
+    watch(laid, dragging(ids, false));
+    const moved = laid.map((e) => (ids.includes(e.id) ? { ...e, x: e.x + dx, y: e.y + dy, version: e.version + 1 } : e));
+    watch(moved, dragging(ids, true));
+    scene.elements = moved;
+    watch(moved, dragging(ids, false));
+    frames.splice(0).forEach((cb) => cb(0));
+    return scene.elements as ExcalidrawElement[];
+  }
+
+  // The scene as each write leaves it: the follow, then the Fleet's reflow, read it in turn.
+  beforeEach(() => updateScene.mockImplementation(({ elements }: { elements: ExcalidrawElement[] }) => (scene.elements = elements)));
+  afterEach(() => updateScene.mockImplementation(() => undefined));
+
+  it("takes its board, Manager and team along when a Fleet with no sub-agent of its own is dragged", () => {
+    const laid = missionScene();
+    const after = drag(laid, ["fleet"], 500, 300);
+    expect(where(after, mission)).toEqual(shifted(where(laid, mission), 500, 300));
+    for (const id of mission) expect(at(after, id).customData?.pinned, id).toBeUndefined();
+  });
+
+  it("takes its sub-agents and its mission along, the mission still under them, when a Fleet with sub-agents is dragged", () => {
+    const laid = missionScene(["h1", "h2"]);
+    // Docked under the Fleet's own sub-agents.
+    expect(at(laid, "board").y).toBeGreaterThan(at(laid, "h2").y + at(laid, "h2").height);
+    const after = drag(laid, ["fleet"], -400, 700);
+    expect(where(after, [...mission, "h1", "h2"])).toEqual(shifted(where(laid, [...mission, "h1", "h2"]), -400, 700));
+  });
+
+  it("takes the Manager and team along when the board is dragged, and leaves the mission where it was put", () => {
+    const laid = missionScene(["h1"]);
+    const after = drag(laid, ["board"], -3000, 200);
+    expect(where(after, mission)).toEqual(shifted(where(laid, mission), -3000, 200));
+    // Away from its Fleet now: the Fleet's next layout leaves it there.
+    reflowSpawnTree("w", "fleet");
+    expect(where(scene.elements as ExcalidrawElement[], mission)).toEqual(where(after, mission));
+  });
+
+  it("pins no agent of the team dragged along with its Fleet", () => {
+    const laid = missionScene();
+    const after = drag(laid, ["fleet", "m1"], 300, 0);
+    expect(where(after, mission)).toEqual(shifted(where(laid, mission), 300, 0));
+    expect(at(after, "m1").customData?.pinned).toBeUndefined();
+  });
+
+  /** The scene moved without a drag (the arrow keys, an undo), as Excalidraw hands it to the watch, the next frames run. */
+  function nudge(watch: ReturnType<typeof createSpawnDragWatch>, laid: readonly ExcalidrawElement[], ids: string[], dx: number, dy: number): ExcalidrawElement[] {
+    const moved = laid.map((e) => (ids.includes(e.id) ? { ...e, x: e.x + dx, y: e.y + dy, version: e.version + 1 } : e));
+    scene.elements = moved;
+    watch(moved, dragging(ids, false));
+    frames.splice(0).forEach((cb) => cb(0));
+    return scene.elements as ExcalidrawElement[];
+  }
+
+  it("takes its sub-agents and mission along when a Fleet moves with the arrow keys, and back when its drag is undone", () => {
+    const laid = missionScene(["h1"]);
+    const all = [...mission, "h1"];
+    const watch = createSpawnDragWatch("w");
+    watch(laid, dragging(["fleet"], false));
+    const keyed = nudge(watch, laid, ["fleet"], 0, 40);
+    expect(where(keyed, all)).toEqual(shifted(where(laid, all), 0, 40));
+    // Ctrl+Z of a drag takes the Fleet back alone: what followed it was out of the undo history.
+    const undone = nudge(watch, keyed, ["fleet"], 500, -300);
+    expect(where(undone, all)).toEqual(shifted(where(laid, all), 500, -260));
+  });
+
+  it("moves nothing more when the Fleet moved with its mission (an Arrange)", () => {
+    const laid = missionScene();
+    const watch = createSpawnDragWatch("w");
+    watch(laid, dragging([], false));
+    updateScene.mockClear();
+    const arranged = nudge(watch, laid, ["fleet", ...mission], -800, 120);
+    expect(updateScene).not.toHaveBeenCalled();
+    expect(where(arranged, mission)).toEqual(shifted(where(laid, mission), -800, 120));
+  });
+});

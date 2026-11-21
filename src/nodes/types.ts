@@ -58,6 +58,8 @@ export interface TerminalPayload {
   /** A command to run once, an install: only an explicit gesture runs it again. */
   oneShot?: boolean;
   /** Node id of the terminal whose agent spawned this one (spawn_agent). */ spawnedBy?: string;
+  /** The title of the step of its spawner's frieze that this sub-agent carries (spawn_agent's `step`): its report settles it. */
+  forStep?: string;
   /**
    * The task its spawner gave it (spawn_agent), its start only: said in a line under its name (`@/agents/taskSummary`).
    * New work its spawner gives it once it reported (message_agent) takes its place (`@/mcp/linkTools`).
@@ -329,7 +331,7 @@ export function readFleetPayload(raw: unknown): FleetPayload {
   return payload;
 }
 
-const SHELLS = new Set<string>(["default", "powershell", "pwsh", "cmd", "gitbash"]);
+const SHELLS = new Set<string>(["default", "powershell", "pwsh", "cmd", "gitbash", "wsl"]);
 
 /**
  * Reads a stored terminal payload, including those saved before agents and names
@@ -377,6 +379,7 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (r.oneShot === true) payload.oneShot = true;
   if (typeof r.accountId === "string" && r.accountId) payload.accountId = r.accountId;
   if (typeof r.spawnedBy === "string" && r.spawnedBy) payload.spawnedBy = r.spawnedBy;
+  if (typeof r.forStep === "string" && r.forStep) payload.forStep = r.forStep;
   if (typeof r.task === "string" && r.task.trim()) payload.task = cutWhole(r.task, MAX_STORED_TASK);
   if (r.staleTitle === true) payload.staleTitle = true;
   if (r.coordinator === true) payload.coordinator = true;

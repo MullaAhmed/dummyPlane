@@ -5,16 +5,16 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
-import { newConsole } from "@/agents/quickActions";
 import { launchAgent } from "@/agents/launchAgent";
 import { agentsStore } from "@/agents/agentsStore";
 import { requestUi } from "@/commands/uiRequests";
+import { uiStore } from "@/store/ui";
 import { ToolRail } from "./ToolRail";
 
 // Excalidraw does not load under Vitest (roughjs); the rail drives it through the store's api only.
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/kanban/place", () => ({ placeKanban: vi.fn() }));
-vi.mock("@/agents/quickActions", () => ({ newConsole: vi.fn(), placeFleet: vi.fn() }));
+vi.mock("@/agents/quickActions", () => ({ placeFleet: vi.fn() }));
 vi.mock("@/agents/launchAgent", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/agents/launchAgent")>()),
   launchAgent: vi.fn(() => Promise.resolve()),
@@ -59,7 +59,7 @@ it("offers the canvas tools in their fixed order, each setting its Excalidraw to
   }
 });
 
-it("holds the catalog, New console, Fleet and Kanban in its ＋", async () => {
+it("holds the catalog, Shell, Fleet, Kanban and Markdown in its ＋", async () => {
   const menuEntries = () =>
     [...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button')].map((b) => b.textContent ?? "");
   await act(async () => byLabel("Add to canvas").click());
@@ -67,13 +67,19 @@ it("holds the catalog, New console, Fleet and Kanban in its ＋", async () => {
   // The launch folder comes first (its Change… button), then the agents.
   expect(entries[0]).toBe("Change…");
   expect(entries[1]).toContain("Claude");
-  // After the agents: the terminals (New console, then the Shell), then the Fleet and the board.
-  expect(entries.slice(-5, -1)).toEqual(["New console", expect.stringContaining("Shell"), expect.stringContaining("Fleet"), expect.stringContaining("Kanban")]);
+  // After the agents: the one terminal row, the Shell, then the Fleet and the board, then the Markdown file.
+  expect(entries.slice(-5, -1)).toEqual([
+    expect.stringMatching(/^Shell/),
+    expect.stringContaining("Fleet"),
+    expect.stringContaining("Kanban"),
+    expect.stringMatching(/^Markdown/),
+  ]);
+  expect(entries).not.toContain("New console");
   expect(entries).not.toContain("Launch 4 agents");
-  const click = (text: string) =>
-    [...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button')].find((b) => b.textContent === text)!.click();
-  await act(async () => click("New console"));
-  expect(newConsole).toHaveBeenCalledTimes(1);
+  // No shell known yet (none listed): Shell places a terminal in the default one at once.
+  await act(async () => document.querySelector<HTMLButtonElement>('[data-agent-pick="shell"]')!.click());
+  expect(uiStore.getState().placing).toMatchObject({ agent: "shell", options: { shell: "default" } });
+  uiStore.getState().setPlacing(null);
 });
 
 it("opens the ＋ menu on request, on the custom command's options or on Ollama's models", async () => {
@@ -81,14 +87,14 @@ it("opens the ＋ menu on request, on the custom command's options or on Ollama'
   expect(document.querySelector('[data-slot="popover-content"]')!.textContent).toContain("Launch the custom command");
 });
 
-it("launches the agent chosen in the ＋ menu where the radial menu was opened (Other agent…)", async () => {
-  await act(async () => requestUi({ kind: "agentMenu", view: "agents", only: "agents", at: { x: 10, y: 20 } }));
+it("launches the agent chosen in the ＋ menu where a request pointed (the scene point of the radial menu's press)", async () => {
+  await act(async () => requestUi({ kind: "agentMenu", view: "agents", at: { x: 10, y: 20 } }));
   await act(async () => agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never));
   const menu = document.querySelector('[data-slot="popover-content"]')!;
   expect(menu.textContent).toContain("launched where you clicked");
-  // Only the agents, headed "Launch an agent": the ring's "Other agent…" is not the ＋'s whole menu.
-  expect(menu.textContent).toContain("Launch an agent");
-  for (const other of ["New console", "Fleet", "Kanban", "Terminals"]) expect(menu.textContent, other).not.toContain(other);
+  // The whole menu: the ring's "Other agent…" is its own list (src/agents/OtherAgentMenu.tsx), not this one.
+  for (const part of ["Agents", "Terminals", "Fleet", "Kanban"]) expect(menu.textContent, part).toContain(part);
+  expect(menu.textContent).not.toContain("Launch an agent");
   const claude = [...menu.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.startsWith("Claude"))!;
   await act(async () => claude.click());
   expect(launchAgent).toHaveBeenCalledWith("claude", expect.objectContaining({ shell: expect.any(String) }), { x: 10, y: 20 });

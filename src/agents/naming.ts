@@ -2,21 +2,36 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { groupInfoOf, groupPantheons } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
+import { cachedElements } from "@/canvas/sceneCache";
 import { nodesStore } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
 import { nextName, nextPantheon, pantheonById } from "./names";
 
 /**
- * Names already carried by the terminals of a workspace. A closed terminal's
- * node stays in memory for Ctrl+Z, its element marked deleted: its name is free
- * again. One not on the scene yet is being created: its name is taken.
+ * Names a new agent of `workspaceId` must not take: those of the terminals of every workspace of its project, and of
+ * the members of the project's missions under way. Two agents of one project are told apart by their names alone (a
+ * report, a `message_agent`, an `@`), whichever canvas each is on. A closed terminal's node stays in memory for
+ * Ctrl+Z, its element marked deleted: its name is free again. One not on the scene yet is being created: its name is
+ * taken. A mission member keeps its name while the mission runs, closed or not: its branch is named after it.
  */
 export function namesInWorkspace(workspaceId: string): string[] {
-  const scene = canvasStore.getState().api?.getSceneElementsIncludingDeleted() ?? [];
-  const closed = new Set(scene.filter((e) => e.isDeleted).map((e) => e.id));
-  return Object.entries(nodesStore.getState().nodes).flatMap(([id, node]) =>
-    node.workspaceId === workspaceId && node.kind === "terminal" && node.payload.name && !closed.has(id) ? [node.payload.name] : [],
-  );
+  const { workspaces, activeId } = workspacesStore.getState();
+  const project = workspaces.find((w) => w.id === workspaceId)?.projectId;
+  const inProject = new Set(project ? workspaces.filter((w) => w.projectId === project).map((w) => w.id) : []);
+  inProject.add(workspaceId);
+  // What is on screen is the canvas's own; the other workspaces' scenes are the cache's (nothing of one never read).
+  const { api } = canvasStore.getState();
+  const closed = new Set((api?.getSceneElementsIncludingDeleted() ?? []).filter((e) => e.isDeleted).map((e) => e.id));
+  for (const id of inProject) {
+    if (api && id === activeId) continue;
+    for (const element of cachedElements(id) ?? []) if (element.isDeleted) closed.add(element.id);
+  }
+  return Object.entries(nodesStore.getState().nodes).flatMap(([id, node]) => {
+    if (!inProject.has(node.workspaceId)) return [];
+    if (node.kind === "terminal") return node.payload.name && !closed.has(id) ? [node.payload.name] : [];
+    const mission = node.kind === "fleet" ? node.payload.mission : undefined;
+    return mission && (mission.state === "lancement" || mission.state === "en_cours") ? mission.members.map((m) => m.name) : [];
+  });
 }
 
 /** The pantheon of the agents outside groups; it avoids those of the groups on screen. */

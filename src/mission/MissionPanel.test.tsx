@@ -5,7 +5,9 @@ import { afterEach, beforeAll, expect, it, vi, beforeEach } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
 import type { AgentId } from "@/ipc/pty";
+import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
+import { terminalStatusStore } from "@/store/terminalStatus";
 import { cleanMission, launchMission } from "./launch";
 import { NEW_MISSION, type Mission } from "./mission";
 import { MissionPanel } from "./MissionPanel";
@@ -15,17 +17,26 @@ import { answerConfirm } from "@/components/confirm";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { notify } from "./events";
 import { modelRouterStore } from "@/app/modelRouterSetting";
+import { answerLand } from "./land";
+import { answerLeftovers, askLeftovers, leftoversStore } from "./leftovers";
+import { tabTo } from "@/components/ui/tabTo";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 // The real endMission: "Stop the mission" ends the mission through it (./stop.ts).
 vi.mock("./launch", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./launch")>()),
   launchMission: vi.fn(() => Promise.resolve()),
-  cleanMission: vi.fn(() => Promise.resolve({ removed: ["auth-batman", "auth"], kept: [] })),
+  cleanMission: vi.fn(() => Promise.resolve({ removed: ["auth-batman", "auth"], kept: [] as string[], open: [] })),
 }));
 vi.mock("./events", async (importOriginal) => ({ ...(await importOriginal<typeof import("./events")>()), notify: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/canvas/focusNode", () => ({ focusNode: vi.fn() }));
+vi.mock("./land", () => ({ answerLand: vi.fn(() => Promise.resolve()) }));
+vi.mock("./leftovers", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./leftovers")>()),
+  askLeftovers: vi.fn(() => Promise.resolve({ text: "" })),
+  answerLeftovers: vi.fn(() => Promise.resolve()),
+}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -171,7 +182,9 @@ it("shows the plan and gives the go-ahead", async () => {
 
 it("shows the group a new agent will join", async () => {
   await show({ state: "plan", name: "Auth", plan: [{ title: "Style", brief: "Fais le style", agent: "nouveau", budgetMin: 20, group: { id: "g1", name: "Interface" } }] });
-  expect(host.textContent).toContain("nouveau → Interface · 20 min");
+  // `NEW_AGENT` ("nouveau") is the plan's internal id: the user reads "new agent".
+  expect(host.textContent).toContain("new agent → Interface · 20 min");
+  expect(host.textContent).not.toContain("nouveau");
 });
 
 it("opens Night mission from its settings, and marks a night", async () => {
@@ -279,7 +292,23 @@ it("shows the team's reports and the summary, and cleans the mission", async () 
   expect(host.textContent).toContain("Tout est fait.");
   await act(async () => button("Clean up the mission").click());
   expect(cleanMission).toHaveBeenCalledWith("chef");
-  expect(toast.success).toHaveBeenCalledWith("Worktrees removed: auth-batman, auth");
+  expect(toast.success).toHaveBeenCalledWith("Mission Auth cleaned up", { id: "cleaned-Auth", description: "Removed: auth-batman, auth." });
+});
+
+it("shows the user the branches and worktrees the cleanup kept, and why, until dismissed (#30)", async () => {
+  vi.mocked(cleanMission).mockResolvedValueOnce({
+    removed: ["auth-batman", "auth", "dummyplane/auth-batman"],
+    kept: ["dummyplane/auth (2 commits not on main)"],
+    open: [{ name: "Loki", why: "atWork" }],
+  });
+  await show({ state: "terminee", name: "Auth", summary: "Done.", members: [] });
+  await act(async () => button("Clean up the mission").click());
+  expect(toast.success).toHaveBeenCalledWith("Mission Auth cleaned up", {
+    id: "cleaned-Auth",
+    description: "Removed: auth-batman, auth, dummyplane/auth-batman. Kept: dummyplane/auth (2 commits not on main). Left open: Loki (at work).",
+    duration: Infinity,
+    closeButton: true,
+  });
 });
 
 it("shows the sub-tasks an agent finished before taking another (backlog H3)", async () => {
@@ -292,7 +321,7 @@ it("shows the sub-tasks an agent finished before taking another (backlog H3)", a
   expect(finished.textContent).toContain("2");
   // In the app's hint, reached by the keyboard too: never a native title beside the "diff" button's hint.
   expect(finished.hasAttribute("title")).toBe(false);
-  await act(async () => finished.focus());
+  await act(async () => tabTo(finished));
   expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Already finished: API, Docs");
 });
 
@@ -369,7 +398,25 @@ it("shows the team and the cleanup in English", async () => {
   expect(host.querySelector('[data-member="Batman"]')?.textContent).toContain("done · merged");
   expect(host.querySelector('[data-member="Batman"]')?.textContent).toContain("6 / 20 min");
   await act(async () => button("Clean up the mission").click());
-  expect(toast.success).toHaveBeenCalledWith("Worktrees removed: auth-batman, auth");
+  expect(toast.success).toHaveBeenCalledWith("Mission Auth cleaned up", { id: "cleaned-Auth", description: "Removed: auth-batman, auth." });
+});
+
+it("asks the user to land where they watch the mission: only their click answers", async () => {
+  const landing = { target: "main", branch: "dummyplane/auth", tip: "abc", commits: ["a1b2c3d API", "9f8e7d6 Login"], count: 12, fastForward: false, at: 7 };
+  await show({ state: "terminee", name: "Auth", summary: "Fini.", members: [], landing });
+  const prompt = host.querySelector("[data-mission-land]")!;
+  expect(prompt.textContent).toContain("Land the mission on main?");
+  expect(prompt.textContent).toContain("main gets 12 commits of dummyplane/auth, by fast-forward. Nothing is pushed.");
+  expect(prompt.textContent).toContain("a1b2c3d API");
+  expect(prompt.textContent).toContain("+10 more");
+  expect(prompt.textContent).toContain("main moved since the mission started");
+  // Out of the scrolling body, as the other actions.
+  expect(host.querySelector("[data-mission-body]")!.contains(prompt)).toBe(false);
+  expect(answerLand).not.toHaveBeenCalled();
+  await act(async () => button("Not now").click());
+  expect(answerLand).toHaveBeenCalledWith("chef", 7, false);
+  await act(async () => button("Land").click());
+  expect(answerLand).toHaveBeenCalledWith("chef", 7, true);
 });
 
 it("keeps the go-ahead and cleanup buttons outside the scrolling body", async () => {
@@ -408,8 +455,46 @@ it("gives an agent's report summary in the app's hint, reached by the keyboard t
   expect(word.textContent).toBe("blocked");
   expect(word.hasAttribute("title")).toBe(false);
   expect(word.tabIndex).toBe(0);
-  await act(async () => word.focus());
+  await act(async () => tabTo(word));
   expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Blocked on the API key");
+});
+
+it("says one word for a member at rest: its report's when it reported, Ready when it did not; Blocked waits (wait tone), only Failed is red", async () => {
+  const ids = ["batman", "robin", "alfred", "cyborg"];
+  for (const id of ids) {
+    await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { title: id, name: id, agent: "claude", cwd: "C:/p", shell: "default", command: "" } });
+  }
+  terminalStatusStore.setState({ statuses: Object.fromEntries(ids.map((id) => [id, { state: "running" }])) } as never);
+  agentActivityStore.setState({ activities: Object.fromEntries(ids.map((id) => [id, { activity: "idle", since: 0 }])) });
+  const member = (nodeId: string, name: string, status?: "termine" | "bloque" | "echec") => ({
+    nodeId, name, task: "Login", budgetMin: 20, linked: true, branch: "b", worktree: "C:/w", sentAt: 0,
+    ...(status ? { report: { summary: "", status, at: 0 } } : {}),
+  });
+  await show({ state: "en_cours", name: "Auth", members: [member("batman", "Batman", "termine"), member("robin", "Robin", "bloque"), member("alfred", "Alfred", "echec"), member("cyborg", "Cyborg")] });
+  const row = (name: string) => host.querySelector<HTMLElement>(`[data-member="${name}"]`)!;
+  const report = (name: string) => row(name).querySelector<HTMLElement>("[data-report]")!;
+  // A reported member at rest is its report, once: never "ready" beside it, never "idle".
+  expect(report("Batman").textContent).toBe("done");
+  expect(report("Robin").textContent).toBe("blocked");
+  expect(report("Alfred").textContent).toBe("failed");
+  for (const name of ["Batman", "Robin", "Alfred"]) expect(row(name).textContent).not.toMatch(/ready|idle/);
+  expect(row("Cyborg").textContent).toContain("ready");
+  expect(row("Cyborg").textContent).not.toContain("idle");
+  expect(report("Batman").className).toContain("text-dp-text");
+  expect(report("Robin").className).toContain("text-dp-wait");
+  expect(report("Robin").className).not.toContain("danger");
+  expect(report("Alfred").className).toContain("text-dp-danger");
+  // Each row leads with the agent's status dot, the one its terminal's header shows, and it says what the row's word
+  // says: done, blocked (the wait dot), failed (the square), and at rest without a report, the ring.
+  const dot = (name: string) => row(name).querySelector("[data-status]")?.getAttribute("data-status");
+  expect(["Batman", "Robin", "Alfred", "Cyborg"].map(dot)).toEqual(["done", "waiting", "error", "idle"]);
+  // At work again, it says Working, whatever it reported before, and its dot is the solid one.
+  await act(async () => agentActivityStore.setState({ activities: { batman: { activity: "working", since: 0 } } }));
+  expect(row("Batman").textContent).toContain("working");
+  expect(row("Batman").querySelector("[data-status]")?.getAttribute("data-status")).toBe("working");
+  nodesStore.setState({ nodes: {} });
+  terminalStatusStore.setState({ statuses: {} });
+  agentActivityStore.setState({ activities: {} });
 });
 
 it("draws the fleet's summary: Markdown as Markdown, OpenUI Lang through the library", async () => {
@@ -530,4 +615,121 @@ it("leaves the mission running when the user cancels, and names no Manager for a
   expect(mission?.summary).toBeUndefined();
   expect(notify).not.toHaveBeenCalled();
   expect(stopButton()).not.toBeNull();
+});
+
+const proposed = {
+  task: "The user wants the tests planned too",
+  tasks: [
+    { title: "Tests", brief: "Cover the API", budgetMin: 15, waitsFor: ["API"] },
+    { title: "API", brief: "Do the API v2", budgetMin: 45 },
+  ],
+  drop: ["Docs"],
+};
+const waiting = [
+  { title: "API", brief: "Do the API", budgetMin: 30 },
+  { title: "Docs", brief: "Write the docs", budgetMin: 10 },
+];
+
+it("shows the Fleet's proposed changes to the waiting tasks with what they add, edit and drop, and the queue as it stands", async () => {
+  await show({ state: "en_cours", name: "Auth", members: [], queue: waiting, amendment: proposed });
+  const view = host.querySelector("[data-amendment]")!;
+  expect(view.textContent).toContain("The user wants the tests planned too");
+  expect(view.querySelector('[data-amendment-group="added"]')?.textContent).toContain("Added (1)Tests");
+  expect(view.querySelector('[data-amendment-group="added"]')?.textContent).toContain("waits for API");
+  expect(view.querySelector('[data-amendment-group="edited"]')?.textContent).toContain("Do the API v2");
+  expect(view.querySelector('[data-amendment-group="dropped"]')?.textContent).toContain("Docs");
+  // Nothing changed before the user says so; the status line asks for them as a plan does.
+  expect(missionOf(nodesStore.getState().nodes.chef)?.queue).toEqual(waiting);
+  expect(host.textContent).toContain("Changes proposed · waiting for the go-ahead");
+  // The go-ahead and the refusal stand in the footer, outside the scrolling body, beside Stop.
+  const apply = button("Apply the changes");
+  expect(host.querySelector("[data-mission-body]")!.contains(apply)).toBe(false);
+  expect(apply.closest("[data-mission-actions]")).toBe(stopButton()!.closest("[data-mission-actions]"));
+  // What each does is in the app's hint, which the keyboard reaches too: no native title.
+  expect(apply.hasAttribute("title")).toBe(false);
+  expect(button("Decline")!.hasAttribute("title")).toBe(false);
+  await act(async () => tabTo(apply));
+  expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Change the waiting tasks as proposed. The tasks at work stay as they are.");
+});
+
+it("applies the proposed changes on 'Apply the changes': the waiting tasks as proposed, the proposal gone", async () => {
+  await show({ state: "en_cours", name: "Auth", members: [], queue: waiting, amendment: proposed });
+  await act(async () => button("Apply the changes").click());
+  const mission = missionOf(nodesStore.getState().nodes.chef);
+  expect(mission?.amendment).toBeUndefined();
+  expect(mission?.queue?.map((task) => task.title)).toEqual(["API", "Tests"]);
+  expect(mission?.queue?.[0].brief).toBe("Do the API v2");
+  expect(host.querySelector("[data-amendment]")).toBeNull();
+  expect(host.querySelector("[data-queue]")?.textContent).toContain("waits for API");
+  expect(button("Apply the changes")).toBeUndefined();
+});
+
+it("keeps the waiting tasks on 'Decline', and the Fleet is told", async () => {
+  vi.mocked(notify).mockClear();
+  await show({ state: "en_cours", name: "Auth", members: [], queue: waiting, amendment: proposed });
+  await act(async () => button("Decline").click());
+  expect(missionOf(nodesStore.getState().nodes.chef)?.queue).toEqual(waiting);
+  expect(missionOf(nodesStore.getState().nodes.chef)?.amendment).toBeUndefined();
+  expect(notify).toHaveBeenCalledWith("chef", expect.stringContaining("The user declined your amendment"));
+  expect(host.querySelector("[data-amendment]")).toBeNull();
+});
+
+it("shows the leftovers' question with what becomes of each before any click: what stays and why, the work saved, the files moved", async () => {
+  await show({ state: "redaction", members: [] });
+  const leftovers = {
+    target: "main",
+    keptFolder: "C:\\code\\proj.worktrees\\.kept",
+    worktrees: [
+      { name: "alpha-thor", branch: "dummyplane/alpha-thor", wip: true, moves: [".env", ".env.local"], moveCount: 7, gone: false },
+      { name: "alpha-storm", branch: "dummyplane/alpha-storm", kept: "Storm is open there", wip: false, moves: [], moveCount: 0, gone: false },
+    ],
+    branches: [
+      { name: "dummyplane/alpha", head: "a1" },
+      { name: "dummyplane/alpha-hulk", head: "h1", kept: "unlanded: 1 commit not on main" },
+    ],
+    trash: ["web"],
+    strays: ["old-copy"],
+  };
+  await act(async () => leftoversStore.setState({ asks: { chef: { at: 9, project: "C:/code/proj", leftovers } } }));
+  const prompt = host.querySelector("[data-mission-leftovers]")!;
+  const text = prompt.textContent ?? "";
+  expect(text).toContain("Clean up the leftovers of past missions?");
+  expect(text).toContain("2 worktrees and 2 branches of past missions.");
+  expect(text).toContain('alpha-thor: uncommitted work committed on dummyplane/alpha-thor first ("WIP saved at clean-up"); .env, .env.local, +5 more moved to C:\\code\\proj.worktrees\\.kept\\alpha-thor; removed');
+  expect(text).toContain("alpha-storm: kept: Storm is open there");
+  expect(text).toContain("dummyplane/alpha: deleted: its work is on main");
+  expect(text).toContain("dummyplane/alpha-hulk: kept: unlanded: 1 commit not on main");
+  expect(text).toContain("1 folder a clean-up left half-deleted");
+  expect(text).toContain("Not git worktrees, left as they are: old-copy");
+  expect(answerLeftovers).not.toHaveBeenCalled();
+  await act(async () => [...prompt.querySelectorAll("button")].find((b) => b.textContent === "Not now")!.click());
+  expect(answerLeftovers).toHaveBeenCalledWith("chef", 9, false);
+  await act(async () => [...prompt.querySelectorAll("button")].find((b) => b.textContent === "Clean up")!.click());
+  expect(answerLeftovers).toHaveBeenCalledWith("chef", 9, true);
+  await act(async () => leftoversStore.setState({ asks: {} }));
+});
+
+it("between missions, and on a finished one, Clean up leftovers asks first and acts on nothing", async () => {
+  leftoversStore.setState({ asks: {} });
+  await show({ state: "redaction", members: [] });
+  await act(async () => button("Clean up leftovers").click());
+  expect(askLeftovers).toHaveBeenCalledWith("chef");
+  expect(answerLeftovers).not.toHaveBeenCalled();
+});
+
+it("lifts the go-ahead over the panel's body when the Fleet runs below the window (960x600 at 100 %), and lets it down in view", async () => {
+  const { canvasStore, EMPTY_VIEW } = await import("@/canvas/canvasStore");
+  // No layout in happy-dom: the body is 200 px tall.
+  const height = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(200);
+  canvasStore.setState({ nodeRects: { chef: { x: 0, y: 0, width: 717, height: 600 } }, view: { ...EMPTY_VIEW, width: 960, height: 600, zoom: 1, scrollY: 90 } });
+  await show({ state: "plan", name: "Auth", task: "Ajoute l'authentification", plan: [{ title: "Login", brief: "Fais le login", agent: "Batman", budgetMin: 20 }] });
+  const foot = host.querySelector<HTMLElement>("[data-mission-foot]")!;
+  expect(foot.contains(button("Launch the mission"))).toBe(true);
+  expect(host.querySelector("[data-mission-body]")!.contains(foot)).toBe(false);
+  // Its foot at y 690, the band over the command bar from y 532: 158 px up.
+  expect(foot.style.transform).toBe("translateY(-158px)");
+  await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, scrollY: -100 } }));
+  expect(foot.style.transform).toBe("");
+  height.mockRestore();
+  canvasStore.setState({ nodeRects: {}, view: EMPTY_VIEW });
 });

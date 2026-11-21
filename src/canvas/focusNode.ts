@@ -2,6 +2,7 @@ import { expandTerminal } from "@/nodes/terminal/minimize";
 import { focusTerminal } from "@/nodes/terminal/registry";
 import { setActiveTerminal } from "./activeTerminal";
 import { arrive } from "./arrive";
+import { currentWorkArea } from "@/shell/lane";
 import { canvasStore, fullSizeView } from "./canvasStore";
 import { nodeKindOf } from "./nodeElement";
 
@@ -21,7 +22,7 @@ export function focusNode(nodeId: string) {
   // The selection left behind goes: with it kept, Send would still reach the old selection, not the terminal just opened.
   api.updateScene({
     appState: {
-      ...fullSizeView(element, api.getAppState()),
+      ...fullSizeView(element, api.getAppState(), currentWorkArea()),
       activeEmbeddable: { element, state: "active" },
       selectedElementIds: {},
       selectedGroupIds: {},

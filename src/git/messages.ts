@@ -62,5 +62,36 @@ export const gitMessages = defineMessages(
       current: "Current branch",
       switched: (branch: string) => `Switched to ${branch}`,
     },
+    /**
+     * What failed, in the window's words, then what to do next: git's own line comes under them as a detail. The window
+     * has no pull, fetch or init: those are done in a terminal, which "Open a terminal here" starts in the folder.
+     */
+    problem: {
+      terminal: "Open a terminal here",
+      read: "Could not read the repository",
+      readNext: "Refresh to read it again",
+      diff: (path: string) => `Could not read the diff of ${path}`,
+      history: "Could not read the history",
+      notRepo: "This folder is not a git repository",
+      notRepoNext: "Run git init in a terminal here, then refresh",
+      locked: "Another git command is using this repository",
+      lockedNext: "Wait for it to finish, then try again",
+      push: (target: string) => `Could not push to ${target}`,
+      pushNext: "Push from a terminal here to see what git asks for",
+      rejected: (target: string) => `Push refused: ${target} has commits this branch does not have`,
+      rejectedNext: "Pull them in a terminal here, then push again",
+      switch: (branch: string) => `Could not switch to ${branch}`,
+      switchNext: "The branch did not change: refresh, then try again",
+      overwritten: (branch: string) => `Could not switch to ${branch}: your uncommitted changes would be overwritten`,
+      overwrittenNext: "Commit or discard them first, then switch",
+      commit: "Could not commit",
+      commitNext: "Your message and choices are kept: fix what git says, then commit again",
+      identity: "Git does not know who you are",
+      identityNext: "Set user.name and user.email with git config in a terminal",
+      discard: (path: string) => `Could not discard ${path}`,
+      discardNext: "Look at the file again, then discard it again",
+      branches: "Could not list the branches",
+      branchesNext: "Refresh, then open the menu again",
+    },
   },
 );

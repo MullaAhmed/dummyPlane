@@ -4,7 +4,7 @@ import { terminalStatusStore, type TerminalStatus } from "./terminalStatus";
 
 /**
  * Terminals of these workspaces whose process runs, shells included: what closing a workspace stops. The agent
- * counts (title bar, tab badges, Go to) read `tallyAgents` (src/agents/agentState.ts) instead.
+ * counts (rail pip, tab badges, Go to) read `tallyAgents` (src/agents/agentState.ts) instead.
  */
 export function countRunning(
   nodes: Record<string, NodeRecord>,

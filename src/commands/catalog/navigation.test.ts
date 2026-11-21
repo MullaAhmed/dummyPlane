@@ -21,6 +21,7 @@ import { pendingUiRequest } from "../uiRequests";
 import { APP } from "./app";
 import { NAVIGATION } from "./navigation";
 import { WORKSPACES } from "./workspaces";
+import { gitWindowStore } from "@/git/gitWindowStore";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/canvas/arrive", () => ({ arrive: vi.fn(), showNode: vi.fn(), arrivingNode: vi.fn(() => null) }));
@@ -128,6 +129,7 @@ describe("Navigation", () => {
       "Write an instruction",
       "Hide the Agents panel",
       "Notes",
+      "Git window",
       "Home",
       "Close the project",
       "Go to line…",
@@ -135,8 +137,9 @@ describe("Navigation", () => {
   });
 
   it("does what the buttons do", async () => {
+    // From the palette, the keyboard: the fit lands at once.
     await find(NAVIGATION, "canvas.fit").run(busy);
-    expect(fitScene).toHaveBeenCalled();
+    expect(fitScene).toHaveBeenCalledWith("keyboard");
     await find(NAVIGATION, "canvas.zoom100").run(busy);
     expect(zoomTo).toHaveBeenCalledWith(1);
     await find(NAVIGATION, "commandBar.focus").run(busy);
@@ -183,6 +186,34 @@ describe("Notes", () => {
     workspacesStore.setState({ openNotes } as never);
     void notes.run(busy);
     expect(openNotes).toHaveBeenCalled();
+  });
+});
+
+describe("Git window", () => {
+  const git = () => find(NAVIGATION, "git.window");
+
+  it("is offered with Ctrl+Shift+B where the branch chip found a repository, and opens the window on it", async () => {
+    gitWindowStore.setState({ repo: null, path: null });
+    expect(labelOf(git(), busy)).toBe("Git window");
+    expect(git().shortcut).toBe("Ctrl+Shift+B");
+    expect(git().keywords).toContain("commit");
+    expect(git().available(busy)).toBe(false);
+    gitWindowStore.setState({ repo: "C:/code/api" });
+    expect(git().available(home)).toBe(false);
+    expect(git().available(busy)).toBe(true);
+    await git().run(busy);
+    expect(gitWindowStore.getState().path).toBe("C:/code/api");
+    gitWindowStore.setState({ repo: null, path: null });
+  });
+
+  it("gives an open window the keyboard again, on its first changed file, rather than opening it twice", async () => {
+    document.body.innerHTML = '<aside data-git-window><div role="tab" data-state="active" tabindex="0">Changes</div><button data-git-row tabindex="0">a.ts</button></aside><textarea></textarea>';
+    document.querySelector("textarea")!.focus();
+    gitWindowStore.setState({ repo: "C:/code/api", path: "C:/code/api" });
+    await git().run(busy);
+    expect(document.activeElement?.textContent).toBe("a.ts");
+    gitWindowStore.setState({ repo: null, path: null });
+    document.body.replaceChildren();
   });
 });
 

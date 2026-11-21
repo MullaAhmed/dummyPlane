@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { toastError } from "@/lib/errorToast";
+import { InlineProblem } from "@/components/InlineProblem";
 import { OptionItem, OptionList } from "@/components/OptionList";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useUiRequest } from "@/commands/uiRequests";
@@ -13,7 +14,7 @@ import { nodeNameOf, useNodes, type NodeRecord } from "@/store/nodes";
 import { useProjects } from "@/store/projects";
 import { useWorkspaces } from "@/store/workspaces";
 import { useLoops, loopsStore } from "./live";
-import { loopsMessages } from "./messages";
+import { loopsMessages, type LoopProblem } from "./messages";
 import { LOOP_TEMPLATES, loopsOf, validateLoop, type LoopDef, type LoopError, type LoopTrigger } from "./model";
 
 interface Form {
@@ -91,6 +92,8 @@ export function LoopsDialog() {
   const formId = useId();
   const errorId = `${formId}-error`;
   const [open, setOpen] = useState(false);
+  // The palette opened it: it shows at once; the indicator's click lets it fade in.
+  const [instant, setInstant] = useState(false);
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState<LoopError | null>(null);
   // The loop just deleted: its row gives way to an Undo in its place, until the dialog closes. Not a toast: the
@@ -112,7 +115,8 @@ export function LoopsDialog() {
   const elsewhere = all.filter((l) => runtime[l.id]?.running && !loops.includes(l)).length;
   // The agents of the open project: a plain shell would run the instruction as a command.
   const terminals = Object.entries(nodes).filter(([, node]) => node.kind === "terminal" && !isShell(node) && inProject(node.workspaceId));
-  useUiRequest("loops", () => {
+  useUiRequest("loops", (request) => {
+    setInstant(request.instant === true);
     setForm(null);
     setDeleted(null);
     setOpen(true);
@@ -212,214 +216,224 @@ export function LoopsDialog() {
         if (!next) setDeleted(null);
       }}
     >
-      <DialogContent showCloseButton={false} className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent instant={instant} showCloseButton={false} className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t.title}</DialogTitle>
           <DialogDescription>{t.description}</DialogDescription>
         </DialogHeader>
-        {form === null ? (
-          <div ref={list} className="flex flex-col gap-2">
-            {loops.length === 0 && !deleted && <p className="py-4 text-center text-xs text-dp-text-2">{t.empty}</p>}
-            {elsewhere > 0 && (
-              <p data-loops-elsewhere className="text-xs text-dp-text-2">
-                {t.elsewhere(elsewhere)}
-              </p>
-            )}
-            {withDeleted(
-              deleted && (
-                <div key={DELETED_ROW} data-loop-row={DELETED_ROW} className="flex items-center gap-2 rounded-md border border-dashed border-dp-line px-3 py-2">
-                  <p id={`${formId}-deleted`} className="min-w-0 flex-1 truncate text-sm text-dp-text-2">
-                    {t.removed(deleted.loop.name)}
-                  </p>
-                  <Button size="sm" variant="ghost" className={ROW_BUTTON} aria-describedby={`${formId}-deleted`} onClick={() => void undo()}>
-                    {t.undo}
-                  </Button>
-                </div>
-              ),
-              deleted?.at ?? 0,
-              loops.map((loop, index) => {
-                const state = runtime[loop.id];
-                const running = state?.running === true;
-                // Saved when shells could be targets, it has no agent left to type into: it says so, and stays off.
-                const noAgent = !running && loop.targets.every((id) => isShell(nodes[id]));
-                const left =
-                  running && loop.maxMinutes !== undefined && state.startedAt !== null
-                    ? Math.max(0, Math.ceil(loop.maxMinutes - (Date.now() - state.startedAt) / 60_000))
-                    : null;
-                return (
-                  <div key={loop.id} data-loop-row={loop.id} className="flex items-center gap-2 rounded-md bg-dp-card px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-dp-text">{loop.name}</p>
-                      <p className="truncate text-xs text-dp-text-2">
-                        {t.triggerSummary(loop.trigger)} · {t.cost(loop)}
-                      </p>
-                      <p className="font-mono text-xs text-dp-text-3 tabular-nums">
-                        {running
-                          ? `${t.round(state.runs, loop.maxRuns)}${left === null ? "" : ` · ${t.untilEnd(left)}`}`
-                          : noAgent
-                            ? t.noAgent
-                            : state?.stoppedBecause
-                              ? `${t.stopped[state.stoppedBecause]} · ${t.round(state.runs, loop.maxRuns)}`
-                              : t.off}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={running ? "destructive" : "default"}
-                      disabled={noAgent}
-                      onClick={() => (running ? loopsStore.getState().stop(loop.id) : loopsStore.getState().start(loop.id))}
-                    >
-                      {running ? t.turnOff : t.turnOn}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className={ROW_BUTTON}
-                      onClick={() => {
-                        setForm(formOf(loop, nodes, inProject));
-                        setError(null);
-                      }}
-                    >
-                      {t.edit}
-                    </Button>
-                    <Button size="sm" variant="ghost" className={ROW_REMOVE} onClick={() => void remove(loop, index)}>
-                      {t.remove}
+        {/* The list or the form scrolls between the header and the footer, under the title bar at 960x600. */}
+        <DialogBody>
+          {form === null ? (
+            <div ref={list} className="flex flex-col gap-2">
+              {loops.length === 0 && !deleted && <p className="py-4 text-center text-xs text-dp-text-2">{t.empty}</p>}
+              {elsewhere > 0 && (
+                <p data-loops-elsewhere className="text-xs text-dp-text-2">
+                  {t.elsewhere(elsewhere)}
+                </p>
+              )}
+              {withDeleted(
+                deleted && (
+                  <div key={DELETED_ROW} data-loop-row={DELETED_ROW} className="flex items-center gap-2 rounded-md border border-dashed border-dp-line px-3 py-2">
+                    <p id={`${formId}-deleted`} className="min-w-0 flex-1 truncate text-sm text-dp-text-2">
+                      {t.removed(deleted.loop.name)}
+                    </p>
+                    <Button size="sm" variant="ghost" className={ROW_BUTTON} aria-describedby={`${formId}-deleted`} onClick={() => void undo()}>
+                      {t.undo}
                     </Button>
                   </div>
-                );
-              }),
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="dp-label">{t.templates}</span>
-              {LOOP_TEMPLATES.map((tpl) => (
-                <Button key={tpl.id} size="sm" variant="outline" onClick={() => fromTemplate(tpl.id)}>
-                  {t.template[tpl.id]}
-                </Button>
-              ))}
+                ),
+                deleted?.at ?? 0,
+                loops.map((loop, index) => {
+                  const state = runtime[loop.id];
+                  const running = state?.running === true;
+                  // Saved when shells could be targets, it has no agent left to type into: it says so, and stays off.
+                  const noAgent = !running && loop.targets.every((id) => isShell(nodes[id]));
+                  const left =
+                    running && loop.maxMinutes !== undefined && state.startedAt !== null
+                      ? Math.max(0, Math.ceil(loop.maxMinutes - (Date.now() - state.startedAt) / 60_000))
+                      : null;
+                  // Stopped with no agent to type into, or never had one: what to do comes first, and Edit leads.
+                  const reason = running ? null : (state?.stoppedBecause ?? null);
+                  const problem: LoopProblem | null = noAgent ? "noAgent" : reason === "noTargets" || reason === "noAgents" ? reason : null;
+                  const ended = reason === "runs" || reason === "duration" || reason === "manual" ? reason : null;
+                  return (
+                    <div key={loop.id} data-loop-row={loop.id} className="flex items-center gap-2 rounded-md bg-dp-card px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-dp-text">{loop.name}</p>
+                        <p className="truncate text-xs text-dp-text-2">
+                          {t.triggerSummary(loop.trigger)} · {t.cost(loop)}
+                        </p>
+                        {problem ? (
+                          <InlineProblem place="row" tone="warning" role={null} title={t.problem[problem]} next={t.problemNext[problem]} className="mt-1" />
+                        ) : (
+                          <p className="font-mono text-xs text-dp-text-3 tabular-nums">
+                            {running
+                              ? `${t.round(state.runs, loop.maxRuns)}${left === null ? "" : ` · ${t.untilEnd(left)}`}`
+                              : ended
+                                ? `${t.stopped[ended]} · ${t.round(state.runs, loop.maxRuns)}`
+                                : t.off}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={running ? "destructive" : problem ? "ghost" : "default"}
+                        className={problem ? ROW_BUTTON : undefined}
+                        disabled={noAgent}
+                        onClick={() => (running ? loopsStore.getState().stop(loop.id) : loopsStore.getState().start(loop.id))}
+                      >
+                        {running ? t.turnOff : t.turnOn}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={problem ? "default" : "ghost"}
+                        className={problem ? undefined : ROW_BUTTON}
+                        onClick={() => {
+                          setForm(formOf(loop, nodes, inProject));
+                          setError(null);
+                        }}
+                      >
+                        {t.edit}
+                      </Button>
+                      <Button size="sm" variant="ghost" className={ROW_REMOVE} onClick={() => void remove(loop, index)}>
+                        {t.remove}
+                      </Button>
+                    </div>
+                  );
+                }),
+              )}
             </div>
-            <div className="grid gap-1.5">
-              <label htmlFor={`${formId}-name`} className={LABEL}>
-                {t.name}
-              </label>
-              <Input id={`${formId}-name`} value={form.name} onChange={(e) => change({ name: e.currentTarget.value })} {...invalidIf("name")} />
-            </div>
-            <div className="grid gap-1.5">
-              <label htmlFor={`${formId}-instruction`} className={LABEL}>
-                {t.instruction}
-              </label>
-              <Textarea
-                id={`${formId}-instruction`}
-                value={form.instruction}
-                onChange={(e) => change({ instruction: e.currentTarget.value })}
-                rows={3}
-                className="resize-none field-sizing-fixed"
-                {...invalidIf("instruction")}
-              />
-            </div>
-            <fieldset aria-describedby={describedIf("targets")} className="flex flex-col gap-1">
-              <legend className="dp-label mb-1">{t.targets}</legend>
-              {terminals.length === 0 && <p className="text-xs text-dp-text-2">{t.noTargets}</p>}
-              {terminals.map(([id, node]) => (
-                <label key={id} className="-mx-2 flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-dp-text transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover motion-reduce:transition-none">
-                  <Checkbox
-                    data-target={id}
-                    checked={form.targets.includes(id)}
-                    onCheckedChange={(checked) => change({ targets: checked === true ? [...form.targets, id] : form.targets.filter((x) => x !== id) })}
-                    className="border-dp-text-3 after:-inset-1"
-                  />
-                  {nodeNameOf(node) || id}
-                </label>
-              ))}
-            </fieldset>
-            <fieldset className="flex flex-col gap-2">
-              <legend className="dp-label mb-1">{t.trigger}</legend>
-              <OptionList label={t.trigger} value={form.trigger} onValueChange={(trigger) => change({ trigger })} className="-mx-2 w-auto">
-                {(["interval", "idle", "output"] as const).map((kind) => (
-                  <OptionItem key={kind} value={kind} label={t.triggers[kind]} />
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="dp-label">{t.templates}</span>
+                {LOOP_TEMPLATES.map((tpl) => (
+                  <Button key={tpl.id} size="sm" variant="outline" onClick={() => fromTemplate(tpl.id)}>
+                    {t.template[tpl.id]}
+                  </Button>
                 ))}
-              </OptionList>
-              {/* A number reads with its unit, as one sentence ("Every 30 minutes"); its name is the words around it. */}
-              {form.trigger === "interval" && (
+              </div>
+              <div className="grid gap-1.5">
+                <label htmlFor={`${formId}-name`} className={LABEL}>
+                  {t.name}
+                </label>
+                <Input id={`${formId}-name`} value={form.name} onChange={(e) => change({ name: e.currentTarget.value })} {...invalidIf("name")} />
+              </div>
+              <div className="grid gap-1.5">
+                <label htmlFor={`${formId}-instruction`} className={LABEL}>
+                  {t.instruction}
+                </label>
+                <Textarea
+                  id={`${formId}-instruction`}
+                  value={form.instruction}
+                  onChange={(e) => change({ instruction: e.currentTarget.value })}
+                  rows={3}
+                  className="resize-none field-sizing-fixed"
+                  {...invalidIf("instruction")}
+                />
+              </div>
+              <fieldset aria-describedby={describedIf("targets")} className="flex flex-col gap-1">
+                <legend className="dp-label mb-1">{t.targets}</legend>
+                {terminals.length === 0 && <p className="text-xs text-dp-text-2">{t.noTargets}</p>}
+                {terminals.map(([id, node]) => (
+                  <label key={id} className="-mx-2 flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-dp-text transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover motion-reduce:transition-none">
+                    <Checkbox
+                      data-target={id}
+                      checked={form.targets.includes(id)}
+                      onCheckedChange={(checked) => change({ targets: checked === true ? [...form.targets, id] : form.targets.filter((x) => x !== id) })}
+                      className="border-dp-text-3 after:-inset-1"
+                    />
+                    {nodeNameOf(node) || id}
+                  </label>
+                ))}
+              </fieldset>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="dp-label mb-1">{t.trigger}</legend>
+                <OptionList label={t.trigger} value={form.trigger} onValueChange={(trigger) => change({ trigger })} className="-mx-2 w-auto">
+                  {(["interval", "idle", "output"] as const).map((kind) => (
+                    <OptionItem key={kind} value={kind} label={t.triggers[kind]} />
+                  ))}
+                </OptionList>
+                {/* A number reads with its unit, as one sentence ("Every 30 minutes"); its name is the words around it. */}
+                {form.trigger === "interval" && (
+                  <div className="flex items-center gap-2">
+                    <label id={`${formId}-interval-before`} htmlFor={`${formId}-interval`} className={AROUND}>
+                      {t.every}
+                    </label>
+                    <Input
+                      id={`${formId}-interval`}
+                      aria-labelledby={`${formId}-interval-before ${formId}-interval-unit`}
+                      type="number"
+                      min={1}
+                      max={1440}
+                      value={form.minutes}
+                      onChange={(e) => change({ minutes: e.currentTarget.value })}
+                      className={NUMBER}
+                      {...invalidIf("interval")}
+                    />
+                    <span id={`${formId}-interval-unit`} className={AROUND}>
+                      {t.unitMinutes}
+                    </span>
+                  </div>
+                )}
+                {form.trigger === "output" && (
+                  <div className="grid gap-1.5">
+                    <label htmlFor={`${formId}-text`} className={LABEL}>
+                      {t.text}
+                    </label>
+                    <Input id={`${formId}-text`} value={form.text} onChange={(e) => change({ text: e.currentTarget.value })} {...invalidIf("text")} />
+                  </div>
+                )}
+              </fieldset>
+              <fieldset aria-describedby={describedIf("stop")} className="flex flex-col gap-2">
+                <legend className="dp-label mb-1">{t.stop}</legend>
                 <div className="flex items-center gap-2">
-                  <label id={`${formId}-interval-before`} htmlFor={`${formId}-interval`} className={AROUND}>
-                    {t.every}
+                  <label id={`${formId}-runs-before`} htmlFor={`${formId}-runs`} className={AROUND}>
+                    {t.atMost}
                   </label>
                   <Input
-                    id={`${formId}-interval`}
-                    aria-labelledby={`${formId}-interval-before ${formId}-interval-unit`}
+                    id={`${formId}-runs`}
+                    aria-labelledby={`${formId}-runs-before ${formId}-runs-unit`}
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={form.maxRuns}
+                    onChange={(e) => change({ maxRuns: e.currentTarget.value })}
+                    className={NUMBER}
+                    {...invalidIf("runs")}
+                  />
+                  <span id={`${formId}-runs-unit`} className={AROUND}>
+                    {t.unitRuns}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label id={`${formId}-duration-before`} htmlFor={`${formId}-duration`} className={AROUND}>
+                    {t.atMost}
+                  </label>
+                  <Input
+                    id={`${formId}-duration`}
+                    aria-labelledby={`${formId}-duration-before ${formId}-duration-unit`}
                     type="number"
                     min={1}
                     max={1440}
-                    value={form.minutes}
-                    onChange={(e) => change({ minutes: e.currentTarget.value })}
+                    value={form.maxMinutes}
+                    onChange={(e) => change({ maxMinutes: e.currentTarget.value })}
                     className={NUMBER}
-                    {...invalidIf("interval")}
+                    {...invalidIf("minutes")}
                   />
-                  <span id={`${formId}-interval-unit`} className={AROUND}>
+                  <span id={`${formId}-duration-unit`} className={AROUND}>
                     {t.unitMinutes}
                   </span>
                 </div>
+              </fieldset>
+              {error && (
+                <p id={errorId} role="alert" className="text-xs text-dp-danger">
+                  {t.errors[error]}
+                </p>
               )}
-              {form.trigger === "output" && (
-                <div className="grid gap-1.5">
-                  <label htmlFor={`${formId}-text`} className={LABEL}>
-                    {t.text}
-                  </label>
-                  <Input id={`${formId}-text`} value={form.text} onChange={(e) => change({ text: e.currentTarget.value })} {...invalidIf("text")} />
-                </div>
-              )}
-            </fieldset>
-            <fieldset aria-describedby={describedIf("stop")} className="flex flex-col gap-2">
-              <legend className="dp-label mb-1">{t.stop}</legend>
-              <div className="flex items-center gap-2">
-                <label id={`${formId}-runs-before`} htmlFor={`${formId}-runs`} className={AROUND}>
-                  {t.atMost}
-                </label>
-                <Input
-                  id={`${formId}-runs`}
-                  aria-labelledby={`${formId}-runs-before ${formId}-runs-unit`}
-                  type="number"
-                  min={1}
-                  max={1000}
-                  value={form.maxRuns}
-                  onChange={(e) => change({ maxRuns: e.currentTarget.value })}
-                  className={NUMBER}
-                  {...invalidIf("runs")}
-                />
-                <span id={`${formId}-runs-unit`} className={AROUND}>
-                  {t.unitRuns}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <label id={`${formId}-duration-before`} htmlFor={`${formId}-duration`} className={AROUND}>
-                  {t.atMost}
-                </label>
-                <Input
-                  id={`${formId}-duration`}
-                  aria-labelledby={`${formId}-duration-before ${formId}-duration-unit`}
-                  type="number"
-                  min={1}
-                  max={1440}
-                  value={form.maxMinutes}
-                  onChange={(e) => change({ maxMinutes: e.currentTarget.value })}
-                  className={NUMBER}
-                  {...invalidIf("minutes")}
-                />
-                <span id={`${formId}-duration-unit`} className={AROUND}>
-                  {t.unitMinutes}
-                </span>
-              </div>
-            </fieldset>
-            {error && (
-              <p id={errorId} role="alert" className="text-xs text-dp-danger">
-                {t.errors[error]}
-              </p>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </DialogBody>
         <DialogFooter>
           {form === null ? (
             <>

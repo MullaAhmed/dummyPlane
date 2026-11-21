@@ -80,7 +80,7 @@ it("refuses a name that is not a model", async () => {
   await type("a; calc");
   await submit();
   expect(onPull).not.toHaveBeenCalled();
-  expect(host.textContent).toContain("This is not an Ollama model name.");
+  expect(host.textContent).toContain("This is not an Ollama model name");
 });
 
 it("does nothing on an empty name", async () => {
@@ -93,7 +93,7 @@ it("does nothing on an empty name", async () => {
 it("says the server is down, offers no download that would fail, and tries again", async () => {
   models = new Error("connection refused");
   await render();
-  expect(host.textContent).toContain("The Ollama server is not responding: open the Ollama app, then try again.");
+  expect(host.textContent).toContain("The Ollama server is not responding: open the Ollama app, then try again");
   expect(host.querySelector("[data-suggestion]")).toBeNull();
   expect(button("Download")!.disabled).toBe(true);
   await type("mistral:7b");
@@ -114,7 +114,7 @@ it("speaks English", async () => {
   await act(async () => root.unmount());
   root = createRoot(host);
   await render();
-  expect(host.textContent).toContain("The Ollama server is not responding: open the Ollama app, then try again.");
+  expect(host.textContent).toContain("The Ollama server is not responding: open the Ollama app, then try again");
   models = [];
   await act(async () => button("Try again")!.click());
   expect(button("qwen2.5-coder:7b")!.textContent).toContain("4.7 GB");
@@ -163,7 +163,7 @@ it("ties a refused name to the field (P2-5)", async () => {
   await submit();
   expect(field().getAttribute("aria-invalid")).toBe("true");
   const [reason, hint] = field().getAttribute("aria-describedby")!.split(" ").map((id) => document.getElementById(id)!);
-  expect(reason.textContent).toBe("This is not an Ollama model name.");
+  expect(reason.textContent).toBe("This is not an Ollama model name");
   expect(reason.getAttribute("role")).toBe("alert");
   expect(hint).not.toBeNull();
 });

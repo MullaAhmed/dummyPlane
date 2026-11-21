@@ -46,6 +46,13 @@ describe("readTerminalPayload", () => {
     expect(readTerminalPayload({ ...batman, inputOpen: "yes" })).toEqual(batman);
   });
 
+  it("keeps the step of its parent's frieze a sub-agent carries across a restart, and no empty one", () => {
+    const robin = { title: "Tests", name: "Robin", agent: "claude", cwd: "C:/code", shell: "default", command: "", spawnedBy: "batman", forStep: "Runs & connections" };
+    expect(readTerminalPayload(robin)).toEqual(robin);
+    expect(readTerminalPayload({ ...robin, forStep: "" })?.forStep).toBeUndefined();
+    expect(readTerminalPayload({ ...robin, forStep: 3 })?.forStep).toBeUndefined();
+  });
+
   it("keeps a sub-agent's task across a restart, its start only, and no empty one", () => {
     const robin = { title: "Tests", name: "Robin", agent: "claude", cwd: "C:/code", shell: "default", command: "", spawnedBy: "batman", task: "Write the tests" };
     expect(readTerminalPayload(robin)).toEqual(robin);

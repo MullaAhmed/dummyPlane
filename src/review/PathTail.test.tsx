@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { CutHint, isCut, PathTail } from "./PathTail";
+import { tabTo } from "@/components/ui/tabTo";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -36,7 +37,7 @@ const row = (always = false) =>
     ),
   );
 const hint = () => document.querySelector('[data-slot="tooltip-content"]');
-const focusRow = () => act(async () => host.querySelector("button")!.focus());
+const focusRow = () => act(async () => tabTo(host.querySelector("button")!));
 
 it("cuts a path from its start but keeps it left-to-right (P2-40)", async () => {
   await row();

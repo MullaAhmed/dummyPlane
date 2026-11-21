@@ -4,6 +4,8 @@ import { canvasStore } from "@/canvas/canvasStore";
 import { returnKeyboardToCanvas } from "@/canvas/keyboardFocus";
 import { createGroupFrame, groupInfoOf, isGroup, withGroupFolded, withGroupPantheon, withGroupSpeciality } from "@/canvas/groups";
 import { allowRemoval } from "@/canvas/removalGuard";
+import { zoneOffsets } from "@/canvas/canvasFocus";
+import { cameraMotion } from "@/canvas/viewActions";
 import { createNodeElement, nodeKindOf } from "@/canvas/nodeElement";
 import type { AgentId, Permission } from "@/ipc/pty";
 import { newTerminalPayload } from "@/nodes/terminal/launch";
@@ -13,11 +15,12 @@ import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { messages } from "@/i18n";
 import { agentsMessages } from "./messages";
+import { watchLaunched } from "./firstQuestion";
 import { isAlive, statusOf } from "@/store/terminalStatus";
 import { toastError } from "@/lib/errorToast";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
-import { announceArrival, IN_VIEW, type Arrival } from "./arrivals";
+import { announceArrival, arriveLaunched, IN_VIEW, type Arrival } from "./arrivals";
 import { readableTargets } from "./groupView";
 import { anchorsOf } from "./attachments";
 import { clearSpot, frameAround, groupGrid } from "./groupLayout";
@@ -25,10 +28,11 @@ import { fullRect } from "./selectionGroup";
 import { defaultLaunchOptions, type LaunchOptions } from "./launchAgent";
 import { nextName } from "./names";
 import { nameForNewAgent, namesInWorkspace, pantheonForNewGroup } from "./naming";
+import { currentWorkArea } from "@/shell/lane";
 import { viewportCenter } from "./placement";
 import { ROLES, type RoleId } from "./roles";
 import { sceneAccess } from "./sceneAccess";
-import { addTerminal, removeFromStoredScene, startArrival, type Point } from "./terminals";
+import { addTerminal, placeTerminal, removeFromStoredScene, startArrival, type Point } from "./terminals";
 import { isWire, rerouteWires } from "./wires";
 
 export interface GroupPlan {
@@ -84,7 +88,7 @@ export async function launchGroup(
   if (!first || !workspaceId || plan.agents.length === 0) return null;
   const pantheon = staffing?.pantheon ?? plan.pantheon ?? pantheonForNewGroup(workspaceId);
   const grid = groupGrid(plan.agents.length);
-  const center = at ?? viewportCenter(view);
+  const center = at ?? viewportCenter(view, currentWorkArea());
   const obstacles = first.elements().filter((e) => !e.isDeleted).map(({ x, y, width, height }) => ({ x, y, width, height }));
   const origin = clearSpot(
     { x: center.x - grid.width / 2, y: center.y - grid.height / 2, width: grid.width, height: grid.height },
@@ -125,34 +129,43 @@ export async function launchGroup(
     return { frameId: frame.id, nodeIds };
   }
   const { width, height } = api.getAppState();
-  const targets = readableTargets(frame, terminals, { width, height });
+  // Readable in the work area: the bars, the rails and an occupied lane take their part of the view.
+  const offsets = zoneOffsets();
+  const targets = readableTargets(frame, terminals, { width: width - offsets.left - offsets.right, height: height - offsets.top - offsets.bottom });
   // Excalidraw mounts a terminal once it was in view, and it starts there: the
   // whole group first. Read before the caller frames anything of its own.
   if (!targets.includes(frame)) {
-    api.scrollToContent([frame], { fitToViewport: true, viewportZoomFactor: 0.9, animate: false, maxZoom: 1 });
+    api.scrollToContent([frame], { fitToViewport: true, viewportZoomFactor: 0.9, animate: false, maxZoom: 1, canvasOffsets: offsets });
     await new Promise((resolve) => setTimeout(resolve, MOUNT_MS));
   }
   // 4 terminals fitted at once end up at 40 %, unreadable: the first ones are enough.
   api.scrollToContent(targets, {
     fitToViewport: true,
     viewportZoomFactor: 0.9,
-    animate: true,
-    duration: 300,
+    ...cameraMotion("app"),
     maxZoom: 1,
+    canvasOffsets: offsets,
   });
   return { frameId: frame.id, nodeIds };
 }
 
-/** "Add an agent" of the group menu: the group's first free cell, in the folder the user chose for launches. */
+/**
+ * "Add an agent" of a group (its ring's wedge, the palette, its menu): the group's first free cell, in the folder the user
+ * chose for launches (a group has none of its own, the workspace's is its folder). The agent, the unfolding of a folded
+ * group (a hidden agent would never start) and the cell it takes go into the scene in one write: one undo. The user asked
+ * for it: it takes the keyboard.
+ */
 export async function addAgentToGroup(groupId: string, agent: AgentId) {
   const workspaceId = workspacesStore.getState().activeId;
   const group = canvasStore.getState().frames.find((f) => f.id === groupId);
   if (!workspaceId || !group || !isGroup(group)) return;
-  // A new agent in a folded group would stay off the screen, and so would not start.
-  if (group.group.folded) setGroupFolded(groupId, false);
   const name = await nameForNewAgent(workspaceId, group.group.pantheon);
   const center = { x: group.x + group.width / 2, y: group.y + group.height / 2 };
-  await addTerminal(workspaceId, newTerminalPayload({ ...defaultLaunchOptions(), agent }, name), center, groupId);
+  const nodeId = await addTerminal(workspaceId, newTerminalPayload({ ...defaultLaunchOptions(), agent }, name), center, groupId, IN_VIEW, (elements, element) =>
+    placeTerminal(isFolded(elements, groupId) ? withFolded(elements, groupId, false) : elements, element, groupId),
+  );
+  arriveLaunched(nodeId);
+  watchLaunched([nodeId]);
 }
 
 /**
@@ -205,16 +218,20 @@ export function setGroupFolded(groupId: string, folded: boolean) {
     toastError(messages(agentsMessages).foldWaiting);
     return;
   }
-  api.updateScene({
-    elements: api
-      .getSceneElementsIncludingDeleted()
-      .map((e) => {
-        if (e.id === groupId && groupInfoOf(e)) return newElementWith(e, { customData: withGroupFolded(e.customData, folded) });
-        // Locked while folded: a click on a hidden agent's empty cell can neither select, move nor delete it.
-        if (e.frameId === groupId && nodeKindOf(e) === "terminal") return newElementWith(e, { locked: folded });
-        return e;
-      }),
-    captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+  api.updateScene({ elements: withFolded(api.getSceneElementsIncludingDeleted(), groupId, folded), captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+}
+
+const isFolded = (elements: readonly ExcalidrawElement[], groupId: string) => {
+  const frame = elements.find((e) => e.id === groupId && !e.isDeleted);
+  return frame ? groupInfoOf(frame)?.folded === true : false;
+};
+
+/** `elements` with the group folded or unfolded: its terminals locked while it is folded, a click on a hidden agent's empty cell can neither select, move nor delete it. */
+function withFolded(elements: readonly ExcalidrawElement[], groupId: string, folded: boolean): ExcalidrawElement[] {
+  return elements.map((e) => {
+    if (e.id === groupId && groupInfoOf(e)) return newElementWith(e, { customData: withGroupFolded(e.customData, folded) });
+    if (e.frameId === groupId && nodeKindOf(e) === "terminal") return newElementWith(e, { locked: folded });
+    return e;
   });
 }
 
@@ -222,7 +239,7 @@ export function setGroupFolded(groupId: string, folded: boolean) {
 export function showGroups(groupIds: readonly string[]) {
   const api = canvasStore.getState().api;
   const frames = api?.getSceneElements().filter((e) => groupIds.includes(e.id)) ?? [];
-  if (frames.length > 0) api?.scrollToContent(frames, { fitToViewport: true, viewportZoomFactor: 0.9, animate: true, duration: 300, maxZoom: 1 });
+  if (frames.length > 0) api?.scrollToContent(frames, { fitToViewport: true, viewportZoomFactor: 0.9, ...cameraMotion("app"), maxZoom: 1, canvasOffsets: zoneOffsets() });
 }
 
 /** A child of a group's frame, set free: a folded group's terminals were locked (setGroupFolded), and are no longer. */
@@ -300,12 +317,13 @@ export function leaveGroup(nodeId: string) {
 /**
  * "Close the group", confirmed: the frame, its terminals and the wires that
  * led to them go (no arrow left bound to nothing, final review H2); one undo
- * brings them back, stopped.
+ * brings them back, stopped. The outputs its agents showed in it stay, in no
+ * frame, as when an agent alone is closed (`withGroupOutputsFreed`).
  */
 export function closeGroup(groupId: string) {
   const api = canvasStore.getState().api;
   if (!api) return;
-  const elements = api.getSceneElementsIncludingDeleted();
+  const elements = withGroupOutputsFreed(api.getSceneElementsIncludingDeleted(), groupId);
   const going = goingWithGroup(elements, groupId);
   allowRemoval(going);
   api.updateScene({
@@ -315,7 +333,7 @@ export function closeGroup(groupId: string) {
   returnKeyboardToCanvas();
 }
 
-/** A group, its terminals and the wires that led to them. */
+/** A group, what its frame holds and the wires that led to them. */
 function goingWithGroup(elements: readonly ExcalidrawElement[], groupId: string): Set<string> {
   const group = new Set(elements.filter((e) => !e.isDeleted && (e.id === groupId || e.frameId === groupId)).map((e) => e.id));
   const ends = (e: ExcalidrawElement) => (e.type === "arrow" ? [e.startBinding?.elementId, e.endBinding?.elementId] : []);
@@ -324,10 +342,23 @@ function goingWithGroup(elements: readonly ExcalidrawElement[], groupId: string)
   );
 }
 
-/** Closes a group in a scene not on screen. */
+/**
+ * `elements` with the outputs in the group `groupId` (src/nodes/output: an agent in a group shows its output in it) out of
+ * its frame, where they stand: a result shown stays on the canvas when the group closes, as when its agent alone does.
+ */
+function withGroupOutputsFreed(elements: readonly ExcalidrawElement[], groupId: string): readonly ExcalidrawElement[] {
+  const freed = (e: ExcalidrawElement) => !e.isDeleted && e.frameId === groupId && nodeKindOf(e) === "output";
+  return elements.some(freed) ? elements.map((e) => (freed(e) ? newElementWith(e, { frameId: null }) : e)) : elements;
+}
+
+/** Closes a group in a scene not on screen; its outputs stay, as on screen. */
 export function closeStoredGroup(workspaceId: string, groupId: string) {
   const scene = sceneAccess(workspaceId);
-  if (scene && !scene.shown) removeFromStoredScene(workspaceId, goingWithGroup(scene.elements(), groupId));
+  if (!scene || scene.shown) return;
+  const elements = scene.elements();
+  const freed = withGroupOutputsFreed(elements, groupId);
+  if (freed !== elements) scene.write(freed);
+  removeFromStoredScene(workspaceId, goingWithGroup(freed, groupId));
 }
 
 /** Asks first when agents of the group are still running. */

@@ -14,6 +14,7 @@ import { goToAgent } from "@/commands/goToRun";
 import { memberOf } from "@/mission/store";
 import { messages } from "@/i18n";
 import { agentActivityStore, type AgentActivity } from "@/store/agentActivity";
+import { fleetDecisionsStore } from "@/store/fleetDecisions";
 import { isManagerRecord, nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
@@ -101,13 +102,16 @@ function isMainAgent(nodeId: string): boolean {
 
 /**
  * Its turn ended but its task goes on: a Fleet whose mission runs (its end
- * alerts), an agent whose sub-agents still work (their reports wake it). A
+ * alerts) or that waits on the user's decision (the wait alerts), an agent
+ * whose sub-agents still work (their reports wake it). A
  * sub-agent gone idle without reporting holds nobody: nothing will wake its
  * parent, and a report made before a reload is forgotten with it.
  */
 function stillAtWork(nodeId: string): boolean {
   const record = nodesStore.getState().nodes[nodeId];
   if (record?.kind === "fleet" && record.payload.mission?.state === "en_cours") return true;
+  // A Fleet whose turn ended on a decision for the user (a plan's go-ahead, Land): the wait tells it (`./waitingAlert`).
+  if (fleetDecisionsStore.getState().decisions[nodeId]) return true;
   return hasSpawnedAtWork(nodeId, (id) => agentActivityStore.getState().activities[id]?.activity !== "idle");
 }
 

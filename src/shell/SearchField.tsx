@@ -1,4 +1,5 @@
 import { Search } from "lucide-react";
+import { Keycap } from "@/agents/composer/Keycap";
 import { Button } from "@/components/ui/button";
 import { openPalette } from "@/commands/paletteState";
 import { commandContext } from "@/commands/registry";
@@ -25,7 +26,9 @@ export function SearchField() {
     >
       <Search />
       <span className="truncate">{home ? t.project : t.inProject(name)}</span>
-      <kbd className="ml-auto shrink-0 rounded-sm border border-dp-line px-1 font-mono text-xs leading-4 text-dp-text-3">{t.shortcut}</kbd>
+      <span className="ml-auto shrink-0">
+        <Keycap>{t.shortcut}</Keycap>
+      </span>
     </Button>
   );
 }

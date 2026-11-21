@@ -11,20 +11,7 @@ it("imports `cn` from the project's own helper, never straight from the npm pack
   }
 });
 
-it("writes radii on the scale (sm, md, lg, xl), never a pixel value", () => {
-  for (const [file, text] of chrome()) {
-    expect(text.match(/\brounded-\[\d+(\.\d+)?px\]|\brounded-\[min\(/g) ?? [], `${file}: a hard-coded radius`).toEqual([]);
-  }
-});
-
-it("moves on the motion tokens: no hard-coded duration or ease on a utility, no transition-all, no ease-in", () => {
-  for (const [file, text] of chrome()) {
-    // Not preceded by a word or a dash: `ease-(--dp-ease-out)` holds an `ease-out` of its own.
-    expect(text.match(/(?<![\w-])duration-\d+\b/g) ?? [], `${file}: duration-(--dp-dur-fast) or duration-(--dp-dur)`).toEqual([]);
-    expect(text.match(/(?<![\w-])ease-(out|in|in-out|linear)\b/g) ?? [], `${file}: ease-(--dp-ease-out)`).toEqual([]);
-    expect(/transition-all/.test(text), `${file}: list the transitioned properties`).toBe(false);
-  }
-});
+// Radius, motion and weight hold in every file of src: sweep.test.ts and motion.test.ts.
 
 it("eases a press on `scale`: Tailwind sets the `scale` property, which a `transform` in the transition list never reaches", () => {
   for (const file of ["components/ui/button.tsx", "canvas/SelectionPanel.tsx"]) {
@@ -33,12 +20,6 @@ it("eases a press on `scale`: Tailwind sets the `scale` property, which a `trans
     expect(lists.filter((list) => list.includes("transform")), `${file}: name \`scale\`, not \`transform\``).toEqual([]);
   }
   expect(sourceFiles()["components/ui/button.tsx"]).toMatch(/transition-\[[^\]]*\bscale\b[^\]]*\][^"]*active:scale-\[0\.97\]/);
-});
-
-it("keeps chrome headings at weight 600 at most", () => {
-  for (const [file, text] of chrome()) {
-    expect(text.match(/\bfont-(bold|extrabold|black)\b/g) ?? [], `${file}: weight 700 in chrome`).toEqual([]);
-  }
 });
 
 it("sizes controls on the h-7 / h-8 / h-9 scale: the rail buttons and the icon buttons come from the Button's sizes", () => {
@@ -73,4 +54,23 @@ it("shows the palettes' names from the messages, and the title bar's meters in t
   expect(files["shell/SettingsMenu.tsx"]).not.toContain("PALETTES[palette].name");
   expect(files["shell/SettingsMenu.tsx"]).toContain("t.palettes[palette]");
   expect(/\btitle=/.test(files["shell/UsageMeter.tsx"].replace(/<Section title=|title=\{u\.notSentHint\}|title=\{u\.co2Hint\}/g, "")), "UsageMeter's trigger keeps a native title").toBe(false);
+});
+
+it("gives every menu row one anatomy: 32 px (min-h-8), the UI step, an 8 px gap, in the dropdown menu's items and the select's", () => {
+  const rows: [string, string[]][] = [
+    ["components/ui/dropdown-menu.tsx", ["dropdown-menu-item", "dropdown-menu-checkbox-item", "dropdown-menu-radio-item", "dropdown-menu-sub-trigger"]],
+    ["components/ui/select.tsx", ["select-item"]],
+  ];
+  for (const [file, slots] of rows) {
+    const text = sourceFiles()[file];
+    for (const slot of slots) {
+      const at = text.indexOf(`data-slot="${slot}"`);
+      expect(at, `${file} renders ${slot}`).toBeGreaterThanOrEqual(0);
+      const classes = /"([^"]*)"/.exec(text.slice(text.indexOf("className", at)))![1].split(/\s+/);
+      expect(classes, `${slot} is 32 px high`).toContain("min-h-8");
+      expect(classes, `${slot} is set in the UI step`).toContain("text-(length:--text-ui)");
+      expect(classes, `${slot} keeps an 8 px gap after its icon`).toContain("gap-2");
+      expect(classes.filter((c) => /^(py-0\.5|py-1\.5|h-\d|text-(xs|sm|base))$/.test(c)), `${slot} sets no row size of its own`).toEqual([]);
+    }
+  }
 });

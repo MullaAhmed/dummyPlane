@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it } from "vitest";
 import { AccentButton, IconButton, ToolButton } from "./buttons";
+import { tabTo } from "@/components/ui/tabTo";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -66,7 +67,7 @@ it("shows an icon button's name on keyboard focus, in the rails' hint, and keeps
   const root = createRoot(host);
   const hint = () => document.querySelector('[role="tooltip"]')?.textContent ?? null;
   await act(async () => root.render(<IconButton label="Nouveau workspace" />));
-  await act(async () => host.querySelector("button")!.focus());
+  await act(async () => tabTo(host.querySelector("button")!));
   expect(hint()).toBe("Nouveau workspace");
   await act(async () => root.render(<IconButton label="Nouveau workspace" aria-expanded />));
   expect(hint()).toBeNull();
@@ -80,7 +81,7 @@ it("shows a rail tool's name on keyboard focus, and keeps it shut while the tool
   const root = createRoot(host);
   const hint = () => document.querySelector('[role="tooltip"]')?.textContent ?? null;
   await act(async () => root.render(<ToolButton label="Gomme (E)" />));
-  await act(async () => host.querySelector("button")!.focus());
+  await act(async () => tabTo(host.querySelector("button")!));
   expect(hint()).toBe("Gomme (E)");
   await act(async () => root.render(<ToolButton label="Gomme (E)" aria-expanded />));
   expect(hint()).toBeNull();
@@ -122,4 +123,23 @@ it("marks every rail's real toggles, and only them (the tools, the pen, the shap
   expect(toggles("studio/CodeWorkspace.tsx")).toBe(1);
   // The workspaces it goes to say where the user is.
   expect(readSource("shell/ActivityRail.tsx").match(/aria-current=\{(code|notes)OnScreen \? "page" : undefined\}/g)).toHaveLength(2);
+});
+
+it("keeps a button's hint shut on a focus the app hands back (Compose a group after its launch, Notifications after Escape), and closes it on blur", async () => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  const hint = () => document.querySelector('[role="tooltip"]')?.textContent ?? null;
+  await act(async () => root.render(<IconButton label="Compose a group" />));
+  const button = host.querySelector("button")!;
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+  await act(async () => button.focus());
+  expect(hint()).toBeNull();
+  await act(async () => button.blur());
+  await act(async () => tabTo(button));
+  expect(hint()).toBe("Compose a group");
+  await act(async () => button.blur());
+  expect(hint()).toBeNull();
+  await act(async () => root.unmount());
+  host.remove();
 });

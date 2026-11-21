@@ -87,7 +87,7 @@ describe("the conversation a terminal's Claude runs", () => {
     await claudeTerminal("n");
     const launched = { cwd: FOLDER, shell: "default" as const, command: "", model: "", effort: "", permission: "", accountId: "" };
     const next = "0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10";
-    // Its Edit tab gave it another profile: the next launch starts a new conversation there.
+    // Its Edit panel gave it another profile: the next launch starts a new conversation there.
     nodesStore.getState().update("n", { launched, accountId: "work", claudeSessionId: next });
     report("n", RESUMED, 200);
     expect(conversationOf("n")).toBe(next);

@@ -9,8 +9,9 @@ import { createStore, useStore } from "zustand";
 import { isLiveInRust, resumeTerminal } from "@/nodes/terminal/registry";
 import { restartByHand } from "@/nodes/terminal/restartByHand";
 import { nodesStore, useNodes, type NodeRecord } from "@/store/nodes";
-import { terminalStatusStore, type TerminalStatus } from "@/store/terminalStatus";
+import { isRunning, terminalStatusStore, type TerminalStatus } from "@/store/terminalStatus";
 import { useMessages } from "@/i18n";
+import { LANE_BOTTOM } from "@/shell/layout";
 import { agentsMessages } from "./messages";
 import { workspaceResumeOffer, type ResumeOffer } from "./resumable";
 
@@ -19,8 +20,10 @@ import { workspaceResumeOffer, type ResumeOffer } from "./resumable";
  * line naming the finished sub-agents it leaves stopped.
  */
 export const resumeOfferStore = createStore<{ open: boolean; leftOut?: boolean }>()(() => ({ open: false }));
-/** The room the offer takes from the window's bottom edge, in px (zoom control, margin, the toast). */
-export const RESUME_OFFER_ROOM = 170;
+/** The offer's height, in px: its two lines and its two buttons. */
+export const RESUME_OFFER_HEIGHT = 112;
+/** The room the offer takes from the window's bottom edge, in px: the toasts' foot at the lane's (shell/layout.ts), and the toast. */
+export const RESUME_OFFER_ROOM = LANE_BOTTOM + RESUME_OFFER_HEIGHT;
 /** The height of the line naming the finished sub-agents left stopped (12 px text, its 16 px line). */
 export const RESUME_OFFER_LINE = 16;
 
@@ -71,12 +74,13 @@ function ResumeAllToast({ workspaceId }: { workspaceId: string }) {
   };
   const resumeAll = () => {
     answer();
-    // Each the user's, at its turn: one restarted meanwhile (its menu, its card) is not started a second time.
-    ids.forEach((id, i) => setTimeout(() => restartByHand(id, () => resumeTerminal(id)), i * RELAUNCH_STAGGER_MS));
+    // Each the user's, at its turn: one restarted meanwhile (its menu, its card, its mission's restore) is not started
+    // a second time, whether it is still starting or runs already: a start would kill the session just opened.
+    ids.forEach((id, i) => setTimeout(() => !isRunning(id) && restartByHand(id, () => resumeTerminal(id)), i * RELAUNCH_STAGGER_MS));
   };
 
   return (
-    <div className="dp-glass-strong flex w-90 items-start gap-3 rounded-lg p-4 text-dp-text">
+    <div data-resume-toast className="dp-glass-strong flex w-90 items-start gap-3 rounded-lg p-4 text-dp-text">
       <History className="mt-0.5 size-4 shrink-0 text-dp-text-2" />
       <div className="min-w-0 flex-1">
         {/* The toasts' type (components/ui/sonner.tsx, TOAST_CLASSES): the UI step for the title, 12 px a step quieter under it. */}

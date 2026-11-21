@@ -37,7 +37,8 @@ it("keeps no rule for Excalidraw's left menu: SelectionPanel replaces its proper
 it("leaves nothing at the top of the canvas but the bars: no top toast, no banner under the tabs", () => {
   const sources = sourceFiles();
   for (const [file, text] of Object.entries(sources)) {
-    expect(/position: "top-right"/.test(text), `${file} : toast en haut`).toBe(false);
+    // Any top corner or the top centre, as an option (`position: "top-…"`) or a prop (`position="top-…"`).
+    expect(/position(: |=)"top-/.test(text), `${file}: a toast at the top`).toBe(false);
     expect(/\btop-16\b/.test(text), `${file} : title bar at 64 px, under the tabs`).toBe(false);
   }
 });

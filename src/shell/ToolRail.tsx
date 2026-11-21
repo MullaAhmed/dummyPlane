@@ -54,7 +54,7 @@ export function ToolRail() {
         )}
       />
       <Separator />
-      <RailButton label={t.fitView} onClick={fitScene}>
+      <RailButton label={t.fitView} onClick={() => fitScene("pointer")}>
         <Maximize />
       </RailButton>
     </nav>

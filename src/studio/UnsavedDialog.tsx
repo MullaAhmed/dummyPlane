@@ -11,7 +11,10 @@ interface Props {
   onAnswer: (answer: "save" | "discard" | "cancel") => void;
 }
 
-/** Before a change of file, closing the studio or the window. */
+/**
+ * Before the window closes over unsaved files (QuitPrompt), and before the notes change note. A code tab closing asks
+ * the same question, in the same words and order, in Code Studio's decision bar (`parts.tsx`), not in a dialog.
+ */
 export function UnsavedDialog({ file, saving, onAnswer }: Props) {
   const t = useMessages(studioMessages).unsaved;
   return (

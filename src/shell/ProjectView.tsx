@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, type RefCallback } from "react";
+import { lazy, Suspense, useEffect, type CSSProperties, type RefCallback } from "react";
 import { Canvas } from "@/canvas/Canvas";
 import { ErrorBoundary, QuietBoundary } from "@/components/ErrorBoundary";
 import { AgentsPanel } from "@/agents/AgentsPanel";
@@ -14,10 +14,11 @@ import { PlacementGhost } from "@/agents/PlacementGhost";
 import { useProjects } from "@/store/projects";
 import { useWorkspaces } from "@/store/workspaces";
 import { ActivityRail } from "./ActivityRail";
-import { AgentCounts } from "./AgentCounts";
-import { CommandBar, CommandHint } from "./CommandBar";
+import { CommandBar } from "./CommandBar";
 import { CrashNotice } from "./CrashNotice";
 import { GitChip } from "./GitChip";
+import { BOTTOM_GUTTER, GIT_CHIP_BOTTOM, LANE_RIGHT, LANE_ROOM_PROPERTY, LANE_TOP, workArea } from "./layout";
+import { useLaneOccupied } from "./lane";
 import { ModeExit } from "./ModeExit";
 import { ProjectDialogs } from "./ProjectDialogs";
 import { ProjectPicker } from "./ProjectPicker";
@@ -27,8 +28,10 @@ import { ToolRail } from "./ToolRail";
 import { UpdateChip } from "./UpdateDialog";
 import { UsageMeter } from "./UsageMeter";
 import { WaitingNotice } from "./WaitingNotice";
+import { WorkingCount } from "./WorkingCount";
 import { WorkspaceTabs } from "./WorkspaceTabs";
 import { shellMessages } from "./messages";
+import { PanelSkeleton } from "./PanelSkeleton";
 import { ZoomControl } from "./ZoomControl";
 import { errorDetail } from "@/lib/errorToast";
 
@@ -41,7 +44,7 @@ const useActiveWorkspace = () => useWorkspaces((s) => s.activeId);
 const SCOPES = { canvas: "canvas", code: "code workspace", notes: "notes workspace" } as const;
 
 /**
- * The command band's height (the hint and the bar, which grows with the field's lines), published on the view as
+ * The command band's height (the bar, which grows with the field's lines), published on the view as
  * `--dp-bottom-band`: the waiting notice rises above it where the two would meet.
  */
 const publishBand: RefCallback<HTMLDivElement> = (band) => {
@@ -58,10 +61,10 @@ const publishBand: RefCallback<HTMLDivElement> = (band) => {
   };
 };
 
-/** A floating panel's error, where the panels open. */
+/** A floating panel's error, where the panels open: in the right lane, on the layer above it. */
 function panelCrash(error: Error, retry: () => void) {
   return (
-    <div className="absolute right-3 top-[104px] z-40 w-80">
+    <div className="absolute z-40 w-84" style={{ right: LANE_RIGHT, top: LANE_TOP }}>
       <CrashNotice error={error} retry={retry} compact />
     </div>
   );
@@ -80,13 +83,15 @@ export function ProjectView() {
   const projectId = useProjects((s) => s.activeId);
   const canvas = kind === "canvas";
   const panelOpen = useAgentsPanel((s) => s.open);
+  // The work area's right inset, published beside `--dp-bottom-band`: the activity rail's room, or the lane's while it has an occupant.
+  const zones = { [LANE_ROOM_PROPERTY]: `${workArea(useLaneOccupied()).right}px` } as CSSProperties;
 
   useEffect(() => {
     void agentsStore.getState().load();
   }, []);
 
   return (
-    <div className="dp-ambient relative h-screen w-screen overflow-hidden">
+    <div className="dp-ambient relative h-screen w-screen overflow-hidden" style={zones}>
       {status === "ready" && activeId ? (
         <>
           <ErrorBoundary
@@ -99,12 +104,12 @@ export function ProjectView() {
             )}
           >
             {kind === "code" ? (
-              <Suspense fallback={null}>
+              <Suspense fallback={<PanelSkeleton label={t.loading} />}>
                 <CodeWorkspace />
               </Suspense>
             ) : kind === "notes" ? (
               projectId && (
-                <Suspense fallback={null}>
+                <Suspense fallback={<PanelSkeleton label={t.loading} />}>
                   <NotesWorkspace projectId={projectId} />
                 </Suspense>
               )
@@ -123,12 +128,11 @@ export function ProjectView() {
           {/* The canvas's floating bars: the code and notes workspaces have their own. */}
           {canvas && (
             <>
-              {/* 12 px from the bottom, as from the sides: one gutter around the canvas. */}
-              <div className="absolute bottom-3 left-3 z-30">
+              {/* One gutter from the bottom and the side (`layout.ts`): the foot of the corner's stack, in the command band. */}
+              <div style={{ bottom: GIT_CHIP_BOTTOM, left: BOTTOM_GUTTER }} className="absolute z-30">
                 <GitChip />
               </div>
               <div ref={publishBand} data-bottom-band className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex flex-col items-center gap-2">
-                <CommandHint />
                 <CommandBar />
               </div>
               <div className="absolute bottom-3 right-3 z-30">
@@ -172,7 +176,7 @@ export function ProjectView() {
               <QuietBoundary scope="usage" useResetKey={useActiveWorkspace}>
                 <UsageMeter />
               </QuietBoundary>
-              <AgentCounts />
+              <WorkingCount />
             </>
           }
         />

@@ -8,6 +8,7 @@ import { doneColumn } from "./githubSync";
 
 const IN_PROGRESS_TITLES = ["en cours", "in progress", "doing", "wip"];
 const BLOCKED_TITLES = ["blocked", "bloqué", "bloque", "stuck"];
+const REPORTED_TITLES = ["reported, not merged", "reported", "to merge"];
 /** Notes longer than this are cut in the request: the `board` tool gives them whole. */
 const MAX_NOTES = 280;
 
@@ -31,6 +32,11 @@ export function inProgressColumn(board: KanbanPayload): KanbanColumn | undefined
 /** Column titled like "Blocked", if any. */
 export function blockedColumn(board: KanbanPayload): KanbanColumn | undefined {
   return board.columns.find((c) => BLOCKED_TITLES.includes(normalize(c.title)));
+}
+
+/** Column titled like "Reported, not merged", if any. */
+export function reportedColumn(board: KanbanPayload): KanbanColumn | undefined {
+  return board.columns.find((c) => REPORTED_TITLES.includes(normalize(c.title)));
 }
 
 /**
@@ -76,6 +82,15 @@ export function withTaskCards<T extends CardTask>(
 /** The board with a "Blocked" column: the existing one, else a new one titled `title`, placed before the done column. */
 export function withBlockedColumn(board: KanbanPayload, title: string, newId?: NewId): { board: KanbanPayload; columnId: string } {
   const existing = blockedColumn(board);
+  return existing ? { board, columnId: existing.id } : beforeDone(board, title, newId);
+}
+
+/**
+ * The board with a "Reported, not merged" column: the existing one, else a new one titled `title`, placed before the
+ * done column. A card whose agent reported done waits there until its branch is merged: Done says the work is in.
+ */
+export function withReportedColumn(board: KanbanPayload, title: string, newId?: NewId): { board: KanbanPayload; columnId: string } {
+  const existing = reportedColumn(board);
   return existing ? { board, columnId: existing.id } : beforeDone(board, title, newId);
 }
 

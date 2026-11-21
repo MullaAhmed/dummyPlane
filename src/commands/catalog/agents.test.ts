@@ -4,7 +4,9 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { agentsPanelStore } from "@/agents/agentsPanelState";
 import { agentsStore } from "@/agents/agentsStore";
 import { pauseAll, resumeAll } from "@/agents/broadcast";
+import { clientOf } from "@/agents/placement";
 import { launchAt, newConsole, newTerminalInFolder, placeFleet } from "@/agents/quickActions";
+import { canvasStore } from "@/canvas/canvasStore";
 import { labelOf, type Command, type CommandContext } from "../command";
 import { pendingUiRequest } from "../uiRequests";
 import { AGENT_COMMANDS } from "./agents";
@@ -122,10 +124,17 @@ describe("Agents", () => {
     expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: "ollama", at });
   });
 
-  it("opens the Agent menu on its catalog, the chosen agent launched at the radial menu's point (Other agent…)", async () => {
-    await find("agent.other").run({ ...busy, at: { x: 1, y: 2 } });
-    // Only the agents: it is the ring's and the palette's "Other agent…", not the ＋'s whole menu.
-    expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: "agents", only: "agents", at: { x: 1, y: 2 } });
+  it("asks for the list of agents (Other agent…) at the radial menu's point, the agent to start at the scene point, else in the middle of the canvas", async () => {
+    vi.mocked(launchAt).mockClear();
+    const view = { ...canvasStore.getState().view, width: 1000, height: 600, offsetLeft: 40, offsetTop: 30, scrollX: 5, scrollY: 7, zoom: 2 };
+    canvasStore.setState({ view });
+    await find("agent.other").run({ ...busy, at: { x: 10, y: 20 } });
+    // Its list hangs from a point of the window; the agent starts at the point of the canvas.
+    expect(pendingUiRequest()).toEqual({ kind: "otherAgentMenu", at: clientOf({ x: 10, y: 20 }, view), place: { x: 10, y: 20 } });
+    // From the palette: the middle of the canvas, and no place: the agent follows the pointer until a click.
+    await find("agent.other").run(busy);
+    expect(pendingUiRequest()).toEqual({ kind: "otherAgentMenu", at: { x: 540, y: 330 }, place: undefined });
+    expect(launchAt).not.toHaveBeenCalled();
   });
 
   it("asks for a folder, then starts the default agent there, where the radial menu was opened when it says so", async () => {

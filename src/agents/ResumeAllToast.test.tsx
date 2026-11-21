@@ -89,6 +89,17 @@ it("does not start a second time a terminal restarted before its turn came (revi
   }
 });
 
+it("does not start again a terminal running before its turn came: its mission's restore resumed it", async () => {
+  const id = restored();
+  offerResumeAll(id);
+  await showOffer();
+  await act(async () => [...host.querySelectorAll("button")].find((button) => button.textContent === "Yes")!.click());
+  // The Fleet's resume restored its mission: Flash runs again while it waited for its turn in the stagger.
+  terminalStatusStore.getState().set(`${id}-working`, { state: "running" });
+  await act(async () => vi.runAllTimers());
+  expect(vi.mocked(resumeTerminal).mock.calls.map(([nodeId]) => nodeId)).toEqual([`${id}-top`]);
+});
+
 it("says what it leaves out, and the agents panel keeps a line more for it", async () => {
   const id = restored();
   offerResumeAll(id);

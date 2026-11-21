@@ -14,6 +14,7 @@ import { activeCount, seatsHeld } from "@/mission/active";
 import { relaunchSession } from "@/nodes/terminal/session";
 import { missionOf, setMission, updateMember } from "@/mission/store";
 import { fleetTool, managerTools } from "./fleetTools";
+import { internalCall } from "./protocol";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -50,6 +51,33 @@ it("refuses to extend an agent that handed its sub-task over or has already repo
   expect(handed.isError).toBe(true);
   expect(reported.isError).toBe(true);
   expect(fine.isError).not.toBe(true);
+});
+
+it("extend takes back the 80 % warning below 80 % of the new budget, and keeps it above (stalls and status, 19 Nov)", async () => {
+  // Batman has spent 9 of 10 min; Aquaman 1 of 10.
+  await setup([member("a", "Batman", { sentAt: Date.now() - 9 * 60_000, nearTold: true }), member("b", "Aquaman", { sentAt: Date.now() - 60_000, nearTold: true })]);
+  await fleetTool("chef", "prolonger", { agent: "Batman", minutes: 1 });
+  await fleetTool("chef", "prolonger", { agent: "Aquaman", minutes: 5 });
+  const [batman, aquaman] = missionOf(nodesStore.getState().nodes.chef)!.members;
+  // 9 of 11 min is past 80 % still: it stays told. 1 of 15 is not: it will be told again.
+  expect(batman.nearTold).toBe(true);
+  expect(aquaman.nearTold).toBeUndefined();
+});
+
+it("team tells each agent's state as its pill reads it, how long it has been in it, and what it rests on once it reported", async () => {
+  await setup([member("tm-a", "Batman"), member("tm-b", "Aquaman"), member("tm-c", "Shazam")]);
+  for (const id of ["tm-a", "tm-b", "tm-c"]) {
+    await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { title: id, name: id, agent: "claude", cwd: "C:/p", shell: "default", command: "" } });
+    terminalStatusStore.getState().set(id, { state: "running" });
+  }
+  const since = Date.now() - 12 * 60_000;
+  agentActivityStore.getState().apply({ nodeId: "tm-a", activity: "idle", since });
+  agentActivityStore.getState().apply({ nodeId: "tm-b", activity: "working", since: Date.now() });
+  agentActivityStore.getState().apply({ nodeId: "tm-c", activity: "idle", since: Date.now() });
+  nodesStore.getState().update("tm-c", { lastReport: { status: "blocked", summary: "needs a decision" } });
+  const team = JSON.parse((await fleetTool("chef", "equipe", {})).content[0].text) as { name: string; state: string; state_min: number | null }[];
+  expect(team.map((m) => [m.name, m.state])).toEqual([["Batman", "idle"], ["Aquaman", "working"], ["Shazam", "blocked"]]);
+  expect(team[0].state_min).toBe(12);
 });
 
 it("mission() gives the model of the agent that holds a sub-task, not the planned one, after a reassign (backlog Routeur)", async () => {
@@ -129,11 +157,70 @@ it("reassign names the sub-tasks it takes when the call passed something else, a
   const result = await fleetTool("chef", "reattribuer", { sous_tache: brief, agent: "nouveau" });
   expect(result.isError).toBe(true);
   const text = result.content[0].text;
-  expect(text).toContain('Give its title as team gives it (subtask), one of: "Login", "API".');
+  // Each title comes with who holds it, so the next call can name it by either.
+  expect(text).toContain('Give its title as team gives it (subtask), or the name of the agent holding it, one of: "Login" (Batman), "API" (Aquaman).');
+  // And that it is not the place for a message: the Manager passed its hand-over note here (12 Nov, 11 Nov).
+  expect(text).toContain("That is the sub-task to hand over, not a message");
   // Said back on one line, and short: not the whole brief again.
   expect(text).toContain('No sub-task "Finish the login form: validate every field,');
   expect(text).not.toContain("then commit");
   expect(text).not.toContain("\n");
+  expect(reassignTask).not.toHaveBeenCalled();
+});
+
+it("reassign takes what an agent naturally passes for the sub-task: its holder, its card, the start of its title, in any case", async () => {
+  const members = [member("ra", "Batman", { task: "Login form" }), member("rb", "Aquaman", { task: "Login API" }), member("rc", "Shazam", { task: "Docs" })];
+  await setup(members);
+  // A card's id is read from the plan, where the sub-task carries it.
+  setMission("chef", { plan: [{ title: "Docs", brief: "b", agent: "Shazam", budgetMin: 5, card: "card-7" }] });
+  vi.mocked(reassignTask).mockResolvedValue({ name: "Hulk" });
+  vi.mocked(reassignTask).mockClear();
+  for (const [given, nodeId] of [["batman", "ra"], ["AQUAMAN", "rb"], ["Card-7", "rc"], ["login f", "ra"], ["docs", "rc"]] as const) {
+    const result = await fleetTool("chef", "reattribuer", { sous_tache: given, agent: "nouveau" });
+    expect(result.content[0].text, given).not.toContain("No sub-task");
+    expect(result.isError).not.toBe(true);
+    expect(reassignTask).toHaveBeenLastCalledWith("chef", nodeId, "nouveau");
+  }
+  // A start two sub-tasks share is refused, naming both: none is taken by guess.
+  vi.mocked(reassignTask).mockReset();
+  const shared = await fleetTool("chef", "reattribuer", { sous_tache: "Login", agent: "nouveau" });
+  expect(shared.isError).toBe(true);
+  expect(shared.content[0].text).toBe('"Login" fits several sub-tasks: "Login form" (Batman), "Login API" (Aquaman). Give the whole title of the one to hand over (subtask).');
+  expect(reassignTask).not.toHaveBeenCalled();
+});
+
+it("write takes the text under message too, and says what the call had when it has none", async () => {
+  await setup([member("w1a", "Batman")]);
+  terminalStatusStore.getState().set("w1a", { state: "running" });
+  // The Manager's call of 11 Nov: its schema was not in its prompt, and it passed message.
+  const { name, args } = internalCall("write", { agent: "Batman", message: "Merge the mission branch first" });
+  expect(name).toBe("ecrire");
+  expect(args).toEqual({ agent: "Batman", texte: "Merge the mission branch first" });
+  expect((await fleetTool("chef", name, args)).isError).not.toBe(true);
+  // The text wins when both are given; neither says which arguments arrived.
+  expect(internalCall("write", { agent: "Batman", text: "a", message: "b" }).args).toEqual({ agent: "Batman", texte: "a", message: "b" });
+  const empty = await fleetTool("chef", "ecrire", { agent: "Batman", content: "go on" });
+  expect(empty.isError).toBe(true);
+  expect(empty.content[0].text).toBe("Nothing to write to Batman: give what to type into its terminal in text (this call had: content).");
+});
+
+it("names the team when an agent it was asked about is not on it", async () => {
+  await setup([member("ra", "Batman"), member("rb", "Aquaman")]);
+  const stranger = await fleetTool("chef", "lire_sortie", { agent: "Robin" });
+  expect(stranger.isError).toBe(true);
+  expect(stranger.content[0].text).toBe('"Robin" is not an agent of the mission. Its agents: Batman, Aquaman.');
+  expect((await fleetTool("chef", "lire_sortie", {})).content[0].text).toBe("Name the agent (agent). Its agents: Batman, Aquaman.");
+});
+
+it.each([
+  ["redaction", "the mission is still a draft"],
+  ["plan", "the plan waits for the user's go-ahead"],
+  ["lancement", "The mission is starting"],
+] as const)("team says what a mission in %s waits for", async (state, expected) => {
+  await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef", session, mission: { state, maxAgents: 4, members: [] } } });
+  const result = await fleetTool("chef", "equipe", {});
+  expect(result.isError).toBe(true);
+  expect(result.content[0].text).toContain(expected);
 });
 
 it("reassign takes the sub-task from the agent still on it when an abandoned one shares its title (review 12 Nov)", async () => {
@@ -217,7 +304,11 @@ describe("relaunch", () => {
     setMission("chef", { maxAgents: 3 });
     const full = await fleetTool("chef", "relaunch", { agent: "Hulk" });
     expect(full.isError).toBe(true);
-    expect(full.content[0].text).toBe("Hulk cannot start again yet: 3 agents are already at work (Max active agents), and a stopped agent holds no seat. Relaunch it once a seat is free (queue: active_agents below max_agents); a seat a report frees goes to the queue's next task first.");
+    expect(full.content[0].text).toBe(
+      "No seat is free: 3 of 3 agents at work (Max active agents, this mission's own limit, not the sub-agents' limit of Settings): Thor, Freya, Sif. " +
+        "Hulk cannot start again yet: a stopped agent holds no seat. " +
+        "Relaunch it once a report frees a seat (queue: active_agents below max_agents); a seat a report frees goes to the queue's next task first.",
+    );
     expect(relaunchTerminal).not.toHaveBeenCalled();
     expect(seatsHeld("chef")).toBe(0);
     // Those that hold their seat start again all the same: one never sent its sub-task, one back at its shell, as the tool says.
@@ -330,6 +421,8 @@ describe("relaunch", () => {
       // Back at its shell: stopped. In its restart's gap: restarting. Up again: idle.
       states.push(await sif());
       expect((await fleetTool("chef", "relaunch", { agent: "Sif" })).isError).not.toBe(true);
+      // Rust's tracker starts a process idle, and the activity event comes with it.
+      agentActivityStore.getState().apply({ nodeId: "s1", activity: "idle", since: Date.now() });
       states.push(await sif());
       expect(states).toEqual(["stopped", "restarting", "idle"]);
       expect(managerTools().find((tool) => tool.name === "team")?.description).toContain("stopped, or restarting while its terminal starts again");

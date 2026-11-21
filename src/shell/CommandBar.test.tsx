@@ -1,15 +1,17 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { activeTerminalStore, setActiveTerminal } from "@/canvas/activeTerminal";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import type { SceneFrame } from "@/canvas/groups";
 import { sendCommand } from "@/agents/broadcast";
+import { HINT_KEY, historyStore } from "@/agents/history";
 import { accessibleDescription, getByRole } from "@/lib/a11y";
 import { nodesStore, type NodeRecord } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
+import { readSource } from "@/theme/cssBlocks";
 import { CommandBar } from "./CommandBar";
 
 vi.mock("@/agents/broadcast", () => ({ sendCommand: vi.fn(() => Promise.resolve()) }));
@@ -45,6 +47,7 @@ afterEach(async () => {
   nodesStore.setState({ nodes: {} });
   terminalStatusStore.setState({ statuses: {} });
   activeTerminalStore.setState({ id: null });
+  historyStore.setState({ projectId: null, entries: [], loaded: false });
 });
 
 const field = () => host.querySelector("textarea")!;
@@ -344,4 +347,92 @@ it("targets the Fleet that is selected, as it does a selected terminal", async (
   await type("plan it");
   await act(async () => sendButton().click());
   expect(sendCommand).toHaveBeenLastCalledWith(["f1"], "plan it");
+});
+
+describe("the tip: Try @all run the tests", () => {
+  const TIP = 'Try "@all run the tests"';
+  let writes: { key: string; value: unknown }[];
+
+  /** The bar again, on a fresh read of the saved dismissal and of a history that has been read. */
+  async function remount(dismissed: boolean | null, history: string[] = []) {
+    await act(async () => root.unmount());
+    writes = [];
+    mockIPC((cmd, args) => {
+      if (cmd === "get_setting") return (args as { key: string }).key === HINT_KEY ? dismissed : null;
+      if (cmd === "set_setting") writes.push(args as { key: string; value: unknown });
+      return undefined;
+    });
+    historyStore.setState({ projectId: "p1", entries: history, loaded: true });
+    root = createRoot(host);
+    await act(async () => root.render(<CommandBar />));
+  }
+
+  it("is the empty field's placeholder with two agents, and the field keeps its name", async () => {
+    await remount(null);
+    expect(field().placeholder).toBe(TIP);
+    expect(getByRole(host, "textbox", "Message agents")).toBe(field());
+  });
+
+  it("is no box above the bar: nothing floats over the controls near it", async () => {
+    await remount(null);
+    expect(host.querySelector("button[aria-label='Hide the tip']")).toBeNull();
+    expect(readSource("shell/ProjectView.tsx")).not.toContain("CommandHint");
+    expect(readSource("shell/CommandBar.tsx")).not.toContain("CommandHint");
+  });
+
+  it("waits for one agent more: a lone agent has no one to address with @all", async () => {
+    await remount(null);
+    await act(async () => canvasStore.setState({ nodeIds: ["t1"] }));
+    expect(field().placeholder).toBe("Message agents");
+    await act(async () => canvasStore.setState({ nodeIds: ["t1", "t2"] }));
+    expect(field().placeholder).toBe(TIP);
+  });
+
+  it("counts the agents @all reaches: a Fleet and one agent are not two", async () => {
+    await remount(null);
+    await act(async () => {
+      nodesStore.setState({ nodes: { t1: terminal("Cyborg"), f1: { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet" } } } });
+      canvasStore.setState({ nodeIds: ["t1", "f1"] });
+    });
+    expect(field().placeholder).toBe("Message agents");
+    await act(async () => {
+      nodesStore.setState({ nodes: { ...nodesStore.getState().nodes, t2: terminal("Deadpool") } });
+      canvasStore.setState({ nodeIds: ["t1", "f1", "t2"] });
+    });
+    expect(field().placeholder).toBe(TIP);
+  });
+
+  it("stays away once the dismissal is saved", async () => {
+    await remount(true);
+    expect(field().placeholder).toBe("Message agents");
+  });
+
+  it("leaves the chips of the moment their say: a targeted bar has no placeholder", async () => {
+    await remount(null);
+    await select(["t1"]);
+    expect(chipLabels()).toEqual(["@cyborg"]);
+    expect(field().placeholder).toBe("");
+  });
+
+  it("ends with the first send, for good: the dismissal is saved", async () => {
+    await remount(null);
+    await type("@cyborg run tests");
+    expect(writes).toEqual([]);
+    await act(async () => sendButton().click());
+    expect(writes).toContainEqual({ key: HINT_KEY, value: true });
+    await removeChip("@cyborg");
+    expect(field().placeholder).toBe("Message agents");
+  });
+
+  it("does not show to someone who has sent before in this project, and saves that too", async () => {
+    await remount(null, ["run tests"]);
+    expect(field().placeholder).toBe("Message agents");
+    expect(writes).toContainEqual({ key: HINT_KEY, value: true });
+  });
+
+  it("holds back until the saved commands are read, so it never flashes up and goes", async () => {
+    await remount(null);
+    await act(async () => historyStore.setState({ loaded: false }));
+    expect(field().placeholder).toBe("Message agents");
+  });
 });

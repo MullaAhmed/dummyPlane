@@ -1,5 +1,8 @@
 /** The application's shortcuts, as the interface writes them. */
-export type Shortcut = "Ctrl+Tab" | "Ctrl+Shift+Tab" | "Ctrl+P" | "Ctrl+Shift+P" | "Shift+Escape" | "Ctrl+Shift+A" | "Ctrl+G" | "Ctrl+Shift+G";
+export type Shortcut = "Ctrl+Tab" | "Ctrl+Shift+Tab" | "Ctrl+P" | "Ctrl+Shift+P" | "Shift+Escape" | "Ctrl+Shift+A" | "Ctrl+G" | "Ctrl+Shift+G" | "Ctrl+Shift+B";
+
+/** The key that opens the functions mode of the palette: where "Launch …" is found by keyboard, which the guide and the empty canvas name. */
+export const FUNCTIONS_SHORTCUT: Shortcut = "Ctrl+Shift+P";
 
 /**
  * Shortcuts of the canvas's selection: typed into a text field or a terminal (xterm's input is a
@@ -23,6 +26,9 @@ function match(key: string, ctrl: boolean, shift: boolean): Shortcut | null {
   if (ctrl && key === "p") return shift ? "Ctrl+Shift+P" : "Ctrl+P";
   if (ctrl && shift && key === "a") return "Ctrl+Shift+A";
   if (ctrl && key === "g") return shift ? "Ctrl+Shift+G" : "Ctrl+G";
+  // The git window. Free everywhere: a terminal is sent nothing for Ctrl+Shift+letter (xterm), a field and
+  // Excalidraw have no Ctrl+Shift+B, nor the Code Studio's editor (Ctrl+B only).
+  if (ctrl && shift && key === "b") return "Ctrl+Shift+B";
   if (!ctrl && shift && key === "Escape") return "Shift+Escape";
   return null;
 }

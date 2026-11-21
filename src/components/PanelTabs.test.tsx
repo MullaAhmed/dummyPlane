@@ -39,7 +39,9 @@ const classes = (el: Element) => [...el.classList];
 it("draws soft tabs on the control scale, tinting on hover with --dp-hover and keeping the chosen tab's tint under the pointer", async () => {
   await mount("soft");
   for (const name of ["One", "Two"]) {
-    expect(classes(tab(name))).toEqual(expect.arrayContaining(["h-7", "hover:bg-dp-hover", "focus-visible:ring-2", "focus-visible:ring-dp-accent/70", "active:scale-[0.97]"]));
+    expect(classes(tab(name))).toEqual(
+      expect.arrayContaining(["h-7", "hover:bg-dp-hover", "focus-visible:ring-2", "focus-visible:ring-dp-accent/70", "active:scale-[0.97]", "motion-reduce:active:scale-100"]),
+    );
   }
   expect(tab("One").dataset.state).toBe("active");
   expect(classes(tab("One"))).toEqual(expect.arrayContaining(["data-active:bg-dp-accent-soft", "data-active:hover:bg-dp-accent-soft"]));
@@ -48,9 +50,11 @@ it("draws soft tabs on the control scale, tinting on hover with --dp-hover and k
 it("borders the chosen soft tab in the accent, in the light palette and the dark ones: the tint alone reads 1.2-1.4:1 (P2-23)", async () => {
   await mount("soft");
   const chosen = classes(tab("One"));
-  expect(chosen).toEqual(expect.arrayContaining(["data-active:border-dp-accent", "dark:data-active:border-dp-accent"]));
+  // One rule for every scheme: the primitive reads the dp tokens, which each palette sets, so no `dark:` repaint is left.
+  expect(chosen).toContain("data-active:border-dp-accent");
   // The primitive's own dark border, and the old transparent one, are gone: the accent is the only active border.
-  expect(chosen.filter((c) => /^(dark:)?data-active:border-/.test(c)).sort()).toEqual(["dark:data-active:border-dp-accent", "data-active:border-dp-accent"]);
+  expect(chosen.filter((c) => /^(dark:)?data-active:border-/.test(c))).toEqual(["data-active:border-dp-accent"]);
+  expect(chosen.filter((c) => c.startsWith("dark:"))).toEqual([]);
   // The border is there at rest, transparent: choosing a tab moves nothing.
   expect(classes(tab("Two"))).toEqual(expect.arrayContaining(["border", "border-transparent"]));
 });
@@ -59,7 +63,10 @@ it("moves on the motion tokens, listing the properties it transitions, and shift
   await mount("soft");
   const all = [...classes(tab("One")), ...classes(tab("Two"))].join(" ");
   expect(all).not.toMatch(/transition-all|(?<![\w-])duration-\d|(?<![\w-])ease-(out|in|in-out|linear)\b/);
-  expect(classes(tab("Two"))).toEqual(expect.arrayContaining(["transition-[background-color,border-color,color,scale]", "duration-(--dp-dur-fast)", "ease-(--dp-ease-out)", "motion-reduce:transition-none"]));
+  expect(classes(tab("Two"))).toEqual(expect.arrayContaining(["transition-[background-color,border-color,color,scale]", "duration-(--dp-dur-fast)", "ease-(--dp-ease-out)"]));
+  // Reduced motion stops the press, not the colour fade.
+  expect(classes(tab("Two"))).toEqual(expect.arrayContaining(["motion-reduce:transition-[background-color,border-color,color]", "motion-reduce:active:scale-100"]));
+  expect(classes(tab("Two"))).not.toContain("motion-reduce:transition-none");
   // No hover rule touches the size, the border or the weight: nothing moves when the pointer arrives.
   expect(classes(tab("Two")).filter((c) => /^hover:(p|m|border|font|w-|h-|size)/.test(c))).toEqual([]);
 });

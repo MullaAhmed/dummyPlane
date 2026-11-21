@@ -5,6 +5,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { toast } from "sonner";
 import { canvasStore } from "@/canvas/canvasStore";
 import { forgetScene, rememberScene } from "@/canvas/sceneCache";
+import { CAMERA_MS } from "@/canvas/viewActions";
 import { focusTerminal, startUnseen } from "@/nodes/terminal/registry";
 import { workspacesStore } from "@/store/workspaces";
 import { quietly } from "./arrivals";
@@ -93,7 +94,7 @@ it("starts one of a workspace not on screen at once: nothing will mount it", asy
 
 it("one launched by the user still comes into view, and says nothing", async () => {
   const id = await addTerminal("w1", payload, FAR);
-  expect(api.scrollToContent).toHaveBeenCalledWith(expect.objectContaining({ id }), expect.objectContaining({ animate: true }));
+  expect(api.scrollToContent).toHaveBeenCalledWith(expect.objectContaining({ id }), expect.objectContaining({ animate: true, duration: CAMERA_MS }));
   // The canvas mounts it there, which starts it.
   expect(startUnseen).not.toHaveBeenCalled();
   vi.advanceTimersByTime(500);

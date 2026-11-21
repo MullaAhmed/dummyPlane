@@ -3,6 +3,7 @@ import { onAction, sendNotification, type ActionPerformed } from "@tauri-apps/pl
 import { nativeNotificationsStore } from "@/app/nativeNotifications";
 import { goToAgent } from "@/commands/goToRun";
 import { agentActivityStore } from "@/store/agentActivity";
+import { fleetDecisionsStore, type FleetDecision } from "@/store/fleetDecisions";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -279,4 +280,48 @@ describe("a click on the Windows notification", () => {
 it("is allowed to bring the window back", () => {
   const capabilities = readSource("../src-tauri/capabilities/default.json");
   for (const permission of ["notification:default", "core:window:allow-set-focus", "core:window:allow-unminimize"]) expect(capabilities).toContain(permission);
+});
+
+describe("a Fleet that waits on the user's decision", () => {
+  const plan: FleetDecision = { kind: "plan", since: 5, message: "Checkout coupons · 4 sub-tasks" };
+  const decide = (decision?: FleetDecision) => fleetDecisionsStore.setState({ decisions: decision ? { atlas: decision } : {} });
+
+  beforeEach(() => {
+    nodesStore.setState((s) => ({ nodes: { ...s.nodes, atlas: { workspaceId: "w1", kind: "fleet", payload: { name: "Atlas" } } } }));
+    terminalStatusStore.setState((s) => ({ statuses: { ...s.statuses, atlas: { state: "running" } } }));
+    // Its terminal rests at its prompt: its agent waits on nothing.
+    agentActivityStore.getState().apply({ nodeId: "atlas", activity: "idle", since: 1 });
+  });
+
+  afterEach(() => decide());
+
+  it("is a question in the panel and a Windows notification, in fixed words, read once the decision is taken", async () => {
+    decide(plan);
+    await settled();
+    expect(questions()).toEqual([{ type: "question", kind: "info", title: "Atlas · Waiting", description: "Has a plan for your go-ahead", read: false, nodeId: "atlas" }]);
+    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "Atlas · Waiting", body: "Has a plan for your go-ahead", extra: { nodeId: "atlas" } });
+    // Its terminal goes on meanwhile: no news, the same wait.
+    agentActivityStore.getState().apply({ nodeId: "atlas", activity: "working", since: 6 });
+    expect(questions()).toHaveLength(1);
+    decide();
+    expect(questions().map((q) => q.read)).toEqual([true]);
+  });
+
+  it("says what Land and Clean up ask, never the branch nor the folder: a notification can show on the lock screen", async () => {
+    decide({ kind: "land", since: 7, message: "Land the mission on main?" });
+    decide({ kind: "leftovers", since: 8, message: "Clean up the leftovers of past missions?" });
+    await settled();
+    expect(vi.mocked(sendNotification).mock.calls.map(([n]) => (n as { body: string }).body)).toEqual(["Asks to land its mission"]);
+    decide();
+    decide({ kind: "leftovers", since: 9 });
+    await settled();
+    expect(vi.mocked(sendNotification).mock.calls.map(([n]) => (n as { body: string }).body)).toEqual(["Asks to land its mission", "Asks to clean up leftovers"]);
+  });
+
+  it("is not told again when it was found standing, as its Fleet was first read: the notice and the counts still show it", async () => {
+    decide({ ...plan, standing: true });
+    await settled();
+    expect(questions()).toEqual([]);
+    expect(sendNotification).not.toHaveBeenCalled();
+  });
 });

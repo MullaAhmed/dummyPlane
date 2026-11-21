@@ -1,3 +1,4 @@
+import { dialogOf, type ScreenDialog } from "@/agents/dialogScreen";
 import type { AgentId } from "@/ipc/pty";
 
 /** What readiness reads of an agent's terminal, and how it answers it. */
@@ -15,6 +16,16 @@ export interface ReadyProbe {
   waitLonger?(): boolean;
   /** Told once, when the minute is over and `waitLonger` keeps it waiting. */
   slow?(): void;
+  /**
+   * How long its prompt stays still before it counts as up: `READY_QUIET_MS` for a task about to be typed into it; none
+   * for a probe that types nothing (`@/agents/firstQuestion`), which the user may type into at once.
+   */
+  readyQuietMs?: number;
+  /**
+   * A dialog only the user answers holds it (a project's new MCP servers, a login, a trust question it may not
+   * answer), read on its still screen; null once it is gone. Told on each change, and null on the way out.
+   */
+  held?(dialog: ScreenDialog | null): void;
 }
 
 export const READY_QUIET_MS = 2000;
@@ -24,6 +35,8 @@ export const TRUST_QUIET_MS = 500;
 /** Between two keys to the trust prompt: a Down the menu missed is sent again after this. */
 const TRUST_RETRY_MS = 1000;
 const TRUST_MAX_DOWNS = 4;
+/** After the Enter it gave the trust prompt, how long its menu may stand before Claude redraws (a loaded machine). */
+const TRUST_SETTLE_MS = 5000;
 const TICK_MS = 250;
 /**
  * Claude's prompt is up: the last `❯` line on screen is its input box, under a
@@ -86,7 +99,8 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
  * True once the agent can take its sub-task: it runs, its trust prompt was
  * accepted (once — only dummyPlane's fresh worktrees ask), Claude's prompt is up
  * and quiet for 2 s. False after 60 s, unless `waitLonger` keeps it waiting:
- * then false once it says no more, `slow` told once at the minute.
+ * then false once it says no more, `slow` told once at the minute. A dialog
+ * that holds it meanwhile is told to `held`, which hears null when it is gone.
  * `acceptTrust`: false outside those worktrees — the prompt then waits for the user.
  */
 export async function whenReady(probe: ReadyProbe, wait: (ms: number) => Promise<void> = sleep, acceptTrust = true): Promise<boolean> {
@@ -95,29 +109,46 @@ export async function whenReady(probe: ReadyProbe, wait: (ms: number) => Promise
   let downs = 0;
   let keyAt = -Infinity;
   let warned = false;
-  for (let waited = 0; ; waited += TICK_MS) {
-    if (waited >= READY_TIMEOUT_MS) {
-      if (!probe.waitLonger?.()) return false;
-      if (!warned) {
-        warned = true;
-        probe.slow?.();
-      }
-    }
-    if (probe.running()) {
-      const screen = probe.screen();
-      const key = trusted ? null : trustKey(screen, agent);
-      if (key) {
-        // One key at a time, on a still menu; the screen tells whether it took.
-        if (probe.quietMs() >= TRUST_QUIET_MS && waited - keyAt >= TRUST_RETRY_MS && (key === "\r" || downs < TRUST_MAX_DOWNS)) {
-          keyAt = waited;
-          if (key === "\r") trusted = true;
-          else downs++;
-          await probe.press(key);
+  // The dialog last told to `held`, by kind and title: a redraw of the same one is no news.
+  let shown: string | null = null;
+  const show = (dialog: ScreenDialog | null) => {
+    const seen = dialog && `${dialog.kind}:${dialog.title}`;
+    if (seen === shown) return;
+    shown = seen;
+    probe.held?.(dialog);
+  };
+  try {
+    for (let waited = 0; ; waited += TICK_MS) {
+      if (waited >= READY_TIMEOUT_MS) {
+        if (!probe.waitLonger?.()) return false;
+        if (!warned) {
+          warned = true;
+          probe.slow?.();
         }
-      } else if (promptUp(agent, screen) && probe.quietMs() >= READY_QUIET_MS) {
-        return true;
       }
+      if (probe.running()) {
+        const screen = probe.screen();
+        const key = trusted ? null : trustKey(screen, agent);
+        if (key) {
+          // One key at a time, on a still menu; the screen tells whether it took.
+          if (probe.quietMs() >= TRUST_QUIET_MS && waited - keyAt >= TRUST_RETRY_MS && (key === "\r" || downs < TRUST_MAX_DOWNS)) {
+            keyAt = waited;
+            if (key === "\r") trusted = true;
+            else downs++;
+            await probe.press(key);
+          }
+        } else if (promptUp(agent, screen)) {
+          if (probe.quietMs() >= (probe.readyQuietMs ?? READY_QUIET_MS)) return true;
+        } else if (probe.held && probe.quietMs() >= TRUST_QUIET_MS) {
+          // Its trust prompt, when answered here, is none of the user's: `key` took it above, and its menu may stand
+          // a while after the Enter before Claude redraws. Still there past that, the Enter was lost: the user's.
+          const dialog = dialogOf(screen, agent);
+          if (!(dialog?.kind === "trust" && acceptTrust && waited - keyAt < TRUST_SETTLE_MS)) show(dialog);
+        }
+      }
+      await wait(TICK_MS);
     }
-    await wait(TICK_MS);
+  } finally {
+    if (shown !== null) probe.held?.(null);
   }
 }

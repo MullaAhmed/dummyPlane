@@ -47,9 +47,9 @@ it("lets an unanswered request expire: it must not fire at a later mount", async
   // A newer request is not dropped by the older one's timer.
   requestUi({ kind: "composeGroup" });
   vi.advanceTimersByTime(1500);
-  requestUi({ kind: "groupMenu", id: "g" });
+  requestUi({ kind: "groupAgentMenu", id: "g", at: { x: 1, y: 2 } });
   vi.advanceTimersByTime(1500);
-  expect(pendingUiRequest()).toEqual({ kind: "groupMenu", id: "g" });
+  expect(pendingUiRequest()).toEqual({ kind: "groupAgentMenu", id: "g", at: { x: 1, y: 2 } });
   vi.advanceTimersByTime(1000);
   expect(pendingUiRequest()).toBeNull();
   vi.useRealTimers();

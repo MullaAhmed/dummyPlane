@@ -3,33 +3,42 @@ import { toastError } from "@/lib/errorToast";
 import { canvasStore, useCanvas, type CanvasView } from "@/canvas/canvasStore";
 import { groupAt } from "@/canvas/groups";
 import { messages, useMessages } from "@/i18n";
-import { TOP_ROW_HEIGHT } from "@/shell/layout";
+import { currentWorkArea, useLaneOccupied } from "@/shell/lane";
+import { FLOAT_INSET, TOP_ROW_HEIGHT, workArea, type Insets } from "@/shell/layout";
 import { uiStore, useUi, type Placement } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
 import { agentsMessages } from "./messages";
+import { arriveLaunched } from "./arrivals";
 import { freeCell } from "./groupLayout";
 import { launchAgent } from "./launchAgent";
 import { addFleet } from "@/fleet/fleets";
 import { forwardWheel } from "./linkOverlay";
-import { clientRectOf, ghostRect, sceneOf } from "./placement";
+import { areaMiddle, clientRectOf, ghostRect, sceneOf } from "./placement";
 import type { Point } from "./terminals";
 
 /** Where a key typed into goes: Enter there is the field's (or the terminal's), not the placement's. */
 const TYPED_INTO = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), .xterm';
 
-/** The middle of the canvas, in window coordinates: where the ghost waits until the pointer moves over the canvas. */
-function canvasMiddle(view: CanvasView): Point | null {
+/**
+ * The middle of the work area (shell/layout.ts), in window coordinates: where the ghost waits until the pointer moves
+ * over the canvas, clear of the rails and of an occupied lane.
+ */
+function canvasMiddle(view: CanvasView, area: Insets): Point | null {
   if (view.width === 0 || view.height === 0) return null;
-  return { x: view.offsetLeft + view.width / 2, y: view.offsetTop + view.height / 2 };
+  return areaMiddle(view, area);
 }
 
-/** Places what is being placed at a window point, as a click there does. */
+/** Places what is being placed at a window point, as a click there does. A terminal placed takes the keyboard. */
 function placeAt(placing: Placement, client: Point) {
   uiStore.getState().setPlacing(null);
   const center = sceneOf(client, canvasStore.getState().view);
   const workspaceId = workspacesStore.getState().activeId;
   const placed =
-    "fleet" in placing ? (workspaceId ? addFleet(workspaceId, center) : Promise.resolve()) : launchAgent(placing.agent, placing.options, center);
+    "fleet" in placing
+      ? workspaceId
+        ? addFleet(workspaceId, center)
+        : Promise.resolve()
+      : launchAgent(placing.agent, placing.options, center).then(arriveLaunched);
   void placed.catch((error: unknown) => toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext }));
 }
 
@@ -43,6 +52,7 @@ export function PlacementGhost() {
   const placing = useUi((s) => s.placing);
   const view = useCanvas((s) => s.view);
   const frames = useCanvas((s) => s.frames);
+  const occupied = useLaneOccupied();
   const [pointer, setPointer] = useState<Point | null>(null);
   // The pointer as Enter reads it, between renders.
   const pointerRef = useRef<Point | null>(null);
@@ -61,7 +71,7 @@ export function PlacementGhost() {
     const onEnter = (e: KeyboardEvent) => {
       if (e.key !== "Enter" || e.repeat || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
       if (e.target instanceof Element && e.target.closest(TYPED_INTO)) return;
-      const at = pointerRef.current ?? canvasMiddle(canvasStore.getState().view);
+      const at = pointerRef.current ?? canvasMiddle(canvasStore.getState().view, currentWorkArea());
       if (!at) return;
       e.preventDefault();
       e.stopPropagation();
@@ -80,7 +90,7 @@ export function PlacementGhost() {
   if (!placing) return null;
   // Over a group the ghost shows the cell the agent will take.
   const fleet = "fleet" in placing;
-  const at = pointer ?? canvasMiddle(view);
+  const at = pointer ?? canvasMiddle(view, workArea(occupied));
   // A fleet is placed freely; an agent over a group takes the group's next cell.
   const group = at && !fleet ? groupAt(frames, sceneOf(at, view)) : null;
   const members = group ? (canvasStore.getState().api?.getSceneElements().filter((e) => e.frameId === group.id) ?? []) : [];
@@ -107,7 +117,8 @@ export function PlacementGhost() {
       <div
         role="status"
         className="dp-glass-strong pointer-events-none fixed left-1/2 -translate-x-1/2 rounded-md px-3 py-1 text-xs text-dp-text-2"
-        style={{ top: TOP_ROW_HEIGHT + 14 }}
+        // One floating inset under the tabs, as the mode chip and the lane (shell/layout.ts).
+        style={{ top: TOP_ROW_HEIGHT + FLOAT_INSET }}
       >
         {group ? t.placement.addToGroup(group.name) : fleet ? t.placement.placeFleet : t.placement.placeAgent}
       </div>

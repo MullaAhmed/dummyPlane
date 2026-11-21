@@ -26,10 +26,9 @@ import type { Permission, ShellKind } from "@/ipc/pty";
 import { EXTRA_KINDS, type SubagentExtras } from "@/ipc/subagentExtras";
 import { EFFORT_LEVELS, MODEL_CHOICES, modelLabel, readEffort, settingsModelLabel, type EffortLevel } from "@/mission/router";
 import { missionMessages } from "@/mission/messages";
-import { routerInertText } from "@/mission/RouterToggle";
 import { followRouter, setRouter, useRouterFollow, useRouterOn } from "@/mission/routerState";
 import { folderChange, folderLockOf, sameFolder, type FolderLock } from "@/nodes/terminal/folder";
-import { newConversation, SHELL_LABELS } from "@/nodes/terminal/launch";
+import { newConversation, SHELL_LABELS, shellsFor } from "@/nodes/terminal/launch";
 import { StatusPill } from "@/nodes/terminal/StatusPill";
 import type { TerminalPayload } from "@/nodes/types";
 import { useActivity } from "@/store/agentActivity";
@@ -37,7 +36,7 @@ import { nodeNameOf, nodesStore, sessionOf, updateSession, useNodes, type NodeRe
 import { isRunning, useTerminalStatus } from "@/store/terminalStatus";
 import { formatTokens } from "@/usage/usage";
 import { useNodeSession } from "@/usage/usageStore";
-import { IconButton } from "@/shell/buttons";
+import { Hint, IconButton } from "@/shell/buttons";
 import { ExtensionList, folderName, QUIET_BOX, useClaudeExtensions, useClaudeFolder, type ExtensionKind } from "./ExtensionList";
 import { adoptLiveFolder, announceFolderMove, restartTerminal } from "./folderMove";
 import { canvasMessages } from "./messages";
@@ -92,7 +91,7 @@ const latestSession = (nodeId: string) => sessionOf(nodesStore.getState().nodes[
  * terminal, and a Fleet, also gets its skills, plugins, MCP servers and
  * subagents, each on or off for it alone. A Fleet is edited through its Claude
  * session (`session`, nested in its node): its model, effort and shell only.
- * The panel folds back to its Edit tab (SelectionPanel).
+ * The panel folds from its chevron, or from the Edit in its node's header (SelectionPanel).
  */
 export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () => void }) {
   const t = useMessages(canvasMessages).selection;
@@ -116,25 +115,26 @@ export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () =>
       {/* The panel's head: its title in the primary text, a step above the field labels; the chevron quiet until pointed at. */}
       <div className="flex items-center justify-between gap-2">
         <p className="min-w-0 truncate text-(length:--text-ui) leading-6 font-medium text-dp-text">{t.editTerminal(name || (fleet ? t.thisFleet : t.thisTerminal))}</p>
-        {/* Says what it does: a native title is enough, as on a group's chevron. */}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label={t.foldPanel}
-          title={t.foldPanel}
-          // Where the keyboard lands when the panel opens from its tab (SelectionPanel).
-          data-fold
-          aria-expanded
-          aria-controls={bodyId}
-          onMouseDown={keepCanvasFocus}
-          onClick={onFold}
-          // Ghost buttons tint while aria-expanded (a menu's trigger); this one is expanded whenever the panel is open.
-          // Its centre sits on the checkboxes' column (-mr-1).
-          className="-mr-1 text-dp-text-3 hover:text-dp-text aria-expanded:bg-transparent aria-expanded:text-dp-text-3 aria-expanded:hover:bg-dp-hover aria-expanded:hover:text-dp-text"
-        >
-          <ChevronUp className="size-3.5" />
-        </Button>
+        {/* Says what it does in the app's hint (a group's chevron, over the canvas, keeps a native title). */}
+        <Hint label={t.foldPanel}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label={t.foldPanel}
+            // Where the keyboard lands when the panel opens from the keyboard (SelectionPanel).
+            data-fold
+            aria-expanded
+            aria-controls={bodyId}
+            onMouseDown={keepCanvasFocus}
+            onClick={onFold}
+            // Ghost buttons tint while aria-expanded (a menu's trigger); this one is expanded whenever the panel is open.
+            // Its centre sits on the checkboxes' column (-mr-1).
+            className="-mr-1 text-dp-text-3 hover:text-dp-text aria-expanded:bg-transparent aria-expanded:text-dp-text-3 aria-expanded:hover:bg-dp-hover aria-expanded:hover:text-dp-text"
+          >
+            <ChevronUp className="size-3.5" />
+          </Button>
+        </Hint>
       </div>
       <div id={bodyId} className="flex min-h-0 flex-col">
         {claude && session ? (
@@ -203,17 +203,18 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
       )}
       {otherFolder && !lock && (
         // As quiet as "Change…"; its label wraps rather than lose the folder's name.
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          title={otherFolder}
-          onMouseDown={keepCanvasFocus}
-          onClick={() => adoptLiveFolder(nodeId, otherFolder)}
-          className="mt-1 h-auto min-h-7 max-w-full justify-start py-1 text-left text-xs font-normal whitespace-normal text-dp-text-2 hover:text-dp-text"
-        >
-          {t.adoptFolder(folderName(otherFolder))}
-        </Button>
+        <Hint label={<span className="font-mono break-all">{otherFolder}</span>}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onMouseDown={keepCanvasFocus}
+            onClick={() => adoptLiveFolder(nodeId, otherFolder)}
+            className="mt-1 h-auto min-h-7 max-w-full justify-start py-1 text-left text-xs font-normal whitespace-normal text-dp-text-2 hover:text-dp-text"
+          >
+            {t.adoptFolder(folderName(otherFolder))}
+          </Button>
+        </Hint>
       )}
     </>
   );
@@ -278,8 +279,8 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
           </div>
         </Row>
         {claude && <RemoteRow nodeId={nodeId} wanted={session.remoteControl === true} running={running} />}
-        {/* A Fleet's router is its mission's, a terminal's is its own. On every terminal, greyed out, with why, where it has nothing to route: a Manager's (its Fleet's switch routes), a CLI's without dummyPlane's tools. */}
-        {session && <RouterRow nodeId={nodeId} fleet={fleet} inert={fleet ? undefined : routerInertText(session)} />}
+        {/* A Fleet's router is its mission's. A terminal's is in its foot, beside Link, and in its ⋯ menu: not here. */}
+        {fleet && session && <RouterRow nodeId={nodeId} />}
       </Rows>
       {session && (
         <div role="group" aria-labelledby={`${ids.model}-heading`} className="grid grid-cols-1 gap-2">
@@ -323,7 +324,7 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
               <FolderField nodeId={nodeId} session={session} lock={lock} />
             </Row>
             <Row label={t.shell} htmlFor={ids.shell}>
-              <ShellSelect id={ids.shell} value={session.shell} shells={shells} onChange={(shell) => setLaunch({ shell })} />
+              <ShellSelect id={ids.shell} value={session.shell} shells={shellsFor(session.agent, shells)} onChange={(shell) => setLaunch({ shell })} />
             </Row>
             {session.agent === "custom" && (
               <Row label={t.command} htmlFor={ids.command}>
@@ -345,7 +346,7 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
       {/* The other launch settings' offer; a move's is the Folder row's, which restarts with them all. */}
       {restartPending && !folderMove && (
         <div className="flex items-center justify-between gap-3 border-t border-dp-line pt-2">
-          <p className="min-w-0 truncate text-xs leading-7 text-dp-text-3">{t.launchChanged}</p>
+          <p className="min-w-0 py-1.5 text-xs leading-4 break-words text-dp-text">{t.launchChanged}</p>
           <Button type="button" variant="secondary" size="sm" onMouseDown={keepCanvasFocus} onClick={restart} className="text-xs font-normal text-dp-text-2 hover:text-dp-text">
             <RotateCw className="size-3.5" />
             {t.restartNow}
@@ -615,45 +616,12 @@ function remoteState(link: RemoteLink | undefined, wanted: boolean, running: boo
 }
 
 /**
- * The model router: a Fleet's is its mission's (each agent of its team takes the model of its sub-task's level),
- * a terminal's is its own (a sub-task a Fleet gives it does, and its sub-agents). It shows the router as it stands
- * there, set at the node or followed from above it or from Settings (`@/mission/routerState`). The same switch as its
- * header's and, like Remote Control, applied at once: it is no launch setting, so it never offers "Restart now". A
- * real switch (`role="switch"`) in the panel's checkbox, named by its visible label, described by the line under it.
- * A terminal with nothing to route (`inert`, why in words) shows it greyed out instead.
+ * A Fleet's model router, its mission's: each agent of its team takes the model of its sub-task's level. It shows the
+ * router as it stands there, set at the node or followed from Settings (`@/mission/routerState`). The same switch as
+ * its header's and, like Remote Control, applied at once: it is no launch setting, so it never offers "Restart now".
+ * A real switch (`role="switch"`) in the panel's checkbox, named by its visible label, described by the line under it.
  */
-function RouterRow({ nodeId, fleet, inert }: { nodeId: string; fleet: boolean; inert?: string }) {
-  return inert ? <InertRouterRow reason={inert} /> : <ActiveRouterRow nodeId={nodeId} fleet={fleet} />;
-}
-
-/**
- * The router's row on a terminal that has nothing to route (`routerInertText` says why): the same switch, off whatever
- * Settings say, greyed out, changing nothing, with no "Follow". The line under it says why, in place of what the switch
- * does: it is what describes it. `aria-disabled`, not `disabled`: it keeps the keyboard, and the label still reaches it.
- */
-function InertRouterRow({ reason }: { reason: string }) {
-  const t = useMessages(canvasMessages).selection;
-  const id = useId();
-  return (
-    <Row label={t.modelRouter} htmlFor={id} note={reason} noteId={`${id}-note`}>
-      <div className="flex h-7 items-center gap-2">
-        <Checkbox
-          id={id}
-          role="switch"
-          aria-label={t.modelRouter}
-          aria-describedby={`${id}-note`}
-          aria-disabled
-          checked={false}
-          onCheckedChange={() => undefined}
-          onMouseDown={keepCanvasFocus}
-          className={cn(QUIET_BOX, "cursor-not-allowed opacity-50")}
-        />
-      </div>
-    </Row>
-  );
-}
-
-function ActiveRouterRow({ nodeId, fleet }: { nodeId: string; fleet: boolean }) {
+function RouterRow({ nodeId }: { nodeId: string }) {
   const t = useMessages(canvasMessages).selection;
   const id = useId();
   const on = useRouterOn(nodeId);
@@ -661,7 +629,7 @@ function ActiveRouterRow({ nodeId, fleet }: { nodeId: string; fleet: boolean }) 
   const followLabel = useMessages(missionMessages).routerFollow;
   const change = (next: boolean) => setRouter(nodeId, next);
   return (
-    <Row label={t.modelRouter} htmlFor={id} note={fleet ? t.modelRouterFleet : t.modelRouterAgent} noteId={`${id}-note`}>
+    <Row label={t.modelRouter} htmlFor={id} note={t.modelRouterFleet} noteId={`${id}-note`}>
       <div className="flex h-7 items-center gap-2">
         <Checkbox
           id={id}
@@ -673,7 +641,7 @@ function ActiveRouterRow({ nodeId, fleet }: { nodeId: string; fleet: boolean }) 
           onMouseDown={keepCanvasFocus}
           className={QUIET_BOX}
         />
-        {/* Only while the switch is set, on or off: unsets it, so it follows Settings or the switch above it again. */}
+        {/* Only while the switch is set, on or off: unsets it, so it follows Settings again. */}
         {follow && (
           <Button type="button" variant="secondary" size="sm" onMouseDown={keepCanvasFocus} onClick={() => followRouter(nodeId)} className="text-xs font-normal text-dp-text-2 hover:text-dp-text">
             {followLabel[follow]}
@@ -695,9 +663,9 @@ function RemoteRow({ nodeId, wanted, running }: { nodeId: string; wanted: boolea
       <label htmlFor={id} className="truncate text-xs leading-7 text-dp-text-2">
         {t.remoteControl}
       </label>
-      <div className="flex h-7 min-w-0 items-center gap-2">
+      <div className="flex min-h-7 min-w-0 items-center gap-2">
         <Checkbox id={id} aria-label={t.remoteControl} checked={wanted} onCheckedChange={(checked) => switchRemote(nodeId, checked === true)} onMouseDown={keepCanvasFocus} className={QUIET_BOX} />
-        {state && <span className={cn("min-w-0 truncate text-xs", link?.state === "error" ? "text-dp-danger" : "text-dp-text-3")}>{state}</span>}
+        {state && <span className={cn("min-w-0 py-1 text-xs leading-4 break-words", link?.state === "error" ? "text-dp-danger" : "text-dp-text-2")}>{state}</span>}
       </div>
     </>
   );
@@ -714,10 +682,12 @@ function FolderMoveNotice({ move, onRestart }: { move: FolderMove; onRestart: ()
       <p role="status" title={move.from} className="max-w-full truncate text-xs text-dp-text">
         {t.stillRunningIn(folderName(move.from))}
       </p>
-      <Button type="button" size="sm" title={move.to} onMouseDown={keepCanvasFocus} onClick={onRestart} className="max-w-full text-xs">
-        <RotateCw className="size-3.5" />
-        <span className="truncate">{t.restartIn(folderName(move.to))}</span>
-      </Button>
+      <Hint label={<span className="font-mono break-all">{move.to}</span>}>
+        <Button type="button" size="sm" onMouseDown={keepCanvasFocus} onClick={onRestart} className="max-w-full text-xs">
+          <RotateCw className="size-3.5" />
+          <span className="truncate">{t.restartIn(folderName(move.to))}</span>
+        </Button>
+      </Hint>
     </div>
   );
 }

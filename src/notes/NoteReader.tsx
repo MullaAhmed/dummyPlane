@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { EmptyState } from "@/components/EmptyState";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { Message } from "@/studio/parts";
+import { Hint } from "@/shell/buttons";
 import { noteNamed } from "./links";
 import { parseInline, parseMarkdown, type Block } from "./markdown";
 import { notesMessages } from "./messages";
@@ -24,7 +25,7 @@ const HEADINGS = ["text-lg", "text-base", "text-sm", "text-sm text-dp-text-2", "
  * which shadcn's inline-flex Button, a control of its own height, cannot.
  */
 const LINK =
-  "rounded-sm underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none motion-reduce:transition-none";
+  "rounded-sm underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none";
 
 /** A note, read: elements built by React from the parsed text, never HTML. */
 export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
@@ -50,22 +51,24 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
           );
         case "link":
           return (
-            <button key={i} type="button" title={span.url} onClick={() => void openUrl(span.url)} className={cn("text-dp-accent-ink", LINK)}>
-              {span.label}
-            </button>
+            <Hint key={i} label={<span className="break-all">{span.url}</span>}>
+              <button type="button" onClick={() => void openUrl(span.url)} className={cn("text-dp-accent-ink", LINK)}>
+                {span.label}
+              </button>
+            </Hint>
           );
         case "wikilink": {
           const target = noteNamed(notes, span.target);
           return (
-            <button
-              key={i}
-              type="button"
-              title={target ? target.name : t.deadLink(span.target)}
-              onClick={() => (target ? onOpen(target.name) : onCreate(span.target))}
-              className={cn(LINK, target ? "text-dp-accent-ink" : "text-dp-text-3 decoration-dotted")}
-            >
-              {span.label}
-            </button>
+            <Hint key={i} label={<span className="break-all">{target ? target.name : t.deadLink(span.target)}</span>}>
+              <button
+                type="button"
+                onClick={() => (target ? onOpen(target.name) : onCreate(span.target))}
+                className={cn(LINK, target ? "text-dp-accent-ink" : "text-dp-text-3 decoration-dotted")}
+              >
+                {span.label}
+              </button>
+            </Hint>
           );
         }
       }
@@ -126,7 +129,7 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
   if (blocks.length === 0)
     return (
       <div data-reader className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Message>{t.emptyNote}</Message>
+        <EmptyState>{t.emptyNote}</EmptyState>
       </div>
     );
   return (

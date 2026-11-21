@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { loadAccounts, useAccounts } from "@/accounts/store";
 import { AGENTS } from "@/agents/catalog";
+import { InlineProblem } from "@/components/InlineProblem";
 import { useMessages } from "@/i18n";
 import { tokenUsage, type TokenReport } from "@/ipc/tokens";
+import { logError } from "@/lib/errorToast";
 import { sessionOf, useNodes } from "@/store/nodes";
 import { bars, byAgent, total } from "@/usage/tokens";
 import { formatTokens } from "@/usage/usage";
@@ -21,18 +23,23 @@ export function TokensView({ onBack }: { onBack: () => void }) {
   const hasProfiles = useAccounts((s) => s.profiles.length > 0);
   const [report, setReport] = useState<TokenReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     void loadAccounts();
     let alive = true;
     tokenUsage().then(
       (next) => alive && setReport(next),
-      (failure: unknown) => alive && setError(failure instanceof Error ? failure.message : String(failure)),
+      (failure: unknown) => {
+        if (!alive) return;
+        logError(u.tokensFailed, failure);
+        setError(failure instanceof Error ? failure.message : String(failure));
+      },
     );
     return () => {
       alive = false;
     };
-  }, []);
+  }, [u, attempt]);
 
   // The Claude conversations of dummyPlane's own agents, by the id it gave them.
   const names = new Map<string, string>();
@@ -59,7 +66,19 @@ export function TokensView({ onBack }: { onBack: () => void }) {
         </p>
       )}
       {error ? (
-        <p className="text-xs text-dp-danger">{u.tokensFailed(error)}</p>
+        <InlineProblem
+          place="row"
+          title={u.tokensFailed}
+          next={u.tokensNext}
+          error={error}
+          action={{
+            label: u.tokensRetry,
+            onClick: () => {
+              setError(null);
+              setAttempt((n) => n + 1);
+            },
+          }}
+        />
       ) : !report ? (
         <p className="text-xs text-dp-text-2">{u.tokensLoading}</p>
       ) : sum === 0 ? (

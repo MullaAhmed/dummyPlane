@@ -8,7 +8,7 @@ import type { Point } from "@/agents/terminals";
 import { cancelArcIntent, closeArc, openArc, pointTo } from "./arc";
 import { isNativeMenu } from "./bridges";
 import { chooseItem, chooseSlot } from "./choose";
-import { isSlide, ringCenter, slidePointing } from "./gesture";
+import { isSlide, ringArea, ringCenter, slidePointing } from "./gesture";
 import { closeRadial, openRadial, radialStore, updateRadial } from "./radialState";
 import { ARCS, lineOf, moreSlotOf, RINGS, wedgeCountOf, type RingKind } from "./rings";
 import { domTarget, frameNameTarget, isTextField, sceneTarget, type RadialTarget } from "./target";
@@ -84,7 +84,8 @@ export function installRadial(win: Window): () => void {
       // The press is stopped here: the other menus' click-outside listeners never see it.
       closeOpenMenus(win.document);
       canvasStore.getState().api?.updateScene({ appState: { contextMenu: null } });
-      const center = ringCenter(client, { width: win.innerWidth, height: win.innerHeight });
+      // Under the title bar: at 960x600 a click near the top no longer lifts the ring over it.
+      const center = ringCenter(client, ringArea(win));
       cancelArcIntent();
       openRadial({ ...opened, client, center, pressed: true, sliding: false, hovered: null });
       return;

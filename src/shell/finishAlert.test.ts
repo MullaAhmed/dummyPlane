@@ -13,6 +13,7 @@ import type { Mission } from "@/mission/mission";
 import type { TerminalPayload } from "@/nodes/types";
 import { generatedAsText } from "@/openui/plainText";
 import { agentActivityStore } from "@/store/agentActivity";
+import { fleetDecisionsStore } from "@/store/fleetDecisions";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -125,7 +126,7 @@ describe("a report", () => {
     at("batman", "idle", 2_000);
     await vi.advanceTimersByTimeAsync(SETTLE_MS);
     await turn("batman", LONG, 10_000);
-    expect(notified().map((n) => n.title)).toEqual(["Batman · Done", "Batman · Finished"]);
+    expect(notified().map((n) => n.title)).toEqual(["Batman · Done", "Batman · Ready"]);
   });
 });
 
@@ -136,7 +137,7 @@ describe("the end of a turn", () => {
     await vi.advanceTimersByTimeAsync(SETTLE_MS - 1);
     expect(sendNotification).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
-    expect(notified()).toEqual([{ title: "Batman · Finished", body: "Ready for your next message", extra: { nodeId: "batman", finished: true } }]);
+    expect(notified()).toEqual([{ title: "Batman · Ready", body: "Ready for your next message", extra: { nodeId: "batman", finished: true } }]);
   });
 
   it("stays silent after a quick answer", async () => {
@@ -213,7 +214,7 @@ describe("the end of a turn", () => {
     expect(sendNotification).not.toHaveBeenCalled();
     terminalStatusStore.getState().set("robin", { state: "exited", code: 0 });
     await turn("batman", SHORT, 100_000);
-    expect(notified().map((n) => n.title)).toEqual(["Batman · Finished"]);
+    expect(notified().map((n) => n.title)).toEqual(["Batman · Ready"]);
     await turn("batman", SHORT, 200_000);
     expect(sendNotification).toHaveBeenCalledTimes(1);
   });
@@ -305,7 +306,7 @@ describe("who alerts", () => {
     expect(notified().map((n) => n.title)).toEqual(["Chef · Done"]);
     // Its next turn is its own again.
     await turn("chef", LONG, 100_000);
-    expect(notified().map((n) => n.title)).toEqual(["Chef · Done", "Chef · Finished"]);
+    expect(notified().map((n) => n.title)).toEqual(["Chef · Done", "Chef · Ready"]);
   });
 
   it("the Fleet: its mission's end with its summary, not each turn while the mission runs", async () => {
@@ -322,7 +323,17 @@ describe("who alerts", () => {
 
   it("the Fleet: a turn of work outside a mission", async () => {
     await turn("chef", LONG);
-    expect(notified().map((n) => n.title)).toEqual(["Chef · Finished"]);
+    expect(notified().map((n) => n.title)).toEqual(["Chef · Ready"]);
+  });
+
+  it("never the Fleet whose turn ends on a decision for the user (a plan, Land): the wait tells it, once", async () => {
+    fleetDecisionsStore.setState({ decisions: { chef: { kind: "plan", since: 1 } } });
+    try {
+      await turn("chef", LONG);
+      expect(notified()).toEqual([]);
+    } finally {
+      fleetDecisionsStore.setState({ decisions: {} });
+    }
   });
 
   it("the Fleet: a mission ended without a summary says so", async () => {
@@ -351,7 +362,7 @@ describe("where it shows", () => {
     workspacesStore.setState({ activeId: "w2" });
     await turn("batman", LONG);
     expect(sendNotification).not.toHaveBeenCalled();
-    expect(toast).toHaveBeenCalledExactlyOnceWith("Batman · Finished", { description: "Ready for your next message", action: { label: "Show", onClick: expect.any(Function) } });
+    expect(toast).toHaveBeenCalledExactlyOnceWith("Batman · Ready", { description: "Ready for your next message", action: { label: "Show", onClick: expect.any(Function) } });
     const action = vi.mocked(toast).mock.calls[0][1]!.action as unknown as { onClick: () => void };
     action.onClick();
     expect(goToAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "batman", workspaceId: "w1" }));
@@ -398,7 +409,7 @@ describe("the notification panel", () => {
     nativeNotificationsStore.setState({ enabled: false });
     await turn("batman", LONG);
     expect(sendNotification).not.toHaveBeenCalled();
-    expect(panel()).toMatchObject([{ type: "finished", title: "Batman · Finished", description: "Ready for your next message", read: false }]);
+    expect(panel()).toMatchObject([{ type: "finished", title: "Batman · Ready", description: "Ready for your next message", read: false }]);
   });
 
   it("keeps a finish shown as a toast, unread, with the toast's own words", async () => {

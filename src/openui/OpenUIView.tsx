@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Renderer } from "@openuidev/react-lang";
+import { TriangleAlert } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -8,7 +9,7 @@ import type { GeneratedTextProps } from "./GeneratedText";
 import { outputLibrary } from "./library";
 import { openuiMessages } from "./messages";
 import { readOpenUI } from "./parse";
-import { Markdown, Source } from "./parts";
+import { Depth, Markdown, Source } from "./parts";
 
 /**
  * OpenUI Lang drawn with dummyPlane's library (`./GeneratedText.tsx` loads it
@@ -28,10 +29,14 @@ export default function OpenUIView(props: GeneratedTextProps) {
     <OutputActionsProvider value={actions ?? {}}>
       <div data-openui className={cn("flex min-w-0 flex-col gap-2", className)}>
         <ErrorBoundary scope="generated text" fallback={() => <Markdown text={text} compact={compact} />}>
-          <Renderer response={text} library={outputLibrary} isStreaming={isStreaming} />
+          {/* A panel's small print starts a level down: its sections sit as close as a group's lines. */}
+          <Depth.Provider value={compact ? 1 : 0}>
+            <Renderer response={text} library={outputLibrary} isStreaming={isStreaming} />
+          </Depth.Provider>
         </ErrorBoundary>
         {broken && !isStreaming && (
-          <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-dp-text-2">
+          <p className="flex flex-wrap items-center gap-x-2 text-xs text-dp-text-2">
+            <TriangleAlert aria-hidden className="size-3.5 shrink-0 text-dp-wait" />
             {t.notShown}
             <button type="button" className="rounded-sm text-dp-accent-ink underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70" onClick={() => setOpen((v) => !v)}>
               {open ? t.hideSource : t.showSource}

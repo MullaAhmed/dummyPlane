@@ -60,7 +60,8 @@ export interface ArrangeInput {
   attachedTo?: (element: ExcalidrawElement) => string | Attachment | null | undefined;
   /**
    * A selection to arrange instead of the whole canvas: nodes, frames and what a group holds (drawings outside groups are ignored).
-   * One group, or members of one group: that group is tidied inside. Fewer than two blocks: the whole canvas (see `scope`).
+   * One group, or members of one group: that group is tidied inside. Several elements selected: their blocks alone, even when
+   * they make one block (it stays where it stands) or none (nothing moves). A single element: the whole canvas (see `scope`).
    */
   only?: readonly string[];
   /** What is arranged: see `ArrangeScope`. `auto` when absent. */
@@ -81,7 +82,8 @@ export interface ArrangeInput {
 }
 
 /**
- * - `auto`: the selection `only` when it holds two blocks or more, or lies in one group; else the whole canvas.
+ * - `auto`: the selection `only` when it holds several elements (however few blocks they make: never the whole canvas
+ *   then), or lies in one group; else, nothing or a single element selected, the whole canvas.
  * - `canvas`: the whole canvas, whatever is selected.
  * - `selection`: the selection only, never the whole canvas; nothing selected, nothing moves.
  */
@@ -631,25 +633,28 @@ function readScene(input: ArrangeInput) {
   const selectedFrames = new Set(selected.map(frameOfSelected));
   const insideOne = selected.length > 0 && selectedFrames.size === 1 && !selectedFrames.has(null) ? [...selectedFrames][0] : null;
   const selectedUnits = new Set(selected.map((id) => unitOf(units.has(id) ? id : frameOfSelected(id)!)));
-  // The selection alone when asked for, even of one block (it stays where it is); in `auto`, only from two blocks.
-  const scope = insideOne ? new Set([unitOf(insideOne)]) : selectedUnits.size >= 2 || asked === "selection" ? selectedUnits : new Set(unitMembers.keys());
-  return { aspect, layout, asked, live, byId, frames, frameIds, nodes, nodeIds, inFrame, liveParent, attachmentOf, anchorOf, groupFrameOf, units, unitOf, unitMembers, selected, insideOne, selectedUnits, scope };
+  // The selection alone: when asked for, and in `auto` as soon as several elements are selected, however few blocks they
+  // make (two terminals of one spawn tree are one block; a terminal and a drawing, one). Never the whole canvas then: one
+  // block stays where it stands. A single element selected in `auto` (a stray selection) is still the whole canvas.
+  const alone = asked === "selection" || (asked === "auto" && (input.only ?? []).filter((id) => byId.has(id)).length >= 2);
+  const scope = insideOne ? new Set([unitOf(insideOne)]) : alone ? selectedUnits : new Set(unitMembers.keys());
+  return { aspect, layout, live, byId, frames, frameIds, nodes, nodeIds, inFrame, liveParent, attachmentOf, anchorOf, groupFrameOf, units, unitOf, unitMembers, selected, insideOne, alone, scope };
 }
 
 /**
- * Whether this arrange takes the whole canvas: no selection of two blocks or more, none lying in one group, and not the
- * selection alone asked for. The reading `arrangedElements` makes, whether or not anything moves.
+ * Whether this arrange takes the whole canvas: nothing selected, or a single element selected that lies in no group,
+ * and not the selection alone asked for. The reading `arrangedElements` makes, whether or not anything moves.
  */
 export function arrangesWholeCanvas(input: ArrangeInput): boolean {
-  const { asked, insideOne, selectedUnits } = readScene(input);
-  return !insideOne && !(selectedUnits.size >= 2 || asked === "selection");
+  const { insideOne, alone } = readScene(input);
+  return !insideOne && !alone;
 }
 
 function arrange(input: ArrangeInput, treesLaid: boolean): { elements: ExcalidrawElement[]; movedNodeIds: Set<string> } | null {
   const { elements, parentOf, isMinimized } = input;
-  const { aspect, layout, asked, live, byId, frames, frameIds, nodes, nodeIds, inFrame, liveParent, attachmentOf, anchorOf, groupFrameOf, units, unitOf, unitMembers, selected, insideOne, scope } = readScene(input);
-  // The selection asked for, and nothing in it to arrange: nothing moves, not even the rest.
-  if (asked === "selection" && selected.length === 0) return null;
+  const { aspect, layout, live, byId, frames, frameIds, nodes, nodeIds, inFrame, liveParent, attachmentOf, anchorOf, groupFrameOf, units, unitOf, unitMembers, selected, insideOne, alone, scope } = readScene(input);
+  // The selection alone, and nothing in it to arrange (drawings outside frames): nothing moves, not even the rest.
+  if (alone && selected.length === 0) return null;
 
   // The tree: first, each spawn tree of what is arranged laid out downward from its root, alone (./arrangeTree.ts); then the
   // rest as for any layout, each tree moving whole. Only a tree the rest of the arrange tidies around it, which carries

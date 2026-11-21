@@ -5,8 +5,11 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { openRadial, radialStore } from "@/radial/radialState";
 import { uiStore } from "@/store/ui";
+import { laneStore } from "@/shell/lane";
+import { LANE_ROOM } from "@/shell/layout";
 import { canvasStore } from "./canvasStore";
 import { focusGroup, overview, overviewTargets, releaseToCanvas } from "./canvasFocus";
+import { CAMERA_MS } from "./viewActions";
 
 const element = (fields: Record<string, unknown>) =>
   ({ x: 0, y: 0, width: 100, height: 100, isDeleted: false, frameId: null, ...fields }) as unknown as ExcalidrawElement;
@@ -27,7 +30,12 @@ beforeEach(() => {
 afterEach(() => {
   document.body.replaceChildren();
   radialStore.setState({ ring: null });
+  vi.unstubAllGlobals();
 });
+
+/** The OS asks for reduced motion, or not. */
+const reducedMotion = (on: boolean) =>
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: on && query === "(prefers-reduced-motion: reduce)", media: query }));
 
 const withScene = (elements: ExcalidrawElement[]) =>
   canvasStore.setState({
@@ -85,17 +93,38 @@ describe("overview", () => {
     expect(overviewTargets(scene).map((e) => e.id)).toEqual(["box", "arrow"]);
   });
 
-  it("fits them with an animation and a 10 % margin, then gives the keyboard to the canvas", () => {
+  it("fits them at once from the keyboard (Ctrl+Shift+A), with a 10 % margin, then gives the keyboard to the canvas", () => {
     const scene = [node("batman", "terminal")];
     withScene(scene);
-    overview();
-    expect(scrollToContent).toHaveBeenCalledWith(scene, { fitToViewport: true, viewportZoomFactor: 0.9, animate: true, canvasOffsets: { top: 72, bottom: 60 } });
+    overview("keyboard");
+    expect(scrollToContent).toHaveBeenCalledWith(scene, { fitToViewport: true, viewportZoomFactor: 0.9, animate: false, canvasOffsets: { top: 72, right: 70, bottom: 60, left: 70 } });
     expect(document.activeElement).toBe(container);
+  });
+
+  it("fits them in the work area: left of the lane while the Agents panel or the Edit panel stands in it", () => {
+    const scene = [node("batman", "terminal")];
+    withScene(scene);
+    laneStore.setState({ occupants: ["agents"] });
+    overview("keyboard");
+    expect(scrollToContent).toHaveBeenLastCalledWith(scene, { fitToViewport: true, viewportZoomFactor: 0.9, animate: false, canvasOffsets: { top: 72, right: LANE_ROOM, bottom: 60, left: 70 } });
+    laneStore.setState({ occupants: [] });
+  });
+
+  it("glides for CAMERA_MS at most when the pointer asked, and lands at once under reduced motion", () => {
+    const scene = [node("batman", "terminal")];
+    withScene(scene);
+    reducedMotion(false);
+    overview("pointer");
+    expect(scrollToContent).toHaveBeenLastCalledWith(scene, { fitToViewport: true, viewportZoomFactor: 0.9, animate: true, duration: CAMERA_MS, canvasOffsets: { top: 72, right: 70, bottom: 60, left: 70 } });
+    expect(CAMERA_MS).toBeLessThanOrEqual(300);
+    reducedMotion(true);
+    overview("pointer");
+    expect(scrollToContent).toHaveBeenLastCalledWith(scene, { fitToViewport: true, viewportZoomFactor: 0.9, animate: false, canvasOffsets: { top: 72, right: 70, bottom: 60, left: 70 } });
   });
 
   it("leaves an empty canvas alone", () => {
     withScene([]);
-    overview();
+    overview("keyboard");
     expect(scrollToContent).not.toHaveBeenCalled();
   });
 });
@@ -104,14 +133,27 @@ describe("focusGroup", () => {
   it("fits the group's frame, at 100 % at most, and gives the keyboard to the canvas", () => {
     const frame = groupFrame("backend");
     withScene([frame]);
-    expect(focusGroup("backend")).toBe(true);
-    expect(scrollToContent).toHaveBeenCalledWith(frame, { fitToViewport: true, viewportZoomFactor: 0.9, animate: true, maxZoom: 1, canvasOffsets: { top: 96, bottom: 60 } });
+    expect(focusGroup("backend", "keyboard")).toBe(true);
+    // Go to and the shortcuts are the keyboard: the view lands at once.
+    expect(scrollToContent).toHaveBeenCalledWith(frame, { fitToViewport: true, viewportZoomFactor: 0.9, animate: false, maxZoom: 1, canvasOffsets: { top: 96, right: 70, bottom: 60, left: 70 } });
     expect(document.activeElement).toBe(container);
+  });
+
+  it("glides to it for CAMERA_MS when the radial ring asked, at once under reduced motion", () => {
+    const frame = groupFrame("backend");
+    withScene([frame]);
+    reducedMotion(false);
+    focusGroup("backend", "pointer");
+    expect(scrollToContent.mock.lastCall?.[1]).toMatchObject({ animate: true, duration: CAMERA_MS });
+    reducedMotion(true);
+    focusGroup("backend", "pointer");
+    expect(scrollToContent.mock.lastCall?.[1]).toMatchObject({ animate: false });
+    expect(scrollToContent.mock.lastCall?.[1]).not.toHaveProperty("duration");
   });
 
   it("reports a group that is gone", () => {
     withScene([]);
-    expect(focusGroup("backend")).toBe(false);
+    expect(focusGroup("backend", "keyboard")).toBe(false);
     expect(scrollToContent).not.toHaveBeenCalled();
   });
 });

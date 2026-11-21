@@ -1,3 +1,5 @@
+import { unsentAnywhere } from "@/nodes/terminal/draft";
+
 /** How long after a key pressed in a field or a terminal the user still counts as typing. */
 export const TYPING_MS = 3000;
 
@@ -52,10 +54,12 @@ export function userIsWriting(now = Date.now()): boolean {
 /**
  * The user is typing: a key went to a field or a terminal a moment ago, or the keyboard sits in a field
  * (the command bar, a dialog, a name being edited). A terminal that merely holds the keyboard does not count:
- * it holds it for as long as nobody clicks elsewhere.
+ * it holds it for as long as nobody clicks elsewhere. A sentence left half-written in a terminal counts too, however
+ * long the user has paused over it (`unsentAnywhere`): an agent that arrives meanwhile neither moves the view nor
+ * takes the keyboard from it.
  */
 export function userIsTyping(now = Date.now()): boolean {
-  if (now - lastKey < TYPING_MS) return true;
+  if (now - lastKey < TYPING_MS || unsentAnywhere(now)) return true;
   const active = document.activeElement;
   return isField(active) && !active.closest(".xterm");
 }

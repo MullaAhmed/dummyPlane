@@ -1,13 +1,17 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type KeyboardEvent as ReactKeyboardEvent, type SetStateAction } from "react";
-import { ChevronDown, ChevronRight, Code2, Eye, File, Folder, FolderTree, PanelTopOpen, RotateCw, Save, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Code2, Eye, File, Folder, FolderTree, PanelTopOpen, PencilLine, RotateCw, Save, X } from "lucide-react";
 import { useStore } from "zustand";
 import { useMessages } from "@/i18n";
 import { studioTree, type TreeEntry } from "@/ipc/studio";
+import { logError } from "@/lib/errorToast";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/EmptyState";
+import { InlineProblem } from "@/components/InlineProblem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AccentButton, Hint, HintedButton, IconButton, QuietButton, ToolButton } from "@/shell/buttons";
-import { TOP_ROW_HEIGHT } from "@/shell/layout";
+import { LANE_TOP } from "@/shell/layout";
+import { useWorkWindowPlace } from "@/shell/lane";
 import { CutHint } from "@/review/PathTail";
 import { useProjects } from "@/store/projects";
 import { CodeEditor } from "./CodeEditor";
@@ -15,7 +19,7 @@ import { insertFileNode } from "./insert";
 import { isDirty as sessionIsDirty } from "./fileSession";
 import { isMarkdown, renderMarkdown } from "./markdown";
 import { studioMessages } from "./messages";
-import { BAR_FIELD, DiskBanner, errorText, ListMessage, Message } from "./parts";
+import { BAR_FIELD, DecisionBar, DiskBanner, errorText, OVER_THE_FILE } from "./parts";
 import { useDiskWatch, useSaveKey } from "./sessionEffects";
 import { closeStudio, closeTab, editFile, isDirty, openFile, openStudio, saveFile, useStudio, type StudioTab } from "./studioStore";
 import { ancestors, baseName, buildTree, toggle, visibleRows, type TreeNode, type TreeRow } from "./tree";
@@ -41,12 +45,15 @@ export function CodeWorkspace() {
 
 function StudioContent({ project }: { project: string }) {
   const t = useMessages(studioMessages);
+  const place = useWorkWindowPlace();
   const name = useProjects((s) => s.projects.find((p) => p.id === project)?.name) ?? "";
   const tabs = useStudio((s) => s.tabs);
   const active = useStudio((s) => s.active);
   const tab = tabs.find((x) => x.path === active) ?? null;
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [treeOpen, setTreeOpen] = useState(true);
+  // The tab whose close asks about its unsaved changes, in the decision bar; the file's own question waits meanwhile.
+  const [confirming, setConfirming] = useState<string | null>(null);
 
   // Stable: the tree's memoised rows take it.
   const open = useCallback((path: string) => {
@@ -66,8 +73,9 @@ function StudioContent({ project }: { project: string }) {
       data-code-workspace
       role="region"
       aria-label={t.title(name)}
-      className="absolute inset-0 flex gap-3 pr-18 pb-3 pl-3 text-dp-text"
-      style={{ paddingTop: TOP_ROW_HEIGHT + 12 }}
+      // Under the bars, left of the activity rail, or of an occupied lane where it fits (shell/layout.ts).
+      className="absolute inset-0 flex gap-3 pb-3 pl-3 text-dp-text"
+      style={{ paddingTop: LANE_TOP, paddingRight: place.right }}
     >
       <nav className="dp-glass z-30 flex shrink-0 flex-col items-center gap-0.5 self-center rounded-lg p-1">
         {/* One name, its state in aria-pressed: "Files, pressed", not "Hide the files, pressed". */}
@@ -77,8 +85,8 @@ function StudioContent({ project }: { project: string }) {
       </nav>
       {treeOpen && <FileTree project={project} active={active} expanded={expanded} setExpanded={setExpanded} onOpen={open} />}
       <section className="dp-glass-strong flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl">
-        <Tabs tabs={tabs} active={active} />
-        {tab ? <FilePane key={tab.path} tab={tab} onOpen={open} /> : <Message>{t.pickFile}</Message>}
+        <Tabs tabs={tabs} active={active} confirming={confirming} setConfirming={setConfirming} />
+        {tab ? <FilePane key={tab.path} tab={tab} onOpen={open} asking={tabs.some((x) => x.path === confirming)} /> : <EmptyState>{t.pickFile}</EmptyState>}
       </section>
     </div>
   );
@@ -111,7 +119,11 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
         setListCut(found.truncated);
         setEntries(found.entries);
       },
-      (failure: unknown) => alive && setError(errorText(failure)),
+      (failure: unknown) => {
+        if (!alive) return;
+        logError(t.treeFailed, failure);
+        setError(errorText(failure));
+      },
     );
     return () => {
       alive = false;
@@ -179,11 +191,11 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
       </div>
       <div className="min-h-0 flex-1 overflow-auto py-1">
         {error !== null ? (
-          <ListMessage>{t.treeFailed(error)}</ListMessage>
+          <InlineProblem place="list" title={t.treeFailed} next={t.treeNext} error={error} />
         ) : entries === null ? (
-          <ListMessage>{t.readingTree}</ListMessage>
+          <EmptyState place="list" grace>{t.readingTree}</EmptyState>
         ) : rows.length === 0 ? (
-          <ListMessage>{filtering ? t.noMatch : t.empty}</ListMessage>
+          <EmptyState place="list">{filtering ? t.noMatch : t.empty}</EmptyState>
         ) : (
           <>
             <div
@@ -198,9 +210,9 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
               ))}
             </div>
             {/* The cut is said: a file past it is not missing, the filter finds it (P2-52). */}
-            {rows.length > MAX_ROWS && <ListMessage>{t.treeCut(MAX_ROWS)}</ListMessage>}
+            {rows.length > MAX_ROWS && <EmptyState place="list">{t.treeCut(MAX_ROWS)}</EmptyState>}
             {/* The project's own cut: the filter only searches what was listed, so it says so. */}
-            {listCut && <ListMessage>{t.treeListCut(entries.length)}</ListMessage>}
+            {listCut && <EmptyState place="list">{t.treeListCut(entries.length)}</EmptyState>}
           </>
         )}
       </div>
@@ -263,9 +275,15 @@ const TreeItem = memo(function TreeItem({ row, active, tabbable, onActivate }: {
   return mayBeCut(node.name, depth) ? <CutHint label={node.path}>{item}</CutHint> : item;
 });
 
-function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
-  const t = useMessages(studioMessages);
-  const [confirming, setConfirming] = useState<string | null>(null);
+interface TabsProps {
+  tabs: StudioTab[];
+  active: string | null;
+  confirming: string | null;
+  setConfirming: (path: string | null) => void;
+}
+
+function Tabs({ tabs, active, confirming, setConfirming }: TabsProps) {
+  const t = useMessages(studioMessages).unsaved;
   const pending = tabs.find((x) => x.path === confirming);
 
   const close = (tab: StudioTab) => {
@@ -274,8 +292,9 @@ function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
   };
 
   return (
-    // The bar asking about unsaved changes lies over the editor's top edge, under the tabs: the code
-    // under the pointer never moves down to make room for it.
+    // The decision bar asking about a tab's unsaved changes lies over the editor's top edge, under the tabs
+    // (`OVER_THE_FILE`): the code under the pointer never moves down to make room for it. It covers the file's
+    // own question, in the same bar at the same place (`FilePane`): one question at a time.
     <div className="relative shrink-0">
       {/* Documents that open and close, not a view switcher: buttons, the one shown aria-current (P2-15). */}
       <div data-doc-strip className="flex h-10 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-dp-line px-2">
@@ -284,9 +303,8 @@ function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
         ))}
       </div>
       {pending && (
-        <div role="alert" className="absolute inset-x-0 top-full z-10 flex flex-wrap items-center gap-2 border-b border-dp-line bg-dp-surface px-3 py-2 text-sm">
-          <span className="mr-auto">{t.discardTitle(baseName(pending.path))}</span>
-          {/* The dialogs' footer in a bar: dismiss, destructive, primary; `sm` like the bar's other controls. */}
+        // The window's own question in a bar (QuitPrompt's dialog): the same words, the same order.
+        <DecisionBar question={t.title(baseName(pending.path))} className={OVER_THE_FILE}>
           <QuietButton size="sm" onClick={() => setConfirming(null)}>
             {t.cancel}
           </QuietButton>
@@ -305,13 +323,13 @@ function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
             onClick={async () => {
               setConfirming(null);
               if (await saveFile(pending.path)) closeTab(pending.path);
-              // Its conflict banner is on its own page, which may not be the one shown.
+              // A conflict: its file is shown, and the bar asks about its disk.
               else void openFile(pending.path);
             }}
           >
-            {t.saveAndClose}
+            {t.save}
           </AccentButton>
-        </div>
+        </DecisionBar>
       )}
     </div>
   );
@@ -331,7 +349,7 @@ function TabItem({ tab, active, onClose }: { tab: StudioTab; active: boolean; on
       data-tab={tab.path}
       onAuxClick={(e) => e.button === 1 && onClose()}
       className={cn(
-        "flex h-8 shrink-0 items-center rounded-t-md text-dp-text-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text motion-reduce:transition-none",
+        "flex h-8 shrink-0 items-center rounded-t-md text-dp-text-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text",
         active && "bg-dp-tab-on text-dp-text hover:bg-dp-tab-on",
       )}
     >
@@ -344,8 +362,9 @@ function TabItem({ tab, active, onClose }: { tab: StudioTab; active: boolean; on
         className="h-full gap-2 rounded-none rounded-tl-md bg-transparent pr-1 pl-3 text-sm font-normal text-current hover:bg-transparent hover:text-current focus-visible:ring-inset active:scale-100"
       >
         <span className="max-w-48 truncate">{name}</span>
-        {/* The dot is for the eye; its words are read with the name. */}
-        {dirty && <span data-dirty aria-hidden className="size-2 shrink-0 rounded-full bg-dp-accent" />}
+        {/* The pencil is for the eye (no dot: the round dot is an agent's mark, and the words would not fit a tab);
+            its words are read with the name, and shown over the file itself. */}
+        {dirty && <PencilLine data-dirty aria-hidden className="size-3 shrink-0 text-dp-text-2" />}
         {dirty && <span className="sr-only">{t.modified}</span>}
       </HintedButton>
       {/* IconButton is 28 px: a tab is 32, so this one is the kit's `icon-xs` made from the same HintedButton. */}
@@ -356,23 +375,29 @@ function TabItem({ tab, active, onClose }: { tab: StudioTab; active: boolean; on
   );
 }
 
-function FilePane({ tab, onOpen }: { tab: StudioTab; onOpen: (path: string) => void }) {
+function FilePane({ tab, onOpen, asking }: { tab: StudioTab; onOpen: (path: string) => void; asking: boolean }) {
   const t = useMessages(studioMessages);
-  const { draft, disk, error, file, loading, refused, revision, saving } = useStore(tab.session);
+  const { draft, disk, error, failedTo, file, loading, refused, revision, saving } = useStore(tab.session);
   const markdown = isMarkdown(tab.path);
   const [preview, setPreview] = useState(false);
   const dirty = useStore(tab.session, sessionIsDirty);
   const previewing = markdown && preview;
 
-  if (loading || !file) return <Message>{t.readingFile}</Message>;
-  if (refused) return <Message>{t.readFailed(refused)}</Message>;
+  if (loading || !file) return <EmptyState grace>{t.readingFile}</EmptyState>;
+  if (refused) return <InlineProblem title={t.readFailed(tab.path)} next={t.readNext} error={refused} />;
   return (
     <>
-      {disk && <DiskBanner session={tab.session} disk={disk} onDrop={() => closeTab(tab.path)} />}
+      {/* The disk's question stands until answered, the file edited under it: in the flow, so a bar that wraps never
+          covers the code. A tab's close question takes its place meanwhile (`Tabs`): kept in its room, out of sight. */}
+      {disk && <DiskBanner session={tab.session} disk={disk} onDrop={() => closeTab(tab.path)} className={cn(asking && "invisible")} />}
       {error && (
-        <p role="status" className="shrink-0 border-b border-dp-line px-3 py-2 text-xs text-dp-danger">
-          {t.failed(error)}
-        </p>
+        <InlineProblem
+          place="band"
+          role="status"
+          title={failedTo === "reload" ? t.reloadFailed(tab.path) : t.saveFailed(tab.path)}
+          next={failedTo === "reload" ? t.reloadNext : t.saveNext}
+          error={error}
+        />
       )}
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
         <span className="min-w-0 truncate font-mono text-xs text-dp-text-3">{tab.path}</span>

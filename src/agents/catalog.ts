@@ -86,6 +86,13 @@ const PALE_TINTS = new Set((["cursor", "opencode", "ollama"] as const).map((id) 
 export const AGENT_ORDER: AgentId[] = [...AGENT_IDS];
 
 /**
+ * The agents the ＋ menu says outright that nothing stops their deletes. dummyPlane's delete guard is a
+ * hook of Claude Code (`src-tauri/src/agents/delete_guard.rs`); Gemini is started bare, with no role and no hook
+ * of dummyPlane's. (A Codex agent is told in the night dialog, where its permission is chosen.)
+ */
+export const DELETES_NOT_BLOCKED: ReadonlySet<AgentId> = new Set<AgentId>(["gemini"]);
+
+/**
  * An agent tint, kept as a name because the status pill still takes an `indigo` flag (pillOf's
  * `workingIndigo` tone). Tints are identity for an agent's icon only: frames are neutral, and
  * the status dot looks the same for every agent.

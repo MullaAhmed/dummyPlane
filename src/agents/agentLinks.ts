@@ -1,6 +1,8 @@
-import { nodesStore, terminalOf } from "@/store/nodes";
+import { isManagerNode, nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
 import { AGENTS } from "./catalog";
+import { withLinkGroup, type LinkOutcome } from "./linkGroup";
+import { pantheonForNewGroup } from "./naming";
 import { sceneAccess } from "./sceneAccess";
 import { takesCommands } from "./slashCommands";
 import { agentLinksOf, withAgentLink } from "./wires";
@@ -17,16 +19,41 @@ export function linkableAgent(nodeId: string): boolean {
   return payload !== undefined && takesCommands(payload.agent);
 }
 
-/** "+ Link" from an agent's foot, then a click on another agent: a wire between them, in one undo step. */
-export function linkAgents(fromId: string, toId: string) {
-  if (fromId === toId || !linkableAgent(fromId) || !linkableAgent(toId)) return;
-  const workspaceId = nodesStore.getState().nodes[fromId]?.workspaceId ?? workspacesStore.getState().activeId;
+/** The groups a mission keeps for its team (`Mission.frameId`, `Mission.teamFrame`): closed with the mission. */
+function missionGroups(nodes: Readonly<Record<string, NodeRecord>>): Set<string> {
+  const ids = new Set<string>();
+  for (const record of Object.values(nodes)) {
+    const mission = record.kind === "fleet" ? record.payload.mission : undefined;
+    for (const id of [mission?.frameId, mission?.teamFrame]) if (id) ids.add(id);
+  }
+  return ids;
+}
+
+/**
+ * "+ Link" from an agent's foot, then a click on another agent: a wire between
+ * them, and the two made a group (./linkGroup.ts), in one undo step. Returns what
+ * it did besides the wire, for the caller to tell the user when the two were not
+ * grouped; null when nothing was written (already linked, either way round, or
+ * not two agents that take instructions).
+ */
+export function linkAgents(fromId: string, toId: string): LinkOutcome | null {
+  if (fromId === toId || !linkableAgent(fromId) || !linkableAgent(toId)) return null;
+  const nodes = nodesStore.getState().nodes;
+  const workspaceId = nodes[fromId]?.workspaceId ?? workspacesStore.getState().activeId;
   const scene = workspaceId ? sceneAccess(workspaceId) : null;
-  if (!scene) return;
+  if (!scene || !workspaceId) return null;
   const before = scene.elements();
-  const after = withAgentLink(before, fromId, toId);
-  // Already linked (either way round): no second wire, and no empty undo step.
-  if (after.length !== before.length) scene.write(after);
+  // Already linked (either way round): no second wire, no group, and no empty undo step.
+  if (withAgentLink(before, fromId, toId).length === before.length) return null;
+  const grouped = withLinkGroup(before, fromId, toId, {
+    pantheon: () => pantheonForNewGroup(workspaceId),
+    parentOf: (id) => terminalOf(nodesStore.getState().nodes[id])?.spawnedBy,
+    isManager: isManagerNode,
+    missionGroups: missionGroups(nodes),
+  });
+  // The wire last: it runs between the two where the group put them.
+  scene.write(withAgentLink(grouped.elements, fromId, toId));
+  return grouped.outcome;
 }
 
 /** An agent at the other end of one of `nodeId`'s wires. */

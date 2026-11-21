@@ -10,6 +10,7 @@ import type { TerminalPayload, TerminalReport } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
 import { isManagerRecord, nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import { isRestarting, isRunning, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
+import { holdFor } from "./dialogs";
 import { sceneAccess } from "./sceneAccess";
 import { hasSpawnedAtWork, isLaunching } from "./spawnFamily";
 
@@ -178,6 +179,8 @@ async function wake(nodeId: string, slow?: () => void): Promise<boolean> {
       // A question only the user answers (a project's new MCP server) may hold its prompt past the minute.
       waitLonger: () => isRunning(nodeId),
       slow,
+      // Meanwhile it waits for the user, and its parent hears what on (`@/mission/events`).
+      held: holdFor(nodeId),
     },
     undefined,
     // Its folder was trusted when it first started; its resumed conversation may well say "trust" and "folder".

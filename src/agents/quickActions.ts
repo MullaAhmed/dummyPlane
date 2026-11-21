@@ -4,11 +4,13 @@ import { messages } from "@/i18n";
 import type { AgentId } from "@/ipc/pty";
 import { workspacesStore } from "@/store/workspaces";
 import { loadedAgents } from "./agentsStore";
+import { arriveLaunched } from "./arrivals";
 import { defaultAgent } from "./catalog";
 import { defaultLaunchOptions, launchAgent, type LaunchOptions } from "./launchAgent";
 import { launchFolderStore, pickFolder } from "./launchFolder";
 import { agentsMessages } from "./messages";
 import { addFleet } from "@/fleet/fleets";
+import { currentWorkArea } from "@/shell/lane";
 import { viewportCenter } from "./placement";
 import type { Point } from "./terminals";
 
@@ -16,10 +18,11 @@ const reportLaunchError = (error: unknown) => toastError(messages(agentsMessages
 
 /**
  * An agent at `at`, else at the center of the view, in the group under it if any. It starts in the active workspace's folder, unless `options` says otherwise.
+ * The user asked for it (the ring, the palette, the Agents panel): it takes the keyboard.
  */
 export function launchAt(agent: AgentId, at?: Point, options: LaunchOptions = defaultLaunchOptions()) {
-  const center = at ?? viewportCenter(canvasStore.getState().view);
-  void launchAgent(agent, options, center).catch(reportLaunchError);
+  const center = at ?? viewportCenter(canvasStore.getState().view, currentWorkArea());
+  void launchAgent(agent, options, center).then(arriveLaunched).catch(reportLaunchError);
 }
 
 /** "New console": the default agent. */
@@ -43,7 +46,7 @@ export async function newTerminalInFolder(at?: Point) {
 export function placeFleet(at?: Point) {
   const workspaceId = workspacesStore.getState().activeId;
   if (!workspaceId) return;
-  void addFleet(workspaceId, at ?? viewportCenter(canvasStore.getState().view)).catch(reportLaunchError);
+  void addFleet(workspaceId, at ?? viewportCenter(canvasStore.getState().view, currentWorkArea())).catch(reportLaunchError);
 }
 
 /**
@@ -52,6 +55,6 @@ export function placeFleet(at?: Point) {
  */
 export async function launchLogin(accountId: string): Promise<boolean> {
   if (!workspacesStore.getState().activeId) return false;
-  const center = viewportCenter(canvasStore.getState().view);
+  const center = viewportCenter(canvasStore.getState().view, currentWorkArea());
   return (await launchAgent("claude", { ...defaultLaunchOptions(), accountId }, center)) !== null;
 }

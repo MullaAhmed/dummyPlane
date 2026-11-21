@@ -31,7 +31,7 @@ function Slider({
         data-slot="slider-thumb"
         aria-label={thumbLabel}
         aria-valuetext={valueText}
-        className="block size-3 shrink-0 rounded-full border border-dp-text-2 bg-dp-surface transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) outline-none after:absolute after:-inset-2 hover:border-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 motion-reduce:transition-none"
+        className="block size-3 shrink-0 rounded-full border border-dp-text-2 bg-dp-surface transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) outline-none after:absolute after:-inset-2 hover:border-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70"
       />
     </SliderPrimitive.Root>
   )

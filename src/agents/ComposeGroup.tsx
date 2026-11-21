@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { ChevronDown, Minus, Plus } from "lucide-react";
 import { toastError } from "@/lib/errorToast";
+import { RoleMark } from "@/components/marks";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,9 +21,11 @@ import type { AgentId } from "@/ipc/pty";
 import { cn } from "@/lib/utils";
 import { workspacesStore } from "@/store/workspaces";
 import { agentsStore, useAgents } from "./agentsStore";
+import { arriveLaunched } from "./arrivals";
 import { agentInk, AGENTS, AGENTS_WITHOUT_OPTIONS, defaultAgent } from "./catalog";
 import { agentsOf, DEFAULT_GROUP_SIZE, MAX_GROUP_SIZE, resizeSlots, type Slot } from "./composer";
 import { agentsMessages } from "./messages";
+import { watchLaunched } from "./firstQuestion";
 import { launchGroup } from "./groups";
 import { defaultLaunchOptions } from "./launchAgent";
 import { LaunchFolderBar } from "./LaunchFolderBar";
@@ -89,9 +92,12 @@ export function ComposeGroup({
   const [slots, setSlots] = useState<Slot[]>(resizeSlots([], DEFAULT_GROUP_SIZE));
   // The set the agents' names come from; offered as the first one no group of the workspace uses.
   const [pantheon, setPantheon] = useState<string>(PANTHEONS[0].id);
+  // Opened by a request (the palette, a shortcut), not by its trigger: it shows at once, as AgentMenu does.
+  const [instant, setInstant] = useState(false);
   useUiRequest(
     "composeGroup",
     () => {
+      setInstant(true);
       setOpen(true);
       return true;
     },
@@ -118,24 +124,48 @@ export function ComposeGroup({
     setRole(next);
   };
 
+  // The popover closed on a launch: the group's first terminal takes the keyboard, the trigger must not take it back.
+  const launched = useRef(false);
   const launch = () => {
+    launched.current = true;
     setOpen(false);
     returnKeyboardToCanvas();
-    void launchGroup({ name, role, agents: agentsOf(slots, fallback), pantheon }, defaultLaunchOptions()).catch((error: unknown) =>
-      toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext }),
-    );
+    void launchGroup({ name, role, agents: agentsOf(slots, fallback), pantheon }, defaultLaunchOptions())
+      .then((made) => {
+        arriveLaunched(made?.nodeIds[0]);
+        // Each one's first question (trust this folder?) is the user's: `launchGroup` itself also forms a mission's team.
+        watchLaunched(made?.nodeIds ?? []);
+      })
+      .catch((error: unknown) => toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext }));
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        // Its trigger opened it: it grows from it, as a popover does.
+        if (next) setInstant(false);
+        setOpen(next);
+      }}
+    >
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent side={side} sideOffset={8} className="flex w-90 flex-col gap-3 p-3">
+      <PopoverContent
+        side={side}
+        sideOffset={8}
+        data-instant={instant ? "" : undefined}
+        className="flex w-90 flex-col gap-3 p-3"
+        onCloseAutoFocus={(event) => {
+          if (!launched.current) return;
+          launched.current = false;
+          event.preventDefault();
+        }}
+      >
         <p className="dp-label">{t.title}</p>
         {/* Where the agents start: the same folder as the Agent menu's, changed here the same way. */}
         <LaunchFolderBar compact />
-        {/* The role's dot sits in the field, before the name it colours. */}
+        {/* The role's bar sits in the field, before the name it colours: the round dot is an agent's. */}
         <div className="relative">
-          <span aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-2 rounded-full -translate-y-1/2" style={{ backgroundColor: color }} />
+          <RoleMark color={color} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
           <Input
             autoFocus
             value={name}
@@ -170,7 +200,7 @@ export function ComposeGroup({
                 // The chosen role is filled with its own colour: inline, so it outranks the hover.
                 style={active ? { backgroundColor: ROLES[id].color, borderColor: ROLES[id].color } : undefined}
               >
-                <span className="size-1.5 rounded-full" style={{ backgroundColor: active ? "var(--dp-on-role)" : ROLES[id].color }} />
+                <RoleMark color={active ? "var(--dp-on-role)" : ROLES[id].color} />
                 {ROLES[id].label}
               </ToggleGroupItem>
             );

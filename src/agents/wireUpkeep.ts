@@ -12,6 +12,7 @@ import {
   orphanReason,
   orphanWires,
   outdatedWires,
+  rejoinableWires,
   revivableWires,
   staleWireBindings,
   unmarkedWires,
@@ -19,6 +20,7 @@ import {
   wireFlagsOf,
   wireMark as markWith,
   withSpawnWires,
+  withWireBetween,
   type SpawnerOf,
 } from "./wires";
 
@@ -106,6 +108,7 @@ export function scheduleWireUpkeep(api: ExcalidrawImperativeAPI, elements: reado
     const current = api.getSceneElementsIncludingDeleted();
     const marked = new Set(unmarkedWires(current));
     const orphans = new Set(orphanWires(current));
+    const rejoins = rejoinableWires(current);
     const revived = new Set(revivableWires(current));
     const palette = currentPalette();
     const outdated = new Set(outdatedWires(current, palette));
@@ -136,9 +139,17 @@ export function scheduleWireUpkeep(api: ExcalidrawImperativeAPI, elements: reado
     const healed = withSpawnWires(kept, spawnerOf, palette);
     // The trigger that leaves a spawn wire without an end is still unknown: each one re-created is logged.
     for (const { parentId, childId } of healed.added) console.warn(`spawn wire re-created: child ${childId}, parent ${parentId}`);
+    // A link whose end lost its binding, the node there still listing it, joins its two ends again (`rejoinableWires`).
+    let joined = healed.elements;
+    for (const { wireId, fromId, toId } of rejoins) {
+      const after = withWireBetween(joined, fromId, toId, palette);
+      if (after.length === joined.length) continue;
+      joined = after;
+      console.warn(`wire ${wireId} re-joined: ${fromId} to ${toId}`);
+    }
     // A node moved past its neighbour: its wires leave and enter by the sides that now face each other.
-    const faced = busy(api.getAppState()) ? healed.elements : faceWires(healed.elements);
-    if (healed.added.length === 0 && faced === healed.elements && kept.every((e, i) => e === current[i])) return;
+    const faced = busy(api.getAppState()) ? joined : faceWires(joined);
+    if (healed.added.length === 0 && joined === healed.elements && faced === joined && kept.every((e, i) => e === current[i])) return;
     api.updateScene({ elements: faced, captureUpdate: CaptureUpdateAction.NEVER });
   });
 }

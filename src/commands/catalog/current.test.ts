@@ -205,12 +205,17 @@ describe("Terminal · <prénom> and Groupe · <nom>", () => {
     expect(ungroup).toHaveBeenCalledWith("g1");
     await find("group.close").run(ctx("batman"));
     expect(requestCloseGroup).toHaveBeenCalledWith("g1");
+    // Add an agent: the list of agents at the middle of the canvas from the palette, and the Agents panel, which a group with no agent of its own is not listed in, left alone.
     agentsPanelStore.setState({ open: false, filter: "waiting" });
     await find("group.addAgent").run(ctx("batman"));
-    expect(agentsPanelStore.getState()).toMatchObject({ open: true, filter: "all" });
-    expect(pendingUiRequest()).toEqual({ kind: "groupMenu", id: "g1" });
+    expect(agentsPanelStore.getState()).toMatchObject({ open: false, filter: "waiting" });
+    expect(pendingUiRequest()).toEqual({ kind: "groupAgentMenu", id: "g1", at: { x: 0, y: 0 } });
+    // From the group's ring: at the press, for the group the ring points at (no terminal of the moment needed).
+    await find("group.addAgent").run({ ...ctx(null), groupId: "g1", at: { x: 10, y: 20 } });
+    expect(pendingUiRequest()).toEqual({ kind: "groupAgentMenu", id: "g1", at: { x: 10, y: 20 } });
     await find("group.rename").run(ctx("batman"));
-    expect(focusGroup).toHaveBeenCalledWith("g1");
+    // From the palette: the keyboard asked, the view lands at once.
+    expect(focusGroup).toHaveBeenCalledWith("g1", "keyboard");
     // Arrange inside the group alone: scene.arrange of its frame, one undo.
     await find("group.arrange").run(ctx("batman"));
     expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { only: ["g1"], undoable: true });
@@ -251,12 +256,13 @@ describe("Terminal · <prénom> and Groupe · <nom>", () => {
   });
 
   it("acts on the group the radial menu points at, not the terminal's", async () => {
-    const pointed = { ...ctx("cyborg"), groupId: "g1" };
+    const pointed = { ...ctx("cyborg"), groupId: "g1", at: { x: 10, y: 20 } };
     expect(sectionOf(find("group.rename"), pointed)).toBe("Group · Serveurs");
     await find("group.pause").run(pointed);
     expect(pauseAll).toHaveBeenCalledWith(["batman"]);
     await find("group.frame").run(pointed);
-    expect(focusGroup).toHaveBeenLastCalledWith("g1");
+    // The ring is pressed with the pointer: the view glides there.
+    expect(focusGroup).toHaveBeenLastCalledWith("g1", "pointer");
     expect(find("group.pause").available({ ...ctx("cyborg"), groupId: "gone" })).toBe(false);
   });
 });

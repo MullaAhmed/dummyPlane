@@ -2,6 +2,11 @@ import { defineMessages, plural } from "@/i18n";
 import type { LoopError, LoopTemplate, LoopTrigger } from "./model";
 import type { StopReason } from "./engine";
 
+/** How a loop ended that can run again as it is. */
+export type LoopEnd = Exclude<StopReason, "noTargets" | "noAgents">;
+/** Why a loop cannot run as it is: it stopped with no agent to type into, or it never had one. */
+export type LoopProblem = "noTargets" | "noAgents" | "noAgent";
+
 /** Texts of the loops (loops spec). */
 export const loopsMessages = defineMessages({
     section: "Loops",
@@ -32,12 +37,10 @@ export const loopsMessages = defineMessages({
       instruction: "Instruction sent",
       targets: "Agents",
       noTargets: "No agent in this project",
-      // A loop whose only targets are plain shells (saved before loops were agents only): it stays off.
-      noAgent: "no agent among its targets: edit it to choose agents",
       // Loops of other projects still run; the indicator's Stop all stops them with this project's.
-      elsewhere: (running: number) => `${plural(running, "loop runs", "loops run")} in other projects: Stop all, at the bottom left, stops them too.`,
+      elsewhere: (running: number) => `${plural(running, "loop runs", "loops run")} in other projects: Stop all, at the bottom left, stops them too`,
       trigger: "Trigger",
-      triggers: { interval: "Every N minutes", idle: "An agent becomes idle", output: "Output contains a text" },
+      triggers: { interval: "Every N minutes", idle: "An agent becomes ready", output: "Output contains a text" },
       // A number reads as a sentence, the field between the words: "Every 30 minutes", "At most 5 runs".
       every: "Every",
       atMost: "At most",
@@ -58,13 +61,26 @@ export const loopsMessages = defineMessages({
       off: "off",
       round: (runs: number, max: number | undefined) => (max === undefined ? `run ${runs}` : `run ${runs} / ${max}`),
       untilEnd: (minutes: number) => `ends in ${minutes} min`,
+      // How a loop ended on its own terms, or by hand: a loop that cannot run says so as a problem (below).
       stopped: {
         runs: "done: runs reached",
         duration: "done: duration reached",
         manual: "stopped",
-        noTargets: "stopped: no agent left",
-        noAgents: "stopped: its targets are shells, not agents",
-      } as Record<StopReason, string>,
+      } as Record<LoopEnd, string>,
+      /**
+       * A loop that cannot run, and how to make it run again: Edit is then its first button. noAgent: saved when shells
+       * could be targets, none of its own is an agent, and it stays off.
+       */
+      problem: {
+        noTargets: "Stopped: none of its agents is running",
+        noAgents: "Stopped: its targets are shells, not agents",
+        noAgent: "Off: none of its targets is an agent",
+      } as Record<LoopProblem, string>,
+      problemNext: {
+        noTargets: "Restart one of its agents, or edit the loop to pick others",
+        noAgents: "Edit the loop to choose agents",
+        noAgent: "Edit the loop to choose agents",
+      } as Record<LoopProblem, string>,
       cost: (loop: { trigger: LoopTrigger; maxRuns?: number; maxMinutes?: number }) => {
         const parts: string[] = [];
         if (loop.maxRuns !== undefined) parts.push(plural(loop.maxRuns, "run", "runs"));
@@ -72,7 +88,7 @@ export const loopsMessages = defineMessages({
         return `up to ${parts.join(" or ")}`;
       },
       triggerSummary: (trigger: LoopTrigger) =>
-        trigger.kind === "interval" ? `every ${trigger.minutes} min` : trigger.kind === "idle" ? "when an agent becomes idle" : `when “${trigger.text}” appears`,
+        trigger.kind === "interval" ? `every ${trigger.minutes} min` : trigger.kind === "idle" ? "when an agent becomes ready" : `when “${trigger.text}” appears`,
       errors: {
         name: "Give the loop a name",
         instruction: "Write the instruction to send",

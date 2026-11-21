@@ -36,7 +36,8 @@ export function AccountsDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && accountsStore.setState({ open: false })}>
-      <DialogContent className="sm:max-w-lg">
+      {/* Only a command opens it (the palette's Claude accounts): it shows at once. */}
+      <DialogContent instant className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t.title}</DialogTitle>
           <DialogDescription>{t.description}</DialogDescription>

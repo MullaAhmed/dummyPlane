@@ -5,13 +5,20 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { sendToAgents } from "@/agents/broadcast";
 import { toast } from "sonner";
+import { focusTerminal } from "@/nodes/terminal/registry";
 import { nodesStore } from "@/store/nodes";
+import { workspacesStore } from "@/store/workspaces";
 import { ReviewPanel } from "./ReviewPanel";
 import { reviewStore } from "./reviewStore";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/agents/broadcast", () => ({ sendToAgents: vi.fn(() => Promise.resolve({ sent: 1, skipped: [], waiting: [], unsuited: [], starting: [] })) }));
+vi.mock("@/nodes/terminal/registry", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/nodes/terminal/registry")>()), focusTerminal: vi.fn() }));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { warning: vi.fn(), error: vi.fn() }) }));
+// "Open a terminal here" loads the launch when clicked: it brings the canvas, which this test does not load.
+const { launchAt } = vi.hoisted(() => ({ launchAt: vi.fn() }));
+vi.mock("@/agents/quickActions", () => ({ launchAt }));
+vi.mock("@/agents/launchAgent", () => ({ defaultLaunchOptions: () => ({ cwd: "C:/elsewhere", shell: "pwsh", title: "", command: "" }) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -222,7 +229,8 @@ it("looks for a new folder's base before it lists that folder's changes, never w
   calls = [];
   await act(async () => nodesStore.getState().update("batman", { cwd: "C:/code/other" }));
   expect(calls.filter((c) => c.cmd === "review_changes")).toEqual([]);
-  expect(text()).toContain("Reading the repository…");
+  // A loading line speaks after its short grace (EmptyState).
+  await vi.waitFor(() => expect(text()).toContain("Reading the repository…"));
   await act(async () => answer("trunk"));
   await vi.waitFor(() => expect(text()).toContain("No changes since trunk"));
   expect(calls.filter((c) => c.cmd === "review_changes").map((c) => c.args)).toEqual([{ path: "C:/code/other", base: "trunk" }]);
@@ -268,6 +276,38 @@ it("closes on Escape, unless another part of the window already used it", async 
   expect(reviewStore.getState().nodeId).toBeNull();
 });
 
+/** Closes the review opened for each test, then opens it again from `opener`, which has the keyboard. */
+const reopenFrom = async (opener: HTMLElement) => {
+  await act(async () => reviewStore.getState().close());
+  document.body.append(opener);
+  opener.focus();
+  await act(async () => reviewStore.getState().open("batman"));
+};
+
+it("gives the keyboard back to what opened it on Escape and on Close, from inside the panel", async () => {
+  const row = document.createElement("button");
+  await reopenFrom(row);
+  await act(async () => host.querySelector<HTMLElement>('[role="tab"]')!.focus());
+  await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+  expect(reviewStore.getState().nodeId).toBeNull();
+  expect(document.activeElement).toBe(row);
+  await act(async () => reviewStore.getState().open("batman"));
+  await act(async () => button("Close the review").focus());
+  await act(async () => button("Close the review").click());
+  expect(document.activeElement).toBe(row);
+  row.remove();
+});
+
+it("gives it to the terminal reviewed when what opened it is gone (a menu item of its header)", async () => {
+  const item = document.createElement("button");
+  await reopenFrom(item);
+  item.remove();
+  vi.mocked(focusTerminal).mockClear();
+  await act(async () => button("Close the review").focus());
+  await act(async () => button("Close the review").click());
+  expect(focusTerminal).toHaveBeenCalledWith("batman");
+});
+
 it("shows the review's labels", async () => {
   await vi.waitFor(() => expect(text()).toContain("src/a.ts"));
   expect(text()).toContain("Review · Batman");
@@ -281,7 +321,8 @@ it("shows the review's labels", async () => {
   expect(text()).toContain("1 remark");
   expect(button("Send to Batman")).toBeDefined();
   await act(async () => button("Send to Batman").click());
-  expect(toast).toHaveBeenCalledWith("Review sent to Batman", { position: "top-center" });
+  // At the app's one toaster place: no position of its own.
+  expect(toast).toHaveBeenCalledWith("Review sent to Batman");
 });
 
 it("keeps the file read and the remark being typed through Refresh and a click on another line (backlog 27 oct)", async () => {
@@ -347,6 +388,48 @@ it("refreshes the Files tab out of an error, and reads the open file again (P2-4
   content = "rewritten by the agent\n";
   await act(async () => button("Refresh").click());
   await vi.waitFor(() => expect(text()).toContain("rewritten by the agent"));
+});
+
+it("says a folder outside git in its own words, git's fatal line under it, and offers a terminal there for git init", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const fatal = "fatal: not a git repository (or any of the parent directories): .git";
+  mockIPC((cmd) => {
+    if (cmd === "review_default_base") throw new Error(fatal);
+    if (cmd === "review_changes") throw new Error(fatal);
+    // Rust always answers a diff with a text (AppResult<String>): a read still under way when the panel reopens parses one.
+    if (cmd === "review_file_diff") return diffText;
+    return undefined;
+  });
+  workspacesStore.setState({ projectId: "p", workspaces: [{ id: "w1", projectId: "p", name: "Main", position: 0, pantheon: null, kind: "canvas", folder: null }], activeId: "w1", status: "ready" });
+  await act(async () => reviewStore.getState().close());
+  await act(async () => reviewStore.getState().open("batman"));
+  await vi.waitFor(() => expect(host.querySelector("[data-problem]")).not.toBeNull());
+  const lines = [...host.querySelectorAll("[data-problem] p")].map((p) => p.textContent);
+  expect(lines).toEqual(["This folder is not a git repository", "Run git init in a terminal here, or start the agent in a repository", fatal]);
+  expect(host.querySelector("[data-problem]")!.getAttribute("role")).toBe("alert");
+  // The whole error goes to the log.
+  expect(warn).toHaveBeenCalledWith("This folder is not a git repository:", expect.objectContaining({ message: expect.stringContaining(fatal) }));
+  await act(async () => button("Open a terminal here").click());
+  expect(reviewStore.getState().nodeId).toBeNull();
+  await vi.waitFor(() => expect(launchAt).toHaveBeenCalledWith("shell", undefined, { cwd: "C:/code/proj", shell: "pwsh", title: "", command: "" }));
+  warn.mockRestore();
+});
+
+it("names what it could not read, and to refresh, when git is only busy", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  mockIPC((cmd) => {
+    if (cmd === "review_default_base") return "main";
+    if (cmd === "review_changes") throw new Error("error: could not lock config file .git/config: Permission denied");
+    // The diff open before the Refresh is read again with the list: Rust answers it with a text (AppResult<String>), never nothing.
+    if (cmd === "review_file_diff") return diffText;
+    return undefined;
+  });
+  await act(async () => button("Refresh").click());
+  await vi.waitFor(() => expect(host.querySelector("[data-problem]")).not.toBeNull());
+  const lines = [...host.querySelectorAll("[data-problem] p")].map((p) => p.textContent);
+  expect(lines).toEqual(["Could not read the changes", "Refresh to read it again", "error: could not lock config file .git/config: Permission denied"]);
+  expect(button("Open a terminal here")).toBeUndefined();
+  warn.mockRestore();
 });
 
 const typeRemark = (value: string) =>

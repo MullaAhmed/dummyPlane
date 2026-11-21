@@ -11,6 +11,7 @@ import type { McpCall } from "@/ipc/mcp";
 import { pauseAgents } from "@/agents/broadcast";
 import { setRemoteControl } from "@/agents/remoteControl";
 import { ptySendText } from "@/ipc/pty";
+import { trackInput } from "@/nodes/terminal/draft";
 import { relaunchTerminal, terminalText } from "@/nodes/terminal/registry";
 import { wakeFinished } from "@/agents/finishedStop";
 import { notify } from "@/mission/events";
@@ -45,6 +46,8 @@ vi.mock("@excalidraw/excalidraw", () => ({}));
 const call = (nodeId: string, name: string, args: Record<string, unknown>) =>
   answer({ callId: 1, nodeId, method: "tools/call", params: { name, arguments: args } });
 const textOf = (result: unknown) => (result as { content: { text: string }[] }).content[0].text;
+/** What spawn_agent requires besides its task: a pick of none of each kind. */
+const NO_EXTRAS = { skills: [], mcp_servers: [], plugins: [] };
 
 beforeAll(async () => {
   mockIPC(() => undefined);
@@ -82,7 +85,7 @@ describe("the notes tool", () => {
 describe("the agent's tools", () => {
   it("lists them for any Claude session", async () => {
     const list = (await answer({ callId: 1, nodeId: "batman", method: "tools/list", params: {} })) as { tools: { name: string; inputSchema: object }[] };
-    expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "installed_extras", "linked_agents", "message_agent", "read_agent", "linked_boards", "add_board_card", "move_board_card", "open_board", "show_output", "output_guide", "read_node", "notes"]);
+    expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "installed_extras", "linked_agents", "message_agent", "read_agent", "linked_boards", "add_board_card", "move_board_card", "open_board", "show_output", "output_guide", "run_command", "answer_dialog", "hand_off", "read_node", "notes"]);
     expect(list.tools.every((t) => typeof t.inputSchema === "object")).toBe(true);
   });
 
@@ -101,13 +104,20 @@ describe("the agent's tools", () => {
   });
 
   it("routes spawn_agent to the agent's sub-agent, a task required", async () => {
-    const result = (await call("batman", "spawn_agent", { title: "Tests" })) as { isError?: boolean };
+    const result = (await call("batman", "spawn_agent", { title: "Tests", ...NO_EXTRAS })) as { isError?: boolean };
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("Give the sub-agent its task");
   });
 
+  it("refuses an agent's spawn_agent that leaves out skills, mcp_servers or plugins, before anything else is read", async () => {
+    const result = (await call("batman", "spawn_agent", { task: "Do it" })) as { isError?: boolean };
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain("skills, mcp_servers and plugins are required");
+    expect(textOf(await call("batman", "spawn_agent", { task: "Do it", skills: [], plugins: [] }))).toContain("mcp_servers is required");
+  });
+
   it("hands spawn_agent its role as the agent sent it, a role it does not know refused", async () => {
-    const result = (await call("batman", "spawn_agent", { task: "Do it", role: "boss" })) as { isError?: boolean };
+    const result = (await call("batman", "spawn_agent", { task: "Do it", role: "boss", ...NO_EXTRAS })) as { isError?: boolean };
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain('Unknown role "boss"');
   });
@@ -152,12 +162,20 @@ describe("the fleet's tools", () => {
   it("lists them for the fleet only, and each side refuses the other's", async () => {
     const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
     // The babysitter's: it plans, then adds and orders the board's cards, looks, and may stop the mission.
-    expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "clean_up_mission", "remote_control", "spawn_agent", "installed_extras", "linked_boards", "add_board_card", "move_board_card", "open_board", "output_guide", "read_node", "notes"]);
+    expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "relaunch", "message_manager", "stop_mission", "land", "clean_up_mission", "clean_up_leftovers", "remote_control", "spawn_agent", "installed_extras", "linked_boards", "add_board_card", "move_board_card", "open_board", "show_output", "output_guide", "run_command", "answer_dialog", "read_node", "notes"]);
     expect(textOf(await call("batman", "propose_plan", plan))).toBe("This tool is for the fleet.");
     // The cleanup is the Fleet's too: no agent calls it.
     expect(textOf(await call("batman", "clean_up_mission", {}))).toBe("This tool is for the fleet.");
     expect(textOf(await call("chef", "report", { summary: "x", status: "done" }))).toBe("This tool is for agents.");
     expect(textOf(await call("batman", "board", {}))).toBe("This tool is for the fleet.");
+    // The Fleet and its Manager talk to each other: neither tool is an agent's, nor the other side's.
+    expect(textOf(await call("batman", "message_manager", { text: "x" }))).toBe("This tool is for the fleet.");
+    expect(textOf(await call("batman", "message_fleet", { text: "x" }))).toBe("This tool is for a mission's Manager.");
+    expect(textOf(await call("chef", "message_fleet", { text: "x" }))).toBe("This tool is for a mission's Manager.");
+    // Listed while it drafts, so that the session it starts now has it once a go-ahead makes its Manager; refused till then.
+    const drafting = await call("chef", "message_manager", { text: "x" });
+    expect(drafting).toMatchObject({ isError: true });
+    expect(textOf(drafting)).toBe('No Manager runs a mission of yours yet: the go-ahead ("Launch the mission" in your panel) puts one under the mission\'s board. Nothing is sent.');
   });
 
   it("offers a Codex fleet no Remote Control, which is Claude's", async () => {
@@ -177,11 +195,15 @@ describe("the fleet's tools", () => {
     expect(spawn.description).toContain("regular agent");
     expect(spawn.description).toContain("propose_plan or add_tasks");
     expect(spawn.description).not.toContain("same worktree");
-    expect(spawn.inputSchema.required).toEqual(["task"]);
+    expect(spawn.inputSchema.required).toEqual(["task", "skills", "mcp_servers", "plugins"]);
     // Routed to spawn_agent, not refused as an agent's tool: without a task it asks for one.
-    const result = (await call("chef", "spawn_agent", { title: "Lookup" })) as { isError?: boolean };
+    const result = (await call("chef", "spawn_agent", { title: "Lookup", ...NO_EXTRAS })) as { isError?: boolean };
     expect(result.isError).toBe(true);
     expect(textOf(result)).toBe("Give the sub-agent its task (task): the complete instructions.");
+    // And without the three kinds it asks for them, as for an agent: nothing opens.
+    const bare = (await call("chef", "spawn_agent", { task: "Look it up" })) as { isError?: boolean };
+    expect(bare.isError).toBe(true);
+    expect(textOf(bare)).toContain("skills, mcp_servers and plugins are required");
   });
 
   it("routes installed_extras, an agent's and a Fleet's, to what a sub-agent of theirs could be given", async () => {
@@ -320,7 +342,10 @@ describe("the fleet's tools", () => {
 
     it("says next_task needs a formed team", async () => {
       await nodesStore.getState().create("seul", { workspaceId: "w1", kind: "fleet", payload: { name: "Seul" } });
-      expect(textOf(await call("seul", "next_task", { agent: "Batman" }))).toBe("The team is not formed yet.");
+      // A fleet that has planned nothing is told what it waits for, not only that the team is missing.
+      expect(textOf(await call("seul", "next_task", { agent: "Batman" }))).toBe(
+        "The team is not formed yet: the mission is still a draft. Propose a plan with propose_plan; the team forms when the user gives the go-ahead.",
+      );
     });
   });
 
@@ -389,10 +414,18 @@ describe("the fleet's tools", () => {
       const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
       expect(list.tools.map((t) => t.name)).toEqual([
         "mission", "propose_plan", "add_tasks", "queue", "prioritize", "next_task", "tickets", "board", "team",
-        "read_output", "write", "extend", "interrupt", "relaunch", "reassign", "merge", "finish", "stop_mission", "clean_up_mission", "remote_control",
-        "spawn_agent", "installed_extras", "linked_boards", "add_board_card", "move_board_card", "open_board", "output_guide", "read_node", "notes",
+        "read_output", "write", "extend", "interrupt", "relaunch", "reassign", "merge", "finish", "message_manager", "stop_mission", "land", "clean_up_mission", "clean_up_leftovers", "remote_control",
+        "spawn_agent", "installed_extras", "linked_boards", "add_board_card", "move_board_card", "open_board", "show_output", "output_guide", "run_command", "answer_dialog", "read_node", "notes",
       ]);
       expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ runs: "fleet", manager: null, board: null });
+    });
+
+    it("refuses message_manager with no Manager to take it, pointing to write", async () => {
+      vi.mocked(notify).mockClear();
+      const refused = await call("chef", "message_manager", { text: "Use the v2 API" });
+      expect(refused).toMatchObject({ isError: true });
+      expect(textOf(refused)).toBe("No Manager runs this mission: it was launched before Managers existed, and you run its team yourself. write reaches one of its agents.");
+      expect(notify).not.toHaveBeenCalled();
     });
 
     it("says each member's group and speciality, to choose who takes a sub-task over", async () => {
@@ -427,11 +460,37 @@ describe("the fleet's tools", () => {
 
     it("reports the team and reads an agent's terminal", async () => {
       expect(JSON.parse(textOf(await call("chef", "team", {})))).toEqual([
-        expect.objectContaining({ name: "Batman", subtask: "Login", time: "0 / 20 min", report: null, merged: false, handed_to: null, overdue: 0, model: null }),
+        expect.objectContaining({ name: "Batman", subtask: "Login", time: "0 / 20 min", report: null, merged: false }),
       ]);
       expect(textOf(await call("chef", "read_output", { agent: "BATMAN", lines: 2 }))).toBe("ligne 1\nligne 2");
       expect(terminalText).toHaveBeenCalledWith("batman", 2);
       expect(await call("chef", "read_output", { agent: "Deadpool" })).toMatchObject({ isError: true });
+    });
+
+    it("says a stopped agent whose screen is not loaded is stopped, not an empty terminal (13 Nov, four were taken for dead)", async () => {
+      vi.mocked(terminalText).mockReturnValueOnce("").mockReturnValueOnce("");
+      terminalStatusStore.getState().set("batman", { state: "stopped" });
+      expect(textOf(await call("chef", "read_output", { agent: "Batman" }))).toBe(
+        'Batman is stopped, and its screen is not loaded since dummyPlane started: its conversation and its worktree are still there. relaunch starts it again on its own conversation; reassign to "new" gives its sub-task to a new agent in its worktree, on its branch.',
+      );
+      // Running with nothing on screen yet: just that.
+      terminalStatusStore.getState().set("batman", { state: "running" });
+      try {
+        expect(textOf(await call("chef", "read_output", { agent: "Batman" }))).toBe("(empty terminal)");
+      } finally {
+        terminalStatusStore.getState().set("batman", { state: "stopped" });
+      }
+    });
+
+    it("writes nothing to an agent whose worktree a new agent took over: it would wake there beside it", async () => {
+      const before = missionOf(nodesStore.getState().nodes.chef)!.members;
+      const successor = { nodeId: "n7", name: "Flash", task: "Login", budgetMin: 20, linked: false, branch: "dummyplane/auth-batman", worktree: "C:/w/batman", worktreeOf: "Batman" };
+      setMission("chef", { members: [{ ...before[0], handedTo: "Flash" }, successor] });
+      try {
+        expect(textOf(await call("chef", "write", { agent: "Batman", text: "Relance" }))).toBe("Batman handed its sub-task to Flash, who works in its worktree now: nothing is sent. Write to Flash.");
+      } finally {
+        setMission("chef", { members: before });
+      }
     });
 
     it("writes to an agent that runs, never into a dialog meant for the user", async () => {
@@ -443,6 +502,19 @@ describe("the fleet's tools", () => {
       agentActivityStore.getState().apply({ nodeId: "batman", activity: "idle", since: 0 });
       expect(textOf(await call("chef", "write", { agent: "Batman", text: "Relance\nles tests" }))).toBe("Written to Batman.");
       expect(ptySendText).toHaveBeenCalledWith("batman", "Relance les tests");
+    });
+
+    it("never writes into the user's own unsent text in the agent's terminal", async () => {
+      vi.mocked(ptySendText).mockClear();
+      trackInput("batman", "let me just fix the");
+      const refused = await call("chef", "write", { agent: "Batman", text: "Relance" });
+      expect(refused).toMatchObject({ isError: true });
+      expect(textOf(refused)).toContain("The user is writing in Batman's terminal");
+      expect(ptySendText).not.toHaveBeenCalled();
+      // Sent (or cleared), the terminal is the agent's again.
+      trackInput("batman", "\r");
+      expect(textOf(await call("chef", "write", { agent: "Batman", text: "Relance" }))).toBe("Written to Batman.");
+      expect(ptySendText).toHaveBeenCalledWith("batman", "Relance");
     });
 
     it("starts again a member dummyPlane stopped once it had finished, and writes once its session is ready", async () => {
@@ -565,9 +637,29 @@ describe("the fleet's tools", () => {
       expect(textOf(result)).toContain(`No sub-task "${"x".repeat(78)}…"`);
     });
 
-    it("merges and ends the mission through dummyPlane; no new plan meanwhile", async () => {
+    it("proposes an amendment to the waiting tasks, in English names, and changes nothing before the user answers", async () => {
+      setMission("chef", { queue: [{ title: "Docs", brief: "Write the docs", budgetMin: 10 }] });
+      const proposed = await call("chef", "propose_plan", {
+        task: "The user wants tests planned once the docs are written",
+        subtasks: [{ title: "Tests", brief: "Cover it", agent: "new", budget_min: 15, waits_for: ["docs"] }],
+        drop: [],
+      });
+      expect(proposed).not.toMatchObject({ isError: true });
+      expect(textOf(proposed)).toContain("Amendment proposed: 1 task added");
+      const mission = missionOf(nodesStore.getState().nodes.chef);
+      expect(mission?.queue?.map((task) => task.title)).toEqual(["Docs"]);
+      expect(mission?.amendment?.tasks).toEqual([{ title: "Tests", brief: "Cover it", budgetMin: 15, waitsFor: ["Docs"] }]);
+      expect(JSON.parse(textOf(await call("chef", "mission", {}))).amendment).toEqual({ task: "The user wants tests planned once the docs are written", add: ["Tests"], edit: [], drop: [] });
+      setMission("chef", { queue: undefined, amendment: undefined });
+    });
+
+    it("merges and ends the mission through dummyPlane; a new plan meanwhile is an amendment, which cannot change what Batman holds", async () => {
       expect(textOf(await call("chef", "merge", {}))).toBe("Branch dummyplane/auth :\nBatman : merged");
-      expect(await call("chef", "propose_plan", plan)).toMatchObject({ isError: true });
+      // The plan's first sub-task is Batman's task: an amendment refuses it, naming it.
+      const refused = await call("chef", "propose_plan", { ...plan, subtasks: [{ ...plan.subtasks[0], agent: "new" }, plan.subtasks[1]] });
+      expect(refused).toMatchObject({ isError: true });
+      expect(textOf(refused)).toContain('"Login" (');
+      expect(textOf(refused)).toContain("no agent holds yet");
       expect(await call("chef", "finish", {})).toMatchObject({ isError: true });
       expect(textOf(await call("chef", "finish", { summary: "Fini" }))).toContain("Mission finished");
       expect(endMission).toHaveBeenCalledWith("chef", "Fini");
@@ -622,8 +714,18 @@ describe("a mission its Manager runs", () => {
     const list = (await answer({ callId: 1, nodeId: "boss", method: "tools/list", params: {} })) as { tools: { name: string }[] };
     expect(list.tools.map((t) => t.name)).toEqual([
       "mission", "add_tasks", "queue", "next_task", "board", "move_card", "team", "read_output", "write", "extend",
-      "interrupt", "relaunch", "reassign", "merge", "finish", "need_user", "output_guide", "read_node", "notes",
+      "interrupt", "relaunch", "reassign", "merge", "finish", "need_user", "message_fleet", "land", "close_agent", "output_guide", "run_command", "answer_dialog", "read_node", "notes",
     ]);
+    // close_agent is the Manager's alone: an agent of the team is refused it.
+    expect(textOf(await call("robin", "close_agent", { agent: "Robin" }))).toBe("This tool is for a mission's Manager.");
+    // A parent's hold on its own sub-agents is every role's: the Fleet's and an agent's too.
+    for (const id of ["babysitter", "robin"]) {
+      const names = ((await answer({ callId: 1, nodeId: id, method: "tools/list", params: {} })) as { tools: { name: string }[] }).tools.map((t) => t.name);
+      expect(names, id).toEqual(expect.arrayContaining(["run_command", "answer_dialog"]));
+    }
+    // Reached by its English name, whatever the role, and refused on an agent that is not the caller's.
+    expect(textOf(await call("robin", "run_command", { agent: "Manager", command: "/context" }))).toContain("Manager is not a sub-agent of yours");
+    expect(textOf(await call("babysitter", "answer_dialog", { agent: "Robin" }))).toContain("Robin is not a sub-agent of yours");
     // Its relaunch reaches dummyPlane by its English name; an agent of the team has no such tool.
     expect(textOf(await call("boss", "relaunch", { agent: "Robin" }))).toBe("Robin is running: nothing to relaunch.");
     expect(textOf(await call("robin", "relaunch", { agent: "Robin" }))).toBe("This tool is for the fleet.");
@@ -651,6 +753,18 @@ describe("a mission its Manager runs", () => {
     expect(textOf(await call("robin", "report", { summary: "Login fait", status: "done" }))).toBe("Report passed on to Manager.");
     expect(lines("boss")).toEqual(["Robin reported (done): Login fait"]);
     expect(lines("babysitter")).toEqual([]);
+  });
+
+  it("lets the Manager record the work of an agent that finished without reporting, by merge with its name", async () => {
+    // Robin reported in the test before: it has not, here.
+    setMission("babysitter", { members: [member("robin", "Robin", "Login")] });
+    expect(JSON.parse(textOf(await call("boss", "team", {})))[0]).toMatchObject({ name: "Robin", report: null });
+    const text = textOf(await call("boss", "merge", { agent: "Robin", summary: "2 commits, tests pass" }));
+    expect(text).toBe("Robin's work is recorded as done: its seat is free, its card follows.\nBranch dummyplane/auth :\nBatman : merged");
+    expect(JSON.parse(textOf(await call("boss", "team", {})))[0]).toMatchObject({ name: "Robin", report: { status: "done", summary: "2 commits, tests pass" } });
+    // The Fleet's own call is refused: the Manager runs the team.
+    expect(textOf(await call("babysitter", "merge", { agent: "Robin" }))).toContain("runs this mission's team");
+    setMission("babysitter", { members: [member("robin", "Robin", "Login")] });
   });
 
   it("tells the Fleet one line when the Manager is stuck, and one when the board is finished", async () => {
@@ -695,6 +809,130 @@ describe("a mission its Manager runs", () => {
     expect(await call("boss", "move_card", { card: "zz", column: "Done" })).toMatchObject({ isError: true });
   });
 
+  describe("the Fleet and its Manager message each other", () => {
+    const names = async (id: string) => ((await answer({ callId: 1, nodeId: id, method: "tools/list", params: {} })) as { tools: { name: string }[] }).tools.map((t) => t.name);
+    /** The canvas holds the Manager's terminal, closed (deleted, its record kept for Ctrl+Z) or not. */
+    const sceneWithManager = (deleted: boolean) => {
+      const elements = [{ id: "boss", isDeleted: deleted }];
+      canvasStore.setState({ api: { getSceneElements: () => elements.filter((e) => !e.isDeleted), getSceneElementsIncludingDeleted: () => elements } as never });
+    };
+    const fromChef = (text: string) => `Message from Chef (your fleet; answer with message_fleet only if it calls for an answer, never just to acknowledge): ${text}`;
+    const fromManager = (text: string) => `Message from Manager (your mission's Manager; answer with message_manager only if it calls for an answer, never just to acknowledge): ${text}`;
+
+    // A Fleet's session is what message_fleet types into.
+    beforeAll(() => nodesStore.getState().update("babysitter", { session: fleetSession("Chef", { cwd: "C:/code", shell: "default" }, "claude") }));
+    beforeEach(() => vi.mocked(notify).mockClear());
+    afterEach(() => {
+      agentActivityStore.setState({ activities: {} });
+      for (const id of ["babysitter", "boss"]) terminalStatusStore.getState().set(id, { state: "running" });
+      setMission("babysitter", { state: "en_cours" });
+      setFleetClosed("babysitter", false);
+      canvasStore.setState({ api: { getSceneElements: () => [], getSceneElementsIncludingDeleted: () => [] } as never });
+    });
+    afterAll(() => nodesStore.getState().update("babysitter", { session: undefined }));
+
+    it("lists message_manager to the Fleet whatever its mission's state, message_fleet to the Manager, and neither to the team", async () => {
+      // tools/list is read once per session: a Fleet's starts long before its go-ahead makes a Manager.
+      for (const state of ["redaction", "plan", "lancement", "en_cours", "terminee"] as const) {
+        setMission("babysitter", { state });
+        expect(await names("babysitter"), state).toContain("message_manager");
+        expect(await names("babysitter"), state).not.toContain("message_fleet");
+      }
+      expect(await names("boss")).toContain("message_fleet");
+      expect(await names("boss")).not.toContain("message_manager");
+      for (const tool of ["message_manager", "message_fleet"]) expect(await names("robin")).not.toContain(tool);
+      expect(textOf(await call("boss", "message_manager", { text: "x" }))).toBe("This tool is for the fleet.");
+      expect(textOf(await call("robin", "message_fleet", { text: "x" }))).toBe("This tool is for a mission's Manager.");
+    });
+
+    it("types the Fleet's message into the Manager's terminal on one line, and the Manager's answer into the Fleet's", async () => {
+      const sent = await call("babysitter", "message_manager", { text: "Tell Robin:\nuse the v2 API." });
+      expect(sent).not.toMatchObject({ isError: true });
+      expect(textOf(sent)).toBe("Sent to Manager. Its answer, if any, will be typed into your terminal: carry on, do not wait for it.");
+      expect(lines("boss")).toEqual([fromChef("Tell Robin: use the v2 API.")]);
+      const answered = await call("boss", "message_fleet", { text: "Robin\nhas it." });
+      expect(textOf(answered)).toBe("Sent to Chef. Its answer, if any, will be typed into your terminal: carry on, do not wait for it.");
+      expect(lines("babysitter")).toEqual([fromManager("Robin has it.")]);
+    });
+
+    it("holds a message while a dialog waits for the user in the terminal it goes to, and says so", async () => {
+      agentActivityStore.setState({ activities: { boss: { activity: "waiting", since: 0 }, babysitter: { activity: "waiting", since: 0 } } as never });
+      expect(textOf(await call("babysitter", "message_manager", { text: "x" }))).toBe("Manager is waiting for the user's answer to a dialog: your message is typed as soon as it is answered.");
+      expect(textOf(await call("boss", "message_fleet", { text: "y" }))).toBe("Chef is waiting for the user's answer to a dialog: your message is typed as soon as it is answered.");
+      // The line queue (`notify`) holds them itself, till the dialog is answered.
+      expect(lines("boss")).toEqual([fromChef("x")]);
+      expect(lines("babysitter")).toEqual([fromManager("y")]);
+    });
+
+    it("refuses an empty message either way, sending nothing", async () => {
+      for (const [from, tool] of [["babysitter", "message_manager"], ["boss", "message_fleet"]]) {
+        const refused = await call(from, tool, { text: " \n " });
+        expect(refused).toMatchObject({ isError: true });
+        expect(textOf(refused)).toBe("Nothing to send (text).");
+      }
+      expect(notify).not.toHaveBeenCalled();
+    });
+
+    it("brings back its stopped Manager with relaunch, and refuses what is not its to relaunch", async () => {
+      sceneWithManager(false);
+      expect(textOf(await call("babysitter", "relaunch", {}))).toBe("Manager is running: nothing to relaunch. Reach it with message_manager.");
+      // Its team is the Manager's to relaunch.
+      expect(textOf(await call("babysitter", "relaunch", { agent: "Robin" }))).toBe(
+        "Your relaunch brings back your mission's Manager (Manager) only: its team is the Manager's to relaunch. Tell it with message_manager.",
+      );
+      terminalStatusStore.getState().set("boss", { state: "stopped" });
+      vi.mocked(relaunchTerminal).mockClear();
+      expect(textOf(await call("babysitter", "relaunch", { agent: "manager" }))).toBe(
+        "Manager starts again on its own conversation; it hears where the team stands once it is up. Tell the user in one line that you started Manager again and why: they may have stopped it on purpose. stop_mission ends the mission.",
+      );
+      expect(relaunchTerminal).toHaveBeenCalledExactlyOnceWith("boss", expect.objectContaining({ role: "manager", fleet: "babysitter" }), "new");
+      // Once the mission is over there is nothing to run: plan again.
+      setMission("babysitter", { state: "terminee" });
+      expect(textOf(await call("babysitter", "relaunch", {}))).toBe("No mission is running: nothing for Manager to run, nothing to relaunch. Plan again with the user (propose_plan) for what is left.");
+    });
+
+    it("refuses the Fleet's message, saying why, while no Manager takes it", async () => {
+      const refusal = async () => {
+        const result = await call("babysitter", "message_manager", { text: "x" });
+        expect(result).toMatchObject({ isError: true });
+        return textOf(result);
+      };
+      setMission("babysitter", { state: "plan" });
+      expect(await refusal()).toContain("No Manager runs a mission of yours yet");
+      setMission("babysitter", { state: "lancement" });
+      expect(await refusal()).toBe("The mission is starting: its Manager gets its orders first. Nothing is sent; try again in a moment.");
+      setMission("babysitter", { state: "terminee" });
+      expect(await refusal()).toContain("The mission is finished: its Manager runs nothing any more, and nothing is sent.");
+      setMission("babysitter", { state: "en_cours" });
+      sceneWithManager(false);
+      const stopped =
+        "Manager is stopped: its terminal is not running, and nothing is sent. If the mission must go on, relaunch brings Manager back on its own conversation: tell the user in one line that you did and why, as they may have closed it on purpose; if they close it again, ask them rather than re-open it. stop_mission ends the mission.";
+      // Its CLI back at its shell: a line would run there as a command.
+      agentActivityStore.setState({ activities: { boss: { activity: "idle", since: 0, left: true } } as never });
+      expect(await refusal()).toBe(stopped);
+      agentActivityStore.setState({ activities: {} });
+      terminalStatusStore.getState().set("boss", { state: "stopped" });
+      expect(await refusal()).toBe(stopped);
+      // Closed by the user: its record stays for Ctrl+Z, its element is deleted.
+      sceneWithManager(true);
+      expect(await refusal()).toBe("Manager is no longer on the canvas: the user closed it, and nobody runs the board. Nothing is sent. If the mission must go on, relaunch brings Manager back on its own conversation: tell the user in one line that you did and why, as they may have closed it on purpose; if they close it again, ask them rather than re-open it. stop_mission ends the mission.");
+      expect(notify).not.toHaveBeenCalled();
+    });
+
+    it("refuses the Manager's message to a Fleet that is stopped or closed", async () => {
+      terminalStatusStore.getState().set("babysitter", { state: "stopped" });
+      expect(textOf(await call("boss", "message_fleet", { text: "x" }))).toBe("Chef is stopped: its terminal is not running, and nothing is sent. Carry on with the board.");
+      terminalStatusStore.getState().set("babysitter", { state: "running" });
+      setFleetClosed("babysitter", true);
+      expect(textOf(await call("boss", "message_fleet", { text: "x" }))).toBe("Chef is no longer on the canvas: nothing is sent. Carry on with the board.");
+      expect(notify).not.toHaveBeenCalled();
+    });
+
+    it("sends a Fleet that tries the team's write to its Manager", async () => {
+      expect(textOf(await call("babysitter", "write", { agent: "Robin", text: "x" }))).toContain("message_manager tells it what the team should hear");
+    });
+  });
+
   it("stops the mission for the Fleet, the Manager told", async () => {
     vi.mocked(notify).mockClear();
     expect(await call("babysitter", "stop_mission", {})).toMatchObject({ isError: true });
@@ -712,7 +950,7 @@ describe("a mission its Manager runs", () => {
     expect(endMission).toHaveBeenCalledWith("babysitter", "Stopped by the user.");
     expect(lines("boss")).toEqual(["The user stopped the mission from the Fleet's panel."]);
     expect(lines("babysitter")).toEqual([
-      "The user stopped the mission from your panel. Its summary is there; the user merges the mission's branch into their own, then the mission is cleaned up (clean_up_mission, or the user from the panel).",
+      "The user stopped the mission from your panel. Its summary is there; what was merged reaches the user's branch only if they want it (land asks them), then the mission is cleaned up (clean_up_mission, or the user from the panel).",
     ]);
   });
 
@@ -738,7 +976,7 @@ describe("a mission its Manager runs", () => {
     });
     await nodesStore.getState().create("codexBoss", { workspaceId: "w1", kind: "terminal", payload: terminal("Manager", { agent: "codex", role: "manager", fleet: "codexSitter" }) });
     const names = async (id: string) => ((await answer({ callId: 1, nodeId: id, method: "tools/list", params: {} })) as { tools: { name: string }[] }).tools.map((t) => t.name);
-    expect(await names("codexSitter")).toEqual(["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "clean_up_mission", "spawn_agent", "installed_extras", "linked_boards", "add_board_card", "move_board_card", "open_board", "output_guide", "read_node", "notes"]);
+    expect(await names("codexSitter")).toEqual(["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "relaunch", "message_manager", "stop_mission", "land", "clean_up_mission", "clean_up_leftovers", "spawn_agent", "installed_extras", "linked_boards", "add_board_card", "move_board_card", "open_board", "show_output", "output_guide", "run_command", "answer_dialog", "read_node", "notes"]);
     expect(await names("codexBoss")).toEqual(await names("boss"));
   });
 

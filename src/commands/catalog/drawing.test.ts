@@ -205,13 +205,14 @@ describe("Dessin, sur la sélection", () => {
 
     it("reads the ring's selection rather than Excalidraw's, which has not committed the press yet", async () => {
       selecting({});
-      const ring = { ...busy, selectionIds: ["a", "b"] };
+      // The ring's context carries its press point: the pointer asked, the view may glide to the label.
+      const ring = { ...busy, selectionIds: ["a", "b"], at: { x: 10, y: 20 } };
       expect(group.available(ring)).toBe(true);
       await group.run(ring);
-      expect(groupSelection).toHaveBeenLastCalledWith(["a", "b"]);
+      expect(groupSelection).toHaveBeenLastCalledWith(["a", "b"], "pointer");
       selecting({ a: true, b: true });
       await group.run(busy);
-      expect(groupSelection).toHaveBeenLastCalledWith(["a", "b"]);
+      expect(groupSelection).toHaveBeenLastCalledWith(["a", "b"], "keyboard");
     });
   });
 

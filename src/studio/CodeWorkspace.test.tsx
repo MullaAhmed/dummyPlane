@@ -10,6 +10,7 @@ import { insertFileNode } from "./insert";
 import { projectsStore, type Project } from "@/store/projects";
 import { CodeWorkspace } from "./CodeWorkspace";
 import { editFile, studioStore } from "./studioStore";
+import { tabTo } from "@/components/ui/tabTo";
 
 vi.mock("./insert", () => ({ insertFileNode: vi.fn() }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(() => Promise.resolve()) }));
@@ -115,7 +116,7 @@ it("asks before closing a tab with unsaved changes", async () => {
   await click(modal().querySelector('[aria-label="Close main.ts"]'));
   expect(modal().querySelector('[role="alert"]')).not.toBeNull();
   expect(studioStore.getState().tabs).toHaveLength(1);
-  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Close without saving")!);
+  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Don't save")!);
   expect(studioStore.getState().tabs).toHaveLength(0);
 });
 
@@ -149,18 +150,47 @@ it("names its controls, its documents and its rows in the shared hint, never a n
   const doc = modal().querySelector<HTMLElement>('[data-tab="main.ts"] button')!;
   expect(doc.getAttribute("role")).toBeNull();
   expect(doc.getAttribute("aria-current")).toBe("page");
-  expect(doc.textContent).toContain("Modified, not saved");
+  expect(doc.textContent).toContain("Unsaved changes");
   expect(modal().querySelector("[data-dirty]")!.getAttribute("aria-hidden")).toBe("true");
+  // A pencil, not a dot: the round dot is an agent's mark.
+  expect(modal().querySelector("[data-dirty]")!.tagName.toLowerCase()).toBe("svg");
   expect(modal().querySelector('[role="tab"], [role="tablist"]')).toBeNull();
 });
 
-it("answers a tab's discard bar like a dialog: Cancel, destructive, then the primary action", async () => {
+it("answers a tab's discard bar like the window's dialog, in its words: Cancel, destructive, then the primary action", async () => {
   await opened();
   await act(async () => editFile("main.ts", "changed"));
   await click(modal().querySelector('[aria-label="Close main.ts"]'));
+  expect(modal().querySelector('[role="alert"]')!.textContent).toContain("Save main.ts?");
   const bar = [...modal().querySelectorAll<HTMLElement>('[role="alert"] button')];
-  expect(bar.map((b) => b.textContent)).toEqual(["Cancel", "Close without saving", "Save and close"]);
+  expect(bar.map((b) => b.textContent)).toEqual(["Cancel", "Don't save", "Save"]);
   expect(bar[1].dataset.variant).toBe("destructive");
+  // No dialog for a tab: the dialog is the window's (QuitPrompt).
+  expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it("asks about the disk in the same bar, right under the tabs, one question at a time", async () => {
+  await opened();
+  await act(async () => editFile("main.ts", "mine"));
+  disk = "agent";
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  await vi.waitFor(() => expect(modal().querySelector('[role="alert"]')?.textContent).toContain("changed on disk"));
+  const shown = () => [...modal().querySelectorAll<HTMLElement>("[data-decision-bar]")].filter((bar) => !bar.classList.contains("invisible"));
+  const conflict = shown()[0];
+  // In the flow, first under the strip: it stands while the file is edited, and a wrapped bar never covers the code.
+  expect(conflict.className.split(/\s+/)).not.toContain("absolute");
+  expect(conflict.previousElementSibling!.querySelector("[data-doc-strip]")).not.toBeNull();
+  // The losing answer destructive, the keeping one the accent, as in the unsaved question.
+  const answers = [...conflict.querySelectorAll<HTMLElement>("button")];
+  expect(answers.map((b) => b.textContent)).toEqual(["Reload (loses my changes)", "Overwrite with my version"]);
+  expect(answers.map((b) => b.dataset.variant)).toEqual(["destructive", "default"]);
+  // Closing the tab asks over it, in its place: one bar shows, the newer question; Cancel brings the disk's back.
+  await click(modal().querySelector('[aria-label="Close main.ts"]'));
+  expect(shown()).toHaveLength(1);
+  expect(shown()[0].textContent).toContain("Save main.ts?");
+  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Cancel")!);
+  expect(shown()).toHaveLength(1);
+  expect(shown()[0].textContent).toContain("changed on disk");
 });
 
 it("warns when a file with unsaved changes moved on the disk, and overwrites only on request", async () => {
@@ -315,6 +345,6 @@ it("shows a row's path in the app's hint when its long name is cut, and spares a
   const name = long.querySelector(".truncate")!;
   Object.defineProperty(name, "scrollWidth", { configurable: true, value: 400 });
   Object.defineProperty(name, "clientWidth", { configurable: true, value: 180 });
-  await act(async () => long.focus());
+  await act(async () => tabTo(long));
   expect(document.querySelector('[data-slot="tooltip-content"]')?.textContent).toContain("a-very-long-file-name-that-the-panel-cannot-hold.ts");
 });

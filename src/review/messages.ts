@@ -52,5 +52,16 @@ export const reviewMessages = defineMessages(
     remarkCount: (count: number) => plural(count, "remark", "remarks"),
     clear: "Clear",
     sendTo: (name: string) => `Send to ${name}`,
+    /** What could not be read, in the panel's words; git's own line comes under it as a detail. */
+    problem: {
+      changes: "Could not read the changes",
+      diff: (path: string) => `Could not read the diff of ${path}`,
+      files: "Could not list the files",
+      file: (path: string) => `Could not read ${path}`,
+      next: "Refresh to read it again",
+      notRepo: "This folder is not a git repository",
+      notRepoNext: "Run git init in a terminal here, or start the agent in a repository",
+      terminal: "Open a terminal here",
+    },
   },
 );

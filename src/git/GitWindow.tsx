@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { ChevronDown, GitBranch, RotateCw, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/EmptyState";
+import { InlineProblem } from "@/components/InlineProblem";
 import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger } from "@/components/PanelTabs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,20 +12,31 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMessages } from "@/i18n";
 import { repoBranches, repoCommit, repoDiscard, repoPush, repoState, repoSwitch, type RepoState } from "@/ipc/repo";
 import type { ChangedFile } from "@/ipc/review";
+import { logError } from "@/lib/errorToast";
+import { returnFocus, useOpener } from "@/lib/focusReturn";
 import { cn } from "@/lib/utils";
 import { FILE_STATUS, fileSummary, statusWords } from "@/review/DiffRow";
 import { reviewMessages } from "@/review/messages";
 import { CutHint, PathTail } from "@/review/PathTail";
 import { useReview } from "@/review/reviewStore";
 import { AccentButton, Hint, IconButton, QuietButton } from "@/shell/buttons";
-import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
+import { LANE_BOTTOM, LANE_TOP } from "@/shell/layout";
+import { useWorkWindowPlace } from "@/shell/lane";
+import { useKeepToastsOff } from "@/shell/toastLift";
 import { useActiveFolder } from "@/store/workspaceFolder";
-import { GitDiff, GitMessage } from "./GitDiff";
-import { gitWindowStore, useGitWindow } from "./gitWindowStore";
+import { GitDiff } from "./GitDiff";
+import { enterGitWindow, gitWindowStore, useGitWindow } from "./gitWindowStore";
 import { HistoryTab } from "./HistoryTab";
 import { gitMessages } from "./messages";
+import { gitProblem, type GitDoing, type GitProblem } from "./problems";
+import { openTerminalIn, useCanOpenTerminal } from "./terminal";
 
-const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+/** What failed, said in the window's words; git's whole answer goes to the log, its telling line under the title. */
+function failed(doing: GitDoing, error: unknown): GitProblem {
+  const problem = gitProblem(doing, error);
+  logError(problem.title, error);
+  return problem;
+}
 
 /** A checkbox of the list: readable on the glass, and its hit area kept inside its own row. */
 const ROW_CHECK = "border-dp-text-3 after:-inset-1";
@@ -50,10 +63,31 @@ function GitDrawer({ path }: { path: string }) {
   const t = useMessages(gitMessages);
   const [tab, setTab] = useState<"changes" | "history">("changes");
   const [repo, setRepo] = useState<RepoState | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<GitProblem | null>(null);
   const [refresh, setRefresh] = useState(0);
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<GitProblem | null>(null);
   const [pushing, setPushing] = useState(false);
+  // What opened it (the branch chip, or what had the keyboard before the palette or the shortcut): Escape and Close give the keyboard back to it.
+  const opener = useOpener();
+  const aside = useRef<HTMLElement>(null);
+  // A work window: the toasts keep off it (shell/toastLift.ts).
+  const asideRef = useKeepToastsOff(aside);
+  const place = useWorkWindowPlace();
+  const dismiss = useCallback(() => {
+    returnFocus(opener, aside.current) || returnFocus(document.querySelector<HTMLElement>("[data-git-chip]"), aside.current);
+    gitWindowStore.getState().close();
+  }, [opener]);
+
+  // Opened, it takes the keyboard once read: on the first changed file, else on its tab. Not when the user went elsewhere meanwhile.
+  const entered = useRef(false);
+  useEffect(() => {
+    if (entered.current || (!repo && !error)) return;
+    entered.current = true;
+    const root = aside.current;
+    const active = document.activeElement;
+    if (active && active !== document.body && active !== opener && !root?.contains(active)) return;
+    enterGitWindow(root);
+  }, [repo, error, opener]);
 
   // An older answer arriving late must not overwrite a newer one.
   const reads = useRef(0);
@@ -65,8 +99,8 @@ function GitDrawer({ path }: { path: string }) {
         setError(null);
         setRepo(next);
       },
-      (failed: unknown) => {
-        if (turn === reads.current) setError(errorText(failed));
+      (thrown: unknown) => {
+        if (turn === reads.current) setError(failed({ what: "read" }, thrown));
       },
     );
   }, [path]);
@@ -80,11 +114,11 @@ function GitDrawer({ path }: { path: string }) {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable === true;
-      if (e.key === "Escape" && !e.defaultPrevented && !typing) gitWindowStore.getState().close();
+      if (e.key === "Escape" && !e.defaultPrevented && !typing) dismiss();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [dismiss]);
 
   const again = () => {
     setRefresh((n) => n + 1);
@@ -99,19 +133,23 @@ function GitDrawer({ path }: { path: string }) {
     try {
       await repoPush(path, repo.branch, target, repo.head);
       toast(t.push.done(target));
-    } catch (failed) {
-      setFailure(errorText(failed));
+    } catch (error) {
+      setFailure(failed({ what: "push", target }, error));
     } finally {
       setPushing(false);
       await again();
     }
   };
 
+  // An action's failure first; a read that failed while the repository is shown says so above it.
+  const shown = failure ?? (repo ? error : null);
   return (
     <aside
+      ref={asideRef}
       data-git-window
-      className="dp-glass-strong absolute right-18 z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-xl text-dp-text"
-      style={{ top: TOP_ROW_HEIGHT + 12, bottom: BOTTOM_BAR_HEIGHT + 12 }}
+      // A work window: under the bars, above the command band, beside an occupied lane where it fits (shell/layout.ts).
+      className="dp-glass-strong absolute z-20 flex flex-col overflow-hidden rounded-xl text-dp-text"
+      style={{ top: LANE_TOP, bottom: LANE_BOTTOM, right: place.right, width: place.width }}
     >
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
         <GitBranch className="size-4 shrink-0 text-dp-text-2" />
@@ -124,7 +162,7 @@ function GitDrawer({ path }: { path: string }) {
           <IconButton label={t.refresh} onClick={() => void again()}>
             <RotateCw />
           </IconButton>
-          <IconButton label={t.close} onClick={() => gitWindowStore.getState().close()}>
+          <IconButton label={t.close} onClick={dismiss}>
             <X />
           </IconButton>
         </span>
@@ -136,13 +174,9 @@ function GitDrawer({ path }: { path: string }) {
             <PanelTabsTrigger value="history">{t.tabHistory}</PanelTabsTrigger>
           </PanelTabsList>
         </div>
-        {(failure ?? (repo && error)) && (
-          <p role="alert" className="shrink-0 border-b border-dp-line px-3 py-2 text-xs whitespace-pre-wrap text-dp-danger">
-            {failure ?? error}
-          </p>
-        )}
+        {shown && <Problem problem={shown} place="band" path={path} />}
         {!repo ? (
-          <GitMessage>{error ?? t.reading}</GitMessage>
+          error ? <Problem problem={error} place="pane" path={path} /> : <EmptyState grace>{t.reading}</EmptyState>
         ) : (
           <>
             {/* Hidden, not unmounted: a look at the history keeps the message being written and the choices. */}
@@ -159,11 +193,26 @@ function GitDrawer({ path }: { path: string }) {
   );
 }
 
+/** A failure in the window: the title and the next step, the terminal when what is left is done there, git's line last. */
+function Problem({ problem, place, path }: { problem: GitProblem; place: "band" | "pane"; path: string }) {
+  const t = useMessages(gitMessages).problem;
+  const canOpen = useCanOpenTerminal();
+  return (
+    <InlineProblem
+      place={place}
+      title={problem.title}
+      next={problem.next}
+      error={problem.line}
+      action={problem.terminal && canOpen ? { label: t.terminal, onClick: () => openTerminalIn(path, () => gitWindowStore.getState().close()) } : undefined}
+    />
+  );
+}
+
 /**
  * The branch in the header, and the menu of the project's local branches it opens. A switch is git's
  * `switch` of an existing branch: when local changes would be overwritten, git refuses and says so here.
  */
-function BranchMenu({ path, branch, onSwitched, onFailure }: { path: string; branch: string; onSwitched: () => Promise<void>; onFailure: (failure: string | null) => void }) {
+function BranchMenu({ path, branch, onSwitched, onFailure }: { path: string; branch: string; onSwitched: () => Promise<void>; onFailure: (failure: GitProblem | null) => void }) {
   const t = useMessages(gitMessages).branch;
   const [open, setOpen] = useState(false);
   const [names, setNames] = useState<string[] | null>(null);
@@ -182,10 +231,10 @@ function BranchMenu({ path, branch, onSwitched, onFailure }: { path: string; bra
       (listed) => {
         if (turn === reads.current) setNames(listed);
       },
-      (failed: unknown) => {
+      (error: unknown) => {
         if (turn !== reads.current) return;
         setOpen(false);
-        onFailure(errorText(failed));
+        onFailure(failed({ what: "branches" }, error));
       },
     );
   };
@@ -196,8 +245,8 @@ function BranchMenu({ path, branch, onSwitched, onFailure }: { path: string; bra
     try {
       await repoSwitch(path, name);
       toast(t.switched(name));
-    } catch (failed) {
-      onFailure(errorText(failed));
+    } catch (error) {
+      onFailure(failed({ what: "switch", branch: name }, error));
     } finally {
       await onSwitched();
       setSwitching(false);
@@ -206,15 +255,16 @@ function BranchMenu({ path, branch, onSwitched, onFailure }: { path: string; bra
 
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger
-        aria-label={t.menu}
-        aria-busy={switching}
-        title={branch}
-        className="flex min-w-0 items-center gap-1 rounded-sm font-mono text-xs text-dp-text-2 hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none aria-busy:opacity-60"
-      >
-        <span className="min-w-0 truncate">{branch}</span>
-        <ChevronDown aria-hidden className="size-3.5 shrink-0 text-dp-text-2" />
-      </DropdownMenuTrigger>
+      <Hint label={<span className="font-mono break-all">{branch}</span>} side="bottom" expanded={open}>
+        <DropdownMenuTrigger
+          aria-label={t.menu}
+          aria-busy={switching}
+          className="flex min-w-0 items-center gap-1 rounded-sm font-mono text-xs text-dp-text-2 hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none aria-busy:opacity-60"
+        >
+          <span className="min-w-0 truncate">{branch}</span>
+          <ChevronDown aria-hidden className="size-3.5 shrink-0 text-dp-text-2" />
+        </DropdownMenuTrigger>
+      </Hint>
       <DropdownMenuContent align="start" className="max-h-72 min-w-48">
         {names === null ? (
           <p className="px-2 py-1.5 text-xs text-dp-text-3">{t.reading}</p>
@@ -227,7 +277,7 @@ function BranchMenu({ path, branch, onSwitched, onFailure }: { path: string; bra
                 aria-current={name === branch ? "true" : undefined}
                 title={name === branch ? t.current : undefined}
                 onSelect={() => void switchTo(name)}
-                className="font-mono text-xs"
+                className="font-mono"
               >
                 {name}
               </DropdownMenuItem>
@@ -271,7 +321,7 @@ function ChangesTab(props: {
   cut: boolean;
   refresh: number;
   onChanged: () => void;
-  onFailure: (failure: string | null) => void;
+  onFailure: (failure: GitProblem | null) => void;
 }) {
   const { path, files, stamps, cut, refresh, onChanged, onFailure } = props;
   const t = useMessages(gitMessages).changes;
@@ -345,8 +395,8 @@ function ChangesTab(props: {
       toast(t.committed(hash));
       setMessage("");
       onChanged();
-    } catch (failed) {
-      onFailure(errorText(failed));
+    } catch (error) {
+      onFailure(failed({ what: "commit" }, error));
     } finally {
       setCommitting(false);
     }
@@ -358,11 +408,11 @@ function ChangesTab(props: {
     afterDiscard.current = { discarded: file.path, next: files[at + 1]?.path ?? files[at - 1]?.path ?? null };
     setAsking(null);
     onFailure(null);
-    await repoDiscard(path, file, stamps[file.path] ?? "").catch((failed: unknown) => onFailure(errorText(failed)));
+    await repoDiscard(path, file, stamps[file.path] ?? "").catch((error: unknown) => onFailure(failed({ what: "discard", path: file.path }, error)));
     onChanged();
   };
 
-  if (files.length === 0) return <GitMessage>{t.clean}</GitMessage>;
+  if (files.length === 0) return <EmptyState>{t.clean}</EmptyState>;
   return (
     <div className="flex min-h-0 flex-1">
       <div className="flex w-80 shrink-0 flex-col border-r border-dp-line">

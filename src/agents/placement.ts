@@ -1,6 +1,7 @@
 import type { CanvasView } from "@/canvas/canvasStore";
 import type { Rect } from "@/canvas/groups";
 import { NODE_SIZE, type NodeKind } from "@/canvas/nodeElement";
+import type { Insets } from "@/shell/layout";
 import type { Point } from "./terminals";
 
 type Viewport = Pick<CanvasView, "scrollX" | "scrollY" | "zoom" | "offsetLeft" | "offsetTop">;
@@ -21,9 +22,23 @@ export function clientOf(scene: Point, view: Viewport): Point {
   };
 }
 
-/** The scene point at the middle of the canvas ("New console"). */
-export function viewportCenter(view: Viewport & Pick<CanvasView, "width" | "height">): Point {
-  return sceneOf({ x: view.offsetLeft + view.width / 2, y: view.offsetTop + view.height / 2 }, view);
+/** The scene point at the middle of the canvas less `area` ("New console"): the work area's, clear of an occupied lane. */
+export function viewportCenter(view: Viewport & Pick<CanvasView, "width" | "height">, area: Insets = WHOLE): Point {
+  return sceneOf(areaMiddle(view, area), view);
+}
+
+/** No inset: the whole canvas. */
+const WHOLE: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/**
+ * The middle of the canvas less `area` (the work area, shell/layout.ts: clear of the bars, the rails and an occupied
+ * lane), in window coordinates: where a launch with no place of its own drops its node.
+ */
+export function areaMiddle(view: Pick<CanvasView, "offsetLeft" | "offsetTop" | "width" | "height">, area: Insets = WHOLE): Point {
+  return {
+    x: view.offsetLeft + area.left + (view.width - area.left - area.right) / 2,
+    y: view.offsetTop + area.top + (view.height - area.top - area.bottom) / 2,
+  };
 }
 
 /** Screen rectangle of the node about to be placed, a terminal by default, centered on the pointer. */

@@ -36,7 +36,7 @@ function useMaximized(): boolean {
 /**
  * A caption button, as Windows draws them: the title bar's full height, 46 wide,
  * square, no press scale. Its name shows in the same hint as the bar's other
- * buttons (below), not a native title: the counters beside it use hints.
+ * buttons (below), not a native title: the usage meter and the update chip beside it use hints.
  */
 function WindowButton({ label, danger, className, ...props }: ComponentProps<"button"> & { label: string; danger?: boolean }) {
   return (

@@ -83,6 +83,13 @@ it("guides a newcomer without agent nor project: three steps, Claude Code's comm
   expect(card.textContent!.indexOf("Claude Code")).toBeLessThan(card.textContent!.indexOf("Codex"));
 });
 
+it("names, for launching an agent, only the routes that exist: the canvas's right-click and the palette's Ctrl+Shift+P, never Ctrl+K", async () => {
+  await render();
+  const hint = panel()!.querySelector("li[data-step='launch']")!.textContent!;
+  expect(hint).toContain("Right-click the canvas, or Ctrl+Shift+P and type “launch”");
+  expect(hint).not.toContain("Ctrl+K");
+});
+
 it("copies Claude Code's install command and opens the official pages", async () => {
   const writeText = vi.fn(() => Promise.resolve());
   Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { LaunchOptions } from "./launchAgent";
 import { LaunchOptionsForm } from "./LaunchOptionsForm";
+import { tabTo } from "@/components/ui/tabTo";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -65,6 +66,6 @@ it("shows a locked folder as it is, read-only and still focusable, with the reas
 it("names Browse in the app's hint, never a native title", async () => {
   await mount();
   expect(browse()!.hasAttribute("title")).toBe(false);
-  await act(async () => (browse() as HTMLButtonElement).focus());
+  await act(async () => tabTo(browse() as HTMLButtonElement));
   expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Browse");
 });

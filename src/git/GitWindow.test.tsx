@@ -12,8 +12,13 @@ import { workspacesStore } from "@/store/workspaces";
 import { sourceFiles } from "@/theme/cssBlocks";
 import { GitWindow } from "./GitWindow";
 import { gitWindowStore } from "./gitWindowStore";
+import { tabTo } from "@/components/ui/tabTo";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
+// "Open a terminal here" loads the launch when clicked: it brings the canvas, which this test does not load.
+const { launchAt } = vi.hoisted(() => ({ launchAt: vi.fn() }));
+vi.mock("@/agents/quickActions", () => ({ launchAt }));
+vi.mock("@/agents/launchAgent", () => ({ defaultLaunchOptions: () => ({ cwd: "C:/elsewhere", shell: "pwsh", title: "", command: "" }) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -70,6 +75,8 @@ afterEach(async () => {
   clearMocks();
   document.body.replaceChildren();
   gitWindowStore.setState({ path: null });
+  // The console.warn a problem logs to, silenced by the tests that show one.
+  vi.restoreAllMocks();
 });
 
 const render = async () => {
@@ -82,6 +89,14 @@ const labelled = (label: string) => document.body.querySelector<HTMLElement>(`[a
 const check = (label: string) => {
   const box = labelled(label);
   return { get checked() { return box.getAttribute("aria-checked") === "true"; }, click: () => box.click() };
+};
+/** The project's own canvas, active: a terminal opened from the window lands there. */
+const canvas = { id: "w1", projectId: "p", name: "Main", position: 0, pantheon: null, kind: "canvas" as const, folder: null };
+
+/** The problem the window shows: its title, its next step, git's line, each on its own line. */
+const problem = () => {
+  const lines = [...document.body.querySelectorAll("[data-problem] p")].map((p) => p.textContent);
+  return { title: lines[0], next: lines[1], detail: lines[2] };
 };
 const typeMessage = (value: string) =>
   act(async () => {
@@ -176,6 +191,40 @@ describe("the changes", () => {
     await render();
     expect(document.body.textContent).toContain("not a git repository");
   });
+
+  it("says a folder outside git in its own words, with git's fatal line as the detail, never as the title", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    fail.repo_state = "fatal: not a git repository (or any of the parent directories): .git";
+    workspacesStore.setState({ projectId: "p", workspaces: [canvas], activeId: "w1", status: "ready" });
+    await render();
+    expect(problem()).toEqual({
+      title: "This folder is not a git repository",
+      next: "Run git init in a terminal here, then refresh",
+      detail: "fatal: not a git repository (or any of the parent directories): .git",
+    });
+    expect(button("Open a terminal here")).toBeDefined();
+  });
+
+  it("offers no terminal where none can land: the code workspace has no canvas", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    fail.repo_state = "fatal: not a git repository (or any of the parent directories): .git";
+    workspacesStore.setState({ projectId: "p", workspaces: [{ ...canvas, kind: "code" as never }], activeId: "w1", status: "ready" });
+    await render();
+    expect(problem().title).toBe("This folder is not a git repository");
+    expect(button("Open a terminal here")).toBeUndefined();
+  });
+
+  it("says another git holds the repository, and to wait", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await render();
+    fail.repo_state = "fatal: Unable to create 'C:/code/api/.git/index.lock': File exists.\n\nAnother git process seems to be running in this repository";
+    await act(async () => labelled("Refresh").click());
+    expect(problem()).toEqual({
+      title: "Another git command is using this repository",
+      next: "Wait for it to finish, then try again",
+      detail: "fatal: Unable to create 'C:/code/api/.git/index.lock': File exists.",
+    });
+  });
 });
 
 describe("the commit", () => {
@@ -223,6 +272,24 @@ describe("the commit", () => {
     await typeMessage("fix: something");
     await act(async () => button("Commit (2)")!.click());
     expect(document.body.querySelector("[role='alert']")!.textContent).toContain("pre-commit: no way");
+    expect((labelled("Commit message") as HTMLTextAreaElement).value).toBe("fix: something");
+    expect(problem()).toEqual({ title: "Could not commit", next: "Your message and choices are kept: fix what git says, then commit again", detail: "pre-commit: no way" });
+  });
+
+  it("says git does not know who commits, and where to tell it, keeping the window and the message", async () => {
+    workspacesStore.setState({ projectId: "p", workspaces: [canvas], activeId: "w1", status: "ready" });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    fail.repo_commit = "Author identity unknown\n\n*** Please tell me who you are.\n\nRun\n\n  git config --global user.email \"you@example.com\"\n\nfatal: unable to auto-detect email address (got 'me@PC.(none)')";
+    await render();
+    await typeMessage("fix: something");
+    await act(async () => button("Commit (2)")!.click());
+    expect(problem()).toEqual({
+      title: "Git does not know who you are",
+      next: "Set user.name and user.email with git config in a terminal",
+      detail: "fatal: unable to auto-detect email address (got 'me@PC.(none)')",
+    });
+    // A terminal would close the window, and the message with it: the next step names the terminal instead.
+    expect(button("Open a terminal here")).toBeUndefined();
     expect((labelled("Commit message") as HTMLTextAreaElement).value).toBe("fix: something");
   });
 });
@@ -389,7 +456,7 @@ describe("pushing", () => {
   /** A disabled button takes no focus: its wrapper tells why, in the app's hint, never a native title. */
   const whyHint = async () => {
     expect(button("Push")!.hasAttribute("title"), "a hint, not a native title").toBe(false);
-    await act(async () => button("Push")!.parentElement!.focus());
+    await act(async () => tabTo(button("Push")!.parentElement!));
     return document.querySelector('[role="tooltip"]')?.textContent ?? null;
   };
 
@@ -420,6 +487,47 @@ describe("pushing", () => {
     expect(document.body.querySelector("[role='alert']")!.textContent).toContain("rejected: fetch first");
   });
 
+  it("says in its own words that the remote has commits this branch lacks, and offers a terminal for the pull it does not have", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    launchAt.mockClear();
+    const said = [
+      "To github.com:acme/api.git",
+      " ! [rejected]        main -> main (fetch first)",
+      "error: failed to push some refs to 'github.com:acme/api.git'",
+      "hint: Updates were rejected because the remote contains work that you do not",
+      "hint: have locally. Integrate the remote changes (e.g.",
+      "hint: 'git pull ...') before pushing again.",
+    ].join("\n");
+    fail.repo_push = said;
+    workspacesStore.setState({ projectId: "p", workspaces: [canvas], activeId: "w1", status: "ready" });
+    await render();
+    await act(async () => button("Push 2 → origin/main")!.click());
+    expect(problem()).toEqual({
+      title: "Push refused: origin/main has commits this branch does not have",
+      next: "Pull them in a terminal here, then push again",
+      detail: "! [rejected]        main -> main (fetch first)",
+    });
+    // Git's hint names a command the window does not have: it is not shown, the log keeps it.
+    expect(document.body.textContent).not.toContain("git pull");
+    expect(warn).toHaveBeenCalledWith("Push refused: origin/main has commits this branch does not have:", expect.objectContaining({ message: said }));
+    await act(async () => button("Open a terminal here")!.click());
+    // The window gives way to the terminal, which starts in the project's folder.
+    expect(gitWindowStore.getState().path).toBeNull();
+    await vi.waitFor(() => expect(launchAt).toHaveBeenCalledWith("shell", undefined, { cwd: "C:/code/api", shell: "pwsh", title: "", command: "" }));
+  });
+
+  it("says any other refusal of a push plainly, with git's line under it", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    fail.repo_push = "To github.com:acme/api.git\n ! [remote rejected] main -> main (protected branch hook declined)\nerror: failed to push some refs";
+    await render();
+    await act(async () => button("Push 2 → origin/main")!.click());
+    expect(problem()).toEqual({
+      title: "Could not push to origin/main",
+      next: "Push from a terminal here to see what git asks for",
+      detail: "! [remote rejected] main -> main (protected branch hook declined)",
+    });
+  });
+
   it("has one caller in the whole application: the window's button", () => {
     const callers = Object.entries(sourceFiles()).filter(([, text]) => /repoPush|repo_push/.test(text));
     expect(callers.map(([path]) => path.replace(/\\/g, "/").replace(/^.*src\//, "")).sort()).toEqual(["git/GitWindow.tsx", "ipc/repo.ts"]);
@@ -443,6 +551,14 @@ describe("the branch", () => {
     expect(toast).toHaveBeenCalledWith("Switched to side");
   });
 
+  it("names the whole branch in the app's hint, which the keyboard reaches, never a native title", async () => {
+    await render();
+    const trigger = labelled("Switch branch");
+    expect(trigger.hasAttribute("title")).toBe(false);
+    await act(async () => tabTo(trigger));
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("main");
+  });
+
   it("shows git's refusal, keeps the window open and the branch as it was", async () => {
     fail.repo_switch = "error: Your local changes to the following files would be overwritten by checkout";
     await render();
@@ -450,6 +566,8 @@ describe("the branch", () => {
     calls = [];
     await act(async () => item("side")!.click());
     expect(document.body.querySelector("[role='alert']")!.textContent).toContain("would be overwritten by checkout");
+    expect(problem().title).toBe("Could not switch to side: your uncommitted changes would be overwritten");
+    expect(problem().next).toBe("Commit or discard them first, then switch");
     expect(toast).not.toHaveBeenCalledWith("Switched to side");
     expect(gitWindowStore.getState().path).toBe("C:/code/api");
     // Git moved nothing, and the window still reads the repo again to show what is there.
@@ -652,5 +770,87 @@ describe("the folder it follows", () => {
     expect(gitWindowStore.getState().path).toBe("C:/code/api");
     await act(async () => workspacesStore.setState({ workspaces: [own("w1", "D:/work/lib")] }));
     expect(gitWindowStore.getState().path).toBeNull();
+  });
+});
+
+describe("the keyboard, from its opener and back (the focus contract)", () => {
+  // The project's folder is the one shown, whatever workspace an earlier test left active.
+  beforeEach(() => workspacesStore.setState({ workspaces: [], activeId: null }));
+  const firstRow = () => document.body.querySelector<HTMLElement>("button[data-git-row]")!;
+  const chip = () => {
+    const element = document.createElement("button");
+    element.setAttribute("data-git-chip", "");
+    document.body.append(element);
+    return element;
+  };
+  const escape = () => act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+
+  it("takes the keyboard on its first changed file once read, and Escape gives it back to the chip that opened it", async () => {
+    const opener = chip();
+    opener.focus();
+    await render();
+    expect(document.activeElement).toBe(firstRow());
+    await escape();
+    expect(gitWindowStore.getState().path).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("gives Close's keyboard back to what had it before the palette that opened it: a terminal's input", async () => {
+    const terminal = document.createElement("textarea");
+    document.body.append(terminal);
+    terminal.focus();
+    // The palette opens on the terminal, takes the keyboard, then closes before its command runs.
+    const { closePalette, openPalette } = await import("@/commands/paletteState");
+    openPalette("functions", { project: true, workspaceId: "w", terminalCount: 1, terminalId: null });
+    const field = document.createElement("input");
+    document.body.append(field);
+    field.focus();
+    closePalette();
+    await render();
+    expect(document.activeElement).toBe(firstRow());
+    await act(async () => labelled("Close").click());
+    expect(document.activeElement).toBe(terminal);
+  });
+
+  it("gives it to the branch chip when what opened it is gone", async () => {
+    const fallback = chip();
+    const opener = document.createElement("button");
+    document.body.append(opener);
+    opener.focus();
+    await render();
+    opener.remove();
+    await escape();
+    expect(document.activeElement).toBe(fallback);
+  });
+
+  it("opens on its tab when there is nothing to list, so Escape still closes it from the keyboard", async () => {
+    repo = { ...base, files: [] };
+    chip().focus();
+    await render();
+    expect(document.activeElement?.getAttribute("role")).toBe("tab");
+  });
+
+  it("leaves the keyboard where the user put it while the window was being read", async () => {
+    let answer!: (state: RepoState) => void;
+    held.repo_state = [new Promise((resolve) => (answer = resolve))];
+    chip().focus();
+    await render();
+    const elsewhere = document.createElement("input");
+    document.body.append(elsewhere);
+    elsewhere.focus();
+    await act(async () => answer(repo));
+    expect(document.activeElement).toBe(elsewhere);
+  });
+
+  it("gives Escape on the discard dialog back to the row it was asked from", async () => {
+    await render();
+    firstRow().focus();
+    await act(async () => firstRow().dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true })));
+    expect(document.body.querySelector("[role='dialog']")).not.toBeNull();
+    await escape();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(document.body.querySelector("[role='dialog']")).toBeNull();
+    expect(document.activeElement).toBe(firstRow());
+    expect(gitWindowStore.getState().path).not.toBeNull();
   });
 });

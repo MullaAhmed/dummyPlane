@@ -3,7 +3,7 @@ import { Command } from "cmdk";
 import { FileText } from "lucide-react";
 import { useMessages } from "@/i18n";
 import { toastError } from "@/lib/errorToast";
-import { TITLE_BAR_HEIGHT } from "@/shell/layout";
+import { OVERLAY_TOP } from "@/shell/overlayBounds";
 import { useProjects } from "@/store/projects";
 import { useFileIndex } from "@/studio/fileIndex";
 import { parseFileQuery, rankFiles } from "@/studio/fileSearch";
@@ -30,7 +30,7 @@ const HEADING =
 // No fade on a row: the selection follows the arrow keys, many times a day, and snaps.
 // Selected, its hints, paths and line numbers step up from text-3 to text-2 (dp-on-soft, index.css).
 const ITEM =
-  "flex h-8 cursor-default items-center gap-2 rounded-md px-2.5 text-(length:--text-ui) text-dp-text-2 hover:bg-dp-hover data-[selected=true]:bg-dp-accent-soft data-[selected=true]:dp-on-soft";
+  "flex h-8 cursor-default items-center gap-2 rounded-md px-2.5 text-(length:--text-ui) text-dp-text-2 data-[selected=true]:bg-dp-accent-soft data-[selected=true]:dp-on-soft";
 
 /** The palette, under the title bar, centered; rendered only while open. */
 export function Palette() {
@@ -87,7 +87,7 @@ function PaletteBody() {
       {/* dp-glass-strong carries the opaque surface, hairline and floating shadow, as for every menu. */}
       <div
         className="dp-glass-strong absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg"
-        style={{ top: TITLE_BAR_HEIGHT + 8, width: "min(560px, calc(100vw - 32px))" }}
+        style={{ top: OVERLAY_TOP, width: "min(560px, calc(100vw - 32px))" }}
       >
         <Command
           label={t.label}
@@ -144,14 +144,15 @@ function PaletteBody() {
                       key={line.command.id}
                       value={line.command.id}
                       disabled={line.disabled !== null}
-                      className={`${ITEM} data-[disabled=true]:opacity-50`}
+                      className={ITEM}
                       onSelect={() => {
                         rememberFunction(line.command.id);
                         closePalette();
                         runCommand(line.command, context);
                       }}
                     >
-                      <span className="truncate text-dp-text">{line.label}</span>
+                      {/* A line that cannot run is greyed by its ink, the reason beside it in the same one: opacity would take the reason under 4.5:1. */}
+                      <span className={line.disabled !== null ? "truncate text-dp-text-3" : "truncate text-dp-text"}>{line.label}</span>
                       {/* A recent line tells where it comes from: "Rename" of which terminal. */}
                       {section.label === recentSection() && <span className="shrink-0 text-xs text-dp-text-3">{line.section}</span>}
                       {line.disabled !== null ? (

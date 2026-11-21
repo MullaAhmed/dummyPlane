@@ -1,5 +1,6 @@
 import { useStore } from "zustand";
-import { agentActivityStore, useActivities } from "@/store/agentActivity";
+import { personActivities, useActivities } from "@/store/agentActivity";
+import type { FleetDecisionKind } from "@/store/fleetDecisions";
 import { nodesStore, useNodes, type NodeRecord } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { useWorkspaces, workspacesStore } from "@/store/workspaces";
@@ -15,6 +16,8 @@ export interface WaitingAgent {
   since: number;
   /** What it says it waits for, if it says so: untrusted plain text. */
   message?: string;
+  /** A Fleet that waits on a decision its panel asks (a plan's go-ahead, Land, Clean up), not on a question of its agent. */
+  decision?: FleetDecisionKind;
 }
 
 /** A terminal without a first name goes by its agent's name; a fleet always has one. */
@@ -27,7 +30,7 @@ export function waitingAgents(
   workspaceIds: readonly string[],
   nodes: Readonly<Record<string, NodeRecord>>,
   statuses: Readonly<Record<string, { state: string } | undefined>>,
-  activities: Readonly<Record<string, { activity: string; since: number; message?: string } | undefined>>,
+  activities: Readonly<Record<string, { activity: string; since: number; message?: string; decision?: FleetDecisionKind } | undefined>>,
 ): WaitingAgent[] {
   const wanted = new Set(workspaceIds);
   const agents: WaitingAgent[] = [];
@@ -36,7 +39,15 @@ export function waitingAgents(
     // A Kanban or a file on the canvas never waits.
     if (record.kind !== "terminal" && record.kind !== "fleet") continue;
     if (!wanted.has(record.workspaceId) || statuses[id]?.state !== "running" || activity?.activity !== "waiting") continue;
-    agents.push({ id, kind: record.kind, name: nameOf(record), workspaceId: record.workspaceId, since: activity.since, message: activity.message });
+    agents.push({
+      id,
+      kind: record.kind,
+      name: nameOf(record),
+      workspaceId: record.workspaceId,
+      since: activity.since,
+      message: activity.message,
+      ...(activity.decision ? { decision: activity.decision } : {}),
+    });
   }
   return agents.sort((a, b) => a.since - b.since || a.id.localeCompare(b.id));
 }
@@ -52,17 +63,17 @@ export function openAgent(nodeId: string): OpenAgent | undefined {
   return { id: nodeId, kind: record.kind, name: nameOf(record), workspaceId: record.workspaceId };
 }
 
-/** The agents waiting in the open project, at this moment. */
+/** The agents waiting in the open project, at this moment, the Fleets that wait on a decision included (`personActivities`). */
 export function currentWaitingAgents(): WaitingAgent[] {
   return waitingAgents(
     workspacesStore.getState().workspaces.map((w) => w.id),
     nodesStore.getState().nodes,
     terminalStatusStore.getState().statuses,
-    agentActivityStore.getState().activities,
+    personActivities(),
   );
 }
 
-/** The agents waiting in the open project, in every workspace. */
+/** The agents waiting in the open project, in every workspace, the Fleets that wait on a decision included. */
 export function useWaitingAgents(): WaitingAgent[] {
   const workspaces = useWorkspaces((s) => s.workspaces);
   const nodes = useNodes((s) => s.nodes);

@@ -26,7 +26,10 @@ export interface FamilyOptions {
   label: (rootId: string) => string;
   /** The set the family's new agents are named from: one no group uses. */
   pantheon: string;
-  /** A mission's Manager: its team keeps the vertical tree it lays out, in no group. */
+  /**
+   * A mission's Manager: its team keeps the vertical tree it lays out, in the mission's own group
+   * (src/mission/manager.ts), which its agents' sub-agents join; never in an "X's sub-agents" group.
+   */
   isManager: (nodeId: string) => boolean;
   /** The room a terminal takes once open (a minimized one expands): Excalidraw clips a child to its frame. */
   fullRect: (element: ExcalidrawElement) => Rect;

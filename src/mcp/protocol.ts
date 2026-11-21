@@ -1,5 +1,6 @@
 import type { MissionState, ReportStatus } from "@/mission/mission";
 import type { Level } from "@/mission/router";
+import type { AgentState as PillState } from "@/agents/agentState";
 import type { AgentState } from "@/mission/store";
 import type { StepState } from "@/nodes/steps";
 
@@ -47,10 +48,17 @@ const TOOLS: Record<string, string> = {
   read_node: "read_node",
   prioritize: "prioritize",
   stop_mission: "stop_mission",
+  land: "land",
+  close_agent: "close_agent",
   clean_up_mission: "clean_up_mission",
+  clean_up_leftovers: "clean_up_leftovers",
   move_card: "move_card",
   need_user: "need_user",
+  message_manager: "message_manager",
+  message_fleet: "message_fleet",
   hand_off: "hand_off",
+  run_command: "run_command",
+  answer_dialog: "answer_dialog",
 };
 
 /** The former names, for the agent that still calls one: what it is called now. */
@@ -75,6 +83,11 @@ const ARGS: Record<string, Record<string, string>> = {
   spawn_agent: { level: "niveau" },
 };
 const SUBTASK_ARGS: Record<string, string> = { title: "titre", brief: "consigne", level: "niveau", group: "groupe" };
+/**
+ * What agents naturally pass in place of an argument (internal names): taken for it when the argument itself is not
+ * given. Only where it is unambiguous: `write` has no other text than the one it types (message_agent's is `text` too).
+ */
+const ARG_ALIASES: Record<string, Record<string, string>> = { ecrire: { message: "texte" } };
 
 const STEP_IN: Record<string, StepState> = { in_progress: "en_cours", done: "fait", failed: "echec" };
 const REPORT_IN: Record<string, ReportStatus> = { done: "termine", blocked: "bloque", failed: "echec" };
@@ -98,6 +111,12 @@ export function internalCall(name: string, raw: Record<string, unknown>): { name
   const internal = Object.prototype.hasOwnProperty.call(TOOLS, name) ? TOOLS[name] : "";
   if (!internal) return { name: "", args: raw };
   const args = renamed(raw, ARGS[internal] ?? {});
+  for (const [alias, target] of Object.entries(ARG_ALIASES[internal] ?? {})) {
+    if (args[alias] !== undefined && args[target] === undefined) {
+      args[target] = args[alias];
+      delete args[alias];
+    }
+  }
   if (internal === "etape") args.etat = valueIn(STEP_IN, args.etat);
   if (internal === "rendre_compte") args.statut = valueIn(REPORT_IN, args.statut);
   if (internal === "reattribuer") args.agent = valueIn(AGENT_IN, args.agent);
@@ -134,6 +153,21 @@ export const outStep = (state: StepState) => STEP_OUT[state];
 export const outReport = (status: ReportStatus) => REPORT_OUT[status];
 /** `restarting`: its terminal is being started again, its old process gone; it reads as stopped otherwise, which it is not. */
 export const outAgentState = (state: AgentState, restarting = false) => (restarting ? "restarting" : AGENT_OUT[state]);
+/**
+ * The canvas pill's reading of an agent in the tools' words: a starting agent (its agent not up yet) reads "starting",
+ * a resting one "idle", and one resting on its last report says that report ("done", "blocked", "failed"), as its pill does.
+ */
+const PILL_OUT: Record<Exclude<PillState, "done">, string> = {
+  starting: "starting",
+  active: "starting",
+  working: "working",
+  waiting: "waiting",
+  ready: "idle",
+  left: "stopped",
+  stopped: "stopped",
+};
+export const outPillState = (state: PillState, report?: string, restarting = false) =>
+  restarting ? "restarting" : state === "done" ? (report ?? "done") : PILL_OUT[state];
 export const outLevel = (level: Level) => LEVEL_OUT[level];
 /** A plan's agent: a linked agent's name, or "new". */
 export const outAgent = (agent: string) => (agent === "nouveau" ? "new" : agent);

@@ -12,6 +12,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::agents::activity::{Activity, Change, HookSource, Tracker};
+use crate::agents::delete_guard;
 use crate::agents::extensions::{self, ClaudeExtensions, Places};
 use crate::agents::extras;
 use crate::agents::hooks_server::{self, HookHit, HookServer, HookSink};
@@ -50,7 +51,7 @@ pub struct AgentState {
 
 impl AgentState {
     /// The terminals whose agent exited back to their shell ("Agent exited"): no agent is there, so the
-    /// home screen does not count them among the live agents, like the interface's counters.
+    /// home screen does not count them among the live agents, like the interface's live-agent counts.
     pub fn left_nodes(&self) -> HashSet<String> {
         lock(&self.tracker)
             .snapshot()
@@ -464,7 +465,8 @@ pub fn hooks_for(
             let settings = claude_settings::write_with(
                 &state.hooks_dir,
                 node_id,
-                &urls.settings,
+                // The folder it starts in is what its deletes are judged against (`delete_guard`).
+                &delete_guard::with_scope(&urls.settings, cwd),
                 role,
                 status.as_ref(),
                 claude_settings::Grants { permission, linear },

@@ -9,6 +9,15 @@ export interface LogTarget {
 /** The plugin names the log's target after the caller's stack (`webview::write@http://localhost:1420/src/app/log.ts:12:54`): a short one reads better. */
 const send = (level: LogLevel) => (message: string) => invoke<void>("plugin:log|log", { level, message, location: "webview" });
 
+/** A line in the log file for what is no warning (`console.info` does not reach it): never fails the caller. */
+export function logInfo(message: string) {
+  try {
+    void send(LogLevel.Info)(message).catch(() => undefined);
+  } catch {
+    // No Tauri here (a test, a static preview): the line is lost, nothing else.
+  }
+}
+
 /** One value as text; an object whose `toString` throws, or without prototype, never fails the caller. */
 function show(value: unknown): string {
   try {

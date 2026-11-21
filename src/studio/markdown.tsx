@@ -11,7 +11,10 @@ export function extensionOf(path: string): string {
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
 }
 
-export const isMarkdown = (path: string) => ["md", "markdown", "mdx"].includes(extensionOf(path));
+/** The extensions read as Markdown: rendered in the code workspace and on a file node, offered by the ＋ menu's Markdown. */
+export const MARKDOWN_EXTENSIONS = ["md", "markdown", "mdx"];
+
+export const isMarkdown = (path: string) => MARKDOWN_EXTENSIONS.includes(extensionOf(path));
 
 /**
  * Small, safe Markdown renderer producing React elements.
@@ -32,7 +35,7 @@ const INLINE =
 
 /** A link in running text: the accent's ink, underlined, with the shared focus ring. */
 export const LINK_CLASS =
-  "rounded-sm text-dp-accent-ink underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70";
+  "rounded-sm text-dp-accent-ink underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70";
 
 /** Hierarchy from size, then from ink, at one weight. */
 const HEADING_CLASSES = [

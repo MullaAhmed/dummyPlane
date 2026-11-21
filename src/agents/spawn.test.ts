@@ -12,7 +12,8 @@ import { NEW_MISSION, type Member, type Mission } from "@/mission/mission";
 import { whenReady } from "@/mission/ready";
 import { fleetSession } from "@/nodes/terminal/launch";
 import { HALF_CHARACTER } from "@/lib/cut";
-import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
+import { adHocReported } from "@/kanban/adHocCards";
+import { MAX_STORED_TASK, type KanbanPayload, type TerminalPayload } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
 import { isManagerRecord, nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -80,7 +81,15 @@ beforeEach(async () => {
   scene = [];
   created = 0;
   subagentSettingsStore.setState({ terminals: true, maxSpawned: 6 });
+  // The ids repeat from test to test: a node closed by the last one is not closed in this one.
+  nodesStore.getState().forgetWorkspace("w1");
   nodesStore.setState({ nodes: {} });
+  agentActivityStore.setState({ activities: {} });
+  // Nor has a sub-agent of the last test reported, or still launches, in this one.
+  for (const id of ["child1", "child2", "child3"]) {
+    unmarkReported(id);
+    markLaunching(id, false);
+  }
   for (const id of Object.keys(terminalStatusStore.getState().statuses)) terminalStatusStore.getState().remove(id);
   // As addTerminal does: the node first, then one write of the scene `place` makes with it.
   vi.mocked(addTerminal).mockImplementation(async (_workspaceId, payload, center, groupId = null, _arrival, place = (elements, element) => placeTerminal(elements, element, groupId)) => {
@@ -123,6 +132,20 @@ describe("spawn_agent", () => {
     expect(payload.claudeSessionId).not.toBe("Batman-session");
     const parent = scene.find((e) => e.id === "batman")!;
     expect(center.x).toBeGreaterThan(parent.x + parent.width);
+  });
+
+  it("ties the step its parent hands over to the sub-agent, in progress at once, and says so when the step is none of the parent's", async () => {
+    nodesStore.getState().update("batman", { steps: [{ title: "Tests", state: "a_venir" }, { title: "Docs", state: "a_venir" }] });
+    const result = await spawnAgent("batman", { task: "Write the tests", step: "tests" });
+    expect(result.text).not.toContain("No step of yours");
+    expect(vi.mocked(addTerminal).mock.calls[0][1].forStep).toBe("Tests");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.steps?.map((s) => s.state)).toEqual(["en_cours", "a_venir"]);
+    vi.mocked(addTerminal).mockClear();
+    const unknown = await spawnAgent("batman", { task: "Write the docs", step: "Handbook" });
+    expect(unknown.error).toBeUndefined();
+    expect(unknown.text).toContain('No step of yours is titled "Handbook"');
+    expect(vi.mocked(addTerminal).mock.calls[0][1].forStep).toBeUndefined();
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.steps?.map((s) => s.state)).toEqual(["en_cours", "a_venir"]);
   });
 
   it("types the task into the sub-agent once its Claude is ready, and lights the wire toward it", async () => {
@@ -174,6 +197,29 @@ describe("spawn_agent", () => {
     expect(notify).not.toHaveBeenCalledWith("batman", expect.stringContaining("is not ready"));
   });
 
+  it("shows a sub-agent a dialog holds as waiting, types its task once when it opens, and tells the parent then, not at the minute (issues #3, #14)", async () => {
+    let open!: () => void;
+    const opened = new Promise<void>((resolve) => (open = resolve));
+    vi.mocked(whenReady).mockImplementationOnce(async (probe) => {
+      probe.held?.({ kind: "mcp", title: "New MCP server found in this project: supabase", options: [] });
+      // The parent heard what holds it (`@/mission/events`): the minute's guess adds nothing.
+      probe.slow?.();
+      await opened;
+      probe.held?.(null);
+      return true;
+    });
+    await spawnAgent("batman", { task: "Do it" });
+    await vi.waitFor(() => expect(agentActivityStore.getState().activities.child1?.activity).toBe("waiting"));
+    expect(agentActivityStore.getState().activities.child1?.dialog).toMatchObject({ kind: "mcp" });
+    expect(ptySendText).not.toHaveBeenCalled();
+    open();
+    await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledTimes(1));
+    expect(agentActivityStore.getState().activities.child1?.activity).not.toBe("waiting");
+    expect(notify).not.toHaveBeenCalledWith("batman", expect.stringContaining("has not opened after a minute"));
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledWith("batman", "Robin's session opened: its task is sent now."));
+    expect(ptySendText).toHaveBeenCalledTimes(1);
+  });
+
   it("lets a sub-agent spawn its own, down to the depth limit", async () => {
     await spawnAgent("batman", { task: "Level 1" });
     await spawnAgent("child1", { task: "Level 2" });
@@ -191,9 +237,11 @@ describe("spawn_agent", () => {
     await spawnAgent("batman", { task: "One" });
     await spawnAgent("batman", { task: "Two" });
     const third = await spawnAgent("batman", { task: "Three" });
-    expect(third).toEqual({ text: expect.stringContaining("2 sub-agents are already running, the most at once is 2"), error: true });
+    expect(third).toEqual({ text: expect.stringContaining("No seat is free: 2 of 2 sub-agents at work (the most sub-agents at once, set in dummyPlane's Settings and shared by every project): "), error: true });
     // Who holds the seats, and in which folder: a cap held in another project is not read as one's own closed terminals.
-    expect(third.text).toMatch(/every project counted: .+ \(wt\)\./);
+    expect(third.text).toMatch(/shared by every project\): .+ \(wt\)\. /);
+    // An ordinary agent has a shell: it may be told to do the work itself.
+    expect(third.text).toContain("Wait for one to report, or do this task yourself.");
     // One that reported frees its seat, its terminal still open; so does one that stopped.
     markReported("child1");
     expect((await spawnAgent("batman", { task: "Three" })).error).toBeUndefined();
@@ -217,6 +265,105 @@ describe("spawn_agent", () => {
     expect(addTerminal).toHaveBeenCalledTimes(1);
     markLaunching("child1", false);
     vi.mocked(whenReady).mockResolvedValue(true);
+  });
+
+  describe("a seat of the cap is freed as soon as its terminal is closed or its agent quits", () => {
+    /** A cap of one, taken by the first sub-agent: a second is refused. */
+    async function fullCap() {
+      subagentSettingsStore.setState({ maxSpawned: 1 });
+      expect((await spawnAgent("batman", { task: "One" })).error).toBeUndefined();
+      expect((await spawnAgent("batman", { task: "Two" })).error).toBe(true);
+    }
+
+    it("frees the seat of a terminal the user closed, whatever its status still says", async () => {
+      await fullCap();
+      // The canvas closed it (`disposeTerminal`): its record stays for Ctrl+Z, its status here is a late "running".
+      nodesStore.getState().close("child1");
+      expect(terminalStatusStore.getState().statuses.child1?.state).toBe("running");
+      expect(runningSpawned()).toBe(0);
+      expect((await spawnAgent("batman", { task: "Two" })).error).toBeUndefined();
+    });
+
+    it("frees it between the deletion of its element and the canvas freeing the terminal", async () => {
+      await fullCap();
+      scene = scene.map((e) => (e.id === "child1" ? ({ ...e, isDeleted: true } as ExcalidrawElement) : e));
+      expect((await spawnAgent("batman", { task: "Two" })).error).toBeUndefined();
+    });
+
+    it("frees the seat of a terminal closed while its sub-agent still waits for its Claude: the minute of the launch holds nothing", async () => {
+      vi.mocked(whenReady).mockReturnValue(new Promise(() => undefined));
+      await fullCap();
+      expect(isLaunching("child1")).toBe(true);
+      nodesStore.getState().close("child1");
+      expect((await spawnAgent("batman", { task: "Two" })).error).toBeUndefined();
+      markLaunching("child1", false);
+      vi.mocked(whenReady).mockResolvedValue(true);
+    });
+
+    it("frees the seat of an agent that quit to its shell, the terminal open: it runs no agent, and takes the seat again when it is resumed", async () => {
+      await fullCap();
+      // Rust's `SessionEnd`: Claude exited, the terminal is back at its shell.
+      agentActivityStore.setState({ activities: { child1: { activity: "idle", since: Date.now(), left: true } } });
+      expect(runningSpawned()).toBe(0);
+      expect((await spawnAgent("batman", { task: "Two" })).error).toBeUndefined();
+      // Resumed in place: its agent is back, and so is its seat.
+      agentActivityStore.setState({ activities: { child1: { activity: "working", since: Date.now() } } });
+      expect(runningSpawned()).toBe(2);
+    });
+
+    it("keeps the seat of a terminal being started again, whatever the old process left behind", async () => {
+      await fullCap();
+      agentActivityStore.setState({ activities: { child1: { activity: "idle", since: Date.now(), left: true } } });
+      terminalStatusStore.getState().restart("child1", 1);
+      expect(runningSpawned()).toBe(1);
+      terminalStatusStore.getState().restart("child1", -1);
+    });
+  });
+
+  describe("the refusal for the cap", () => {
+    const FULL = /^No seat is free: 1 of 1 sub-agent at work \(the most sub-agents at once, set in dummyPlane's Settings and shared by every project\): .+\. /;
+
+    async function fullCapFrom(callerId: string) {
+      subagentSettingsStore.setState({ maxSpawned: 1 });
+      await spawnAgent("batman", { task: "One" });
+      return spawnAgent(callerId, { task: "Two" });
+    }
+
+    it("tells a Fleet with a mission under way to wait for a report or queue the task, never to do it itself", async () => {
+      await nodesStore.getState().create("fleet", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet", session: { ...fleetSession("Fleet", { cwd: "C:/code/elsewhere", shell: "pwsh" }, "claude") }, mission: { ...NEW_MISSION, state: "en_cours" } } });
+      scene.push({ ...createNodeElement("fleet", { x: 0, y: 600 }), id: "fleet" } as unknown as ExcalidrawElement);
+      running("fleet");
+      const refused = await fullCapFrom("fleet");
+      expect(refused.error).toBe(true);
+      expect(refused.text).toMatch(FULL);
+      // Who holds the seats: the sub-agent of the first call, in its folder.
+      expect(refused.text).toContain("Robin (wt)");
+      expect(refused.text).toContain("Wait for a report to free a seat");
+      expect(refused.text).toContain("queue the task with add_tasks");
+      expect(refused.text).not.toContain("do this task yourself");
+    });
+
+    it("tells a Fleet with no mission to wait for a report: there is no queue to add to", async () => {
+      await nodesStore.getState().create("fleet", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet", session: { ...fleetSession("Fleet", { cwd: "C:/code/elsewhere", shell: "pwsh" }, "claude") } } });
+      scene.push({ ...createNodeElement("fleet", { x: 0, y: 600 }), id: "fleet" } as unknown as ExcalidrawElement);
+      running("fleet");
+      const refused = await fullCapFrom("fleet");
+      expect(refused.text).toMatch(FULL);
+      expect(refused.text).toContain("Wait for a report to free a seat, then call again.");
+      expect(refused.text).not.toContain("add_tasks");
+      expect(refused.text).not.toContain("do this task yourself");
+    });
+
+    it("tells a manager sub-agent to wait for its own sub-agents and ask its parent, and an ordinary agent that it may do the work itself", async () => {
+      expect((await fullCapFrom("batman")).text).toContain("or do this task yourself");
+      await nodesStore.getState().create("boss", { workspaceId: "w1", kind: "terminal", payload: terminal("Boss", { coordinator: true }) });
+      scene.push({ ...createNodeElement("terminal", { x: 0, y: 900 }), id: "boss" } as unknown as ExcalidrawElement);
+      running("boss");
+      const refused = await spawnAgent("boss", { task: "Three" });
+      expect(refused.text).toMatch(FULL);
+      expect(refused.text).toContain("tell your parent with message_agent");
+      expect(refused.text).not.toContain("do this task yourself");
+    });
   });
 
   it("refuses a call without a task or with an odd model, and a caller no longer on the canvas", async () => {
@@ -296,8 +443,11 @@ describe("a manager sub-agent (spawn_agent's role)", () => {
     await spawnAgent("batman", { task, role: "manager" });
     const text = await delivered();
     expect(text.startsWith("[dummyPlane · sub-agent of Batman] You are a manager")).toBe(true);
-    // The cap's refusal says "or do this task yourself": a manager waits instead.
+    // The cap's refusal tells an ordinary agent it may "do this task yourself": a manager never does, nor does its refusal say so.
     expect(text).toContain("never take a card's work yourself");
+    // Its own spawn_agent calls need the three lists too (and what it was given is the most its sub-agents can get).
+    expect(text).toContain("skills, mcp_servers and plugins: only what that card's work needs, [] for a kind it needs none of");
+    expect(text).toContain("a sub-agent gets at most the ones you were given");
     const at = text.indexOf(task);
     for (const tool of ["open_board", "spawn_agent", "move_board_card", "message_agent", "report"]) {
       expect(text.indexOf(tool)).toBeGreaterThan(-1);
@@ -340,7 +490,7 @@ describe("a manager sub-agent (spawn_agent's role)", () => {
     unmarkReported("child1");
     subagentSettingsStore.setState({ maxSpawned: 1 });
     await spawnAgent("batman", { task: "Run the release", role: "manager" });
-    expect(await spawnAgent("child1", { task: "Write the docs" })).toEqual({ text: expect.stringContaining("the most at once is 1"), error: true });
+    expect(await spawnAgent("child1", { task: "Write the docs" })).toEqual({ text: expect.stringContaining("No seat is free: 1 of 1 sub-agent at work"), error: true });
   });
 });
 
@@ -445,7 +595,7 @@ describe("what a sub-agent inherits of its parent's skills and plugins", () => {
     for (const [, payload] of vi.mocked(addTerminal).mock.calls) expect(payload).not.toHaveProperty("extensions");
   });
 
-  it("follows a Fleet's own choice (its Edit tab), the Fleet's rails left out", async () => {
+  it("follows a Fleet's own choice (its Edit panel), the Fleet's rails left out", async () => {
     const session = { ...fleetSession("Fleet", { cwd: "C:/code/elsewhere", shell: "pwsh" }), linear: true as const, extensions: off };
     await nodesStore.getState().create("fleet", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet", session } });
     scene.push({ ...createNodeElement("fleet", { x: 0, y: 600 }), id: "fleet" } as unknown as ExcalidrawElement);
@@ -563,7 +713,7 @@ describe("a sub-agent's skills, MCP servers and plugins, picked by its spawner",
     expect(text).not.toMatch(/\n- dummyplane \[always kept\]/);
   });
 
-  it("passes its parent's pick on, kind by kind, a kind it picks replacing the parent's pick and Edit tab's switches", async () => {
+  it("passes its parent's pick on, kind by kind, a kind it picks replacing the parent's pick and Edit panel's switches", async () => {
     const extensions = { skillsOff: ["commit"], agentsOff: ["Explore"], plugins: { "caveman@caveman": false } };
     await addNode("atlas", terminal("Atlas", { extras: { skills: ["deploy"], mcpServers: ["github"] }, extensions }));
     await spawnAgent("atlas", { task: "One" });
@@ -751,6 +901,175 @@ describe("spawn_agent from a Fleet", () => {
     await spawnAgent("child1", { task: "Level 2" });
     expect((await spawnAgent("child2", { task: "Level 3" })).error).toBeUndefined();
     expect((await spawnAgent("child3", { task: "Level 4" })).error).toBe(true);
+  });
+
+  describe("beside its running mission, usage-heavy levels are refused (issue #10)", () => {
+    it("opens an ad-hoc sub-agent at low, medium or no level, and refuses high and extreme, pointing to add_tasks or the user", async () => {
+      await addFleet({ ...NEW_MISSION, state: "en_cours" });
+      for (const niveau of ["faible", "moyen", undefined]) expect((await spawnAgent("fleet", { task: `Look up ${niveau}`, niveau })).error).toBeUndefined();
+      expect(addTerminal).toHaveBeenCalledTimes(3);
+      for (const [niveau, label] of [["eleve", "high"], ["extreme", "extreme"]] as const) {
+        const refused = await spawnAgent("fleet", { task: `Hard design ${niveau}`, niveau });
+        expect(refused.error).toBe(true);
+        expect(refused.text).toContain(`level ${label} spends the user's usage`);
+        expect(refused.text).toContain("add_tasks");
+        expect(refused.text).toContain("ask the user first");
+      }
+      // Nothing opened for them.
+      expect(addTerminal).toHaveBeenCalledTimes(3);
+    });
+
+    it("does not let a model named by hand (the router off) read around it: Opus and Fable are refused, Sonnet and Haiku opened", async () => {
+      await addFleet({ ...NEW_MISSION, state: "en_cours" });
+      for (const model of ["opus", "Opus", "claude-opus-5-5", "fable", "claude-fable-5-2"]) {
+        const refused = await spawnAgent("fleet", { task: `By model ${model}`, model });
+        expect(refused.error).toBe(true);
+        expect(refused.text).toContain(`${model} is a high or extreme one`);
+        expect(refused.text).toContain("add_tasks");
+      }
+      expect(addTerminal).not.toHaveBeenCalled();
+      for (const model of ["sonnet", "haiku", "claude-sonnet-5-5"]) expect((await spawnAgent("fleet", { task: `By model ${model}`, model })).error).toBeUndefined();
+      // No mission under way: the model is the user's business, as before.
+      nodesStore.getState().update("fleet", { mission: { ...NEW_MISSION, state: "terminee" } });
+      expect((await spawnAgent("fleet", { task: "After the mission", model: "opus" })).error).toBeUndefined();
+    });
+
+    it("refuses while the mission is launching too, whichever way the level is written", async () => {
+      await addFleet({ ...NEW_MISSION, state: "lancement" });
+      expect((await spawnAgent("fleet", { task: "Big one", niveau: "ELEVE" })).error).toBe(true);
+      expect((await spawnAgent("fleet", { task: "Big one", niveau: "éLevé" })).error).toBe(true);
+      expect(addTerminal).not.toHaveBeenCalled();
+    });
+
+    it("lets a Fleet with no mission under way open any level: the usage is the plan's, or nobody's", async () => {
+      await addFleet();
+      expect((await spawnAgent("fleet", { task: "No mission", niveau: "eleve" })).error).toBeUndefined();
+      nodesStore.getState().update("fleet", { mission: { ...NEW_MISSION, state: "plan" } });
+      expect((await spawnAgent("fleet", { task: "A plan, not launched", niveau: "extreme" })).error).toBeUndefined();
+      nodesStore.getState().update("fleet", { mission: { ...NEW_MISSION, state: "terminee" } });
+      expect((await spawnAgent("fleet", { task: "A finished mission", niveau: "eleve" })).error).toBeUndefined();
+    });
+
+    it("does not touch an ordinary agent no Fleet is over, at any level", async () => {
+      await addFleet({ ...NEW_MISSION, state: "en_cours" });
+      expect((await spawnAgent("batman", { task: "Hard design", niveau: "extreme" })).error).toBeUndefined();
+      expect((await spawnAgent("child1", { task: "Hard design below", niveau: "eleve", model: "opus" })).error).toBeUndefined();
+    });
+
+    describe("the mission's board shows the Fleet's ad-hoc agents", () => {
+      const board = (): KanbanPayload => ({
+        columns: [
+          { id: "todo", title: "To do", cardIds: [] },
+          { id: "doing", title: "In progress", cardIds: [] },
+          { id: "done", title: "Done", cardIds: [] },
+        ],
+        cards: {},
+      });
+      const boardNow = () => (nodesStore.getState().nodes.board as { payload: KanbanPayload }).payload;
+      const where = (title: string) => boardNow().columns.find((c) => c.cardIds.some((id) => boardNow().cards[id].title === title))?.title;
+      const withBoard = async (mission: Mission) => {
+        await nodesStore.getState().create("board", { workspaceId: "w1", kind: "kanban", payload: board() });
+        await addFleet({ ...mission, board: "board" });
+      };
+
+      it("opens its sub-agent with a card In progress, titled by its title, and its report moves it", async () => {
+        await withBoard({ ...NEW_MISSION, state: "en_cours" });
+        expect((await spawnAgent("fleet", { task: "Look up the router", title: "Router lookup" })).error).toBeUndefined();
+        expect(where("Router lookup")).toBe("In progress");
+        const card = Object.values(boardNow().cards)[0];
+        expect(card).toMatchObject({ agent: "Robin", title: "Router lookup" });
+        expect(card.notes).toContain("Ad hoc");
+        // Its own sub-agent, below it, has one too.
+        expect((await spawnAgent("child1", { task: "Read the tests", title: "Tests lookup" })).error).toBeUndefined();
+        expect(where("Tests lookup")).toBe("In progress");
+        await adHocReported("child1", "termine");
+        await adHocReported("child2", "bloque");
+        expect(where("Router lookup")).toBe("Done");
+        expect(where("Tests lookup")).toBe("Blocked");
+      });
+
+      it("makes none when no mission runs, a refused call opened nothing, and an unrelated agent has none", async () => {
+        await withBoard({ ...NEW_MISSION, state: "terminee" });
+        await spawnAgent("fleet", { task: "After the mission", title: "After" });
+        expect(Object.keys(boardNow().cards)).toEqual([]);
+        nodesStore.getState().update("fleet", { mission: { ...NEW_MISSION, state: "en_cours", board: "board" } });
+        // Refused for its level: nothing opened, no card.
+        expect((await spawnAgent("fleet", { task: "Hard design", niveau: "eleve" })).error).toBe(true);
+        expect(Object.keys(boardNow().cards)).toEqual([]);
+        // An agent no Fleet is over.
+        expect((await spawnAgent("batman", { task: "Somewhere else", title: "Elsewhere" })).error).toBeUndefined();
+        expect(Object.keys(boardNow().cards)).toEqual([]);
+      });
+    });
+
+    describe("what is opened under the Fleet's ad-hoc agents is held to the same limit", () => {
+      /** The Fleet's ad-hoc agent (child1, spawned at medium), and its own sub-agent (child2) beneath it. */
+      async function family() {
+        await addFleet({ ...NEW_MISSION, state: "en_cours" });
+        expect((await spawnAgent("fleet", { task: "Lookup the router", niveau: "moyen" })).error).toBeUndefined();
+        expect((await spawnAgent("child1", { task: "Lookup the tests", niveau: "faible" })).error).toBeUndefined();
+        expect(terminalOf(nodesStore.getState().nodes.child2)?.spawnedBy).toBe("child1");
+      }
+
+      it("refuses high and extreme to an ad-hoc agent and to its grandchild, telling them to ask their parent", async () => {
+        await family();
+        for (const caller of ["child1", "child2"]) {
+          for (const niveau of ["eleve", "extreme"]) {
+            const refused = await spawnAgent(caller, { task: `Hard design by ${caller} ${niveau}`, niveau });
+            expect(refused.error).toBe(true);
+            expect(refused.text).toContain("while the Fleet's mission runs, the sub-agents of its ad-hoc agents (yours included) take level low or medium only");
+            expect(refused.text).toContain("tell your parent with message_agent");
+            expect(refused.text).toContain("add_tasks");
+          }
+        }
+        // Low and medium (or none) still open: only the costly levels are held.
+        for (const niveau of ["faible", "moyen", undefined]) expect((await spawnAgent("child2", { task: `Cheap ${niveau}`, niveau })).error).toBeUndefined();
+      });
+
+      it("opens routine work rated high at medium rather than refusing it: write and verify never run at a costly level", async () => {
+        await family();
+        for (const [caller, kind] of [["child1", "write"], ["child2", "verify"]] as const) {
+          const opened = await spawnAgent(caller, { task: `Routine ${kind} by ${caller}`, niveau: "eleve", kind });
+          expect(opened.error).toBeUndefined();
+          expect(opened.text).toContain(`Its level was lowered from high to medium: ${kind} work is routine`);
+        }
+        // Planning keeps its level, and the gate holds it.
+        expect((await spawnAgent("child2", { task: "Plan the redesign", niveau: "extreme", kind: "plan" })).error).toBe(true);
+      });
+
+      it("refuses a model named by hand, the router off, as it refuses the Fleet's own", async () => {
+        await family();
+        for (const model of ["opus", "claude-fable-5-2"]) {
+          const refused = await spawnAgent("child2", { task: `By model ${model}`, model });
+          expect(refused.error).toBe(true);
+          expect(refused.text).toContain(`${model} is a high or extreme one`);
+        }
+        expect((await spawnAgent("child2", { task: "By sonnet", model: "sonnet" })).error).toBeUndefined();
+      });
+
+      it("never touches a mission's own members, whose Manager the plan chose the levels for, nor what they open", async () => {
+        await family();
+        // The Manager is the mission's, though dummyPlane may place it beside the Fleet; its team goes under it.
+        await nodesStore.getState().create("manager", { workspaceId: "w1", kind: "terminal", payload: terminal("Manager", { role: "manager", fleet: "fleet", spawnedBy: "fleet" }) });
+        scene.push({ ...createNodeElement("terminal", { x: 0, y: 1200 }), id: "manager" } as unknown as ExcalidrawElement);
+        await nodesStore.getState().create("thor", { workspaceId: "w1", kind: "terminal", payload: terminal("Thor", { spawnedBy: "manager" }) });
+        scene.push({ ...createNodeElement("terminal", { x: 0, y: 1500 }), id: "thor" } as unknown as ExcalidrawElement);
+        running("manager");
+        running("thor");
+        expect((await spawnAgent("thor", { task: "Hard design by a member", niveau: "extreme", model: "opus" })).error).toBeUndefined();
+      });
+
+      it("lifts when the mission ends, and is not there before it launches", async () => {
+        await family();
+        expect((await spawnAgent("child2", { task: "Hard, running", niveau: "eleve" })).error).toBe(true);
+        nodesStore.getState().update("fleet", { mission: { ...NEW_MISSION, state: "terminee" } });
+        expect((await spawnAgent("child2", { task: "Hard, finished", niveau: "eleve" })).error).toBeUndefined();
+        nodesStore.getState().update("fleet", { mission: { ...NEW_MISSION, state: "lancement" } });
+        expect((await spawnAgent("child1", { task: "Hard, launching", niveau: "extreme" })).error).toBe(true);
+        nodesStore.getState().update("fleet", { mission: { ...NEW_MISSION, state: "plan" } });
+        expect((await spawnAgent("child1", { task: "Hard, planned", niveau: "extreme" })).error).toBeUndefined();
+      });
+    });
   });
 
   it("refuses a Fleet without its session", async () => {

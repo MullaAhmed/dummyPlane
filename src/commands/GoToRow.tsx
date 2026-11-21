@@ -1,5 +1,6 @@
 import { Folder, Layers, LayoutGrid, Network } from "lucide-react";
 import { agentInk, AGENTS, INDIGO } from "@/agents/catalog";
+import { RoleMark } from "@/components/marks";
 import { useMessages } from "@/i18n";
 import { StatusPill } from "@/nodes/terminal/StatusPill";
 import { useActivity } from "@/store/agentActivity";
@@ -29,7 +30,7 @@ function TerminalLine({ item }: { item: GoToItem }) {
       <span className="shrink-0 text-dp-text-2">{meta.label}</span>
       {item.group && (
         <span className="flex shrink-0 items-center gap-1 text-dp-text-2">
-          <span className="size-1.5 rounded-full" style={{ backgroundColor: item.group.color }} />
+          <RoleMark color={item.group.color} />
           {item.group.name}
         </span>
       )}
@@ -50,7 +51,8 @@ export function GoToRow({ item }: { item: GoToItem }) {
     case "group":
       return (
         <>
-          <span className="size-2 shrink-0 rounded-xs" style={{ backgroundColor: item.group?.color }} />
+          {/* Not a square: in a red role it would read as an agent's error mark (StatusDot). */}
+          <RoleMark color={item.group?.color ?? "var(--dp-text-3)"} />
           <span className="truncate font-medium text-dp-text">{item.label}</span>
           <span className="shrink-0 text-dp-text-2">{t.members(item.members ?? 0)}</span>
           <Elsewhere item={item} />

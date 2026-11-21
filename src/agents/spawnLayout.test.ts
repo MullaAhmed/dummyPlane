@@ -136,6 +136,20 @@ describe("layoutSpawnTree", () => {
     expectNoOverlap(out);
   });
 
+  it("keeps an output its root showed in the group clear of the tree, and in the frame", () => {
+    // Where show_output puts it in a group: right of its agent, NODE_GAP apart, a member of the frame grown to hold it.
+    const output = { ...(createNodeElement("output", { x: 0, y: 0 }) as unknown as ExcalidrawElement), id: "o", x: W + 32, y: 0 } as ExcalidrawElement;
+    const frame = createGroupFrame({ x: -PADDING, y: -48, width: W + 32 + output.width + 2 * PADDING, height: output.height + 48 + PADDING_BOTTOM }, "G", { role: "general", pantheon: "dc" }) as ExcalidrawElement;
+    const scene = [terminal("root", 0, 0, { frameId: frame.id }), { ...output, frameId: frame.id } as ExcalidrawElement, terminal("a", 0, 0, { frameId: frame.id }), frame];
+    const out = layoutSpawnTree(scene, parents({ a: "root" }), "a")!;
+    const grown = at(out, frame.id);
+    const inside = (e: ExcalidrawElement) => e.x >= grown.x && e.y >= grown.y && e.x + e.width <= grown.x + grown.width && e.y + e.height <= grown.y + grown.height;
+    expect(pos(out, "o")).toEqual({ x: W + 32, y: 0 });
+    expect(at(out, "o").frameId).toBe(frame.id);
+    for (const id of ["root", "o", "a"]) expect(inside(at(out, id)), id).toBe(true);
+    expectNoOverlap(out);
+  });
+
   it("skips a pinned child: it stays, its sibling closes up, its own children follow it", () => {
     const pinned = terminal("p", 4000, 2000, { customData: { kind: "terminal", pinned: true } });
     const scene = [terminal("root", 0, 0), pinned, terminal("b"), terminal("p1")];

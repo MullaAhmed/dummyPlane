@@ -1,13 +1,14 @@
 import { memo } from "react";
+import { STEP_LOOK } from "@/components/marks";
+import { useMessages } from "@/i18n";
 import { useNow } from "@/lib/useNow";
-import { cn } from "@/lib/utils";
 import { budgetBar, type BudgetTone } from "@/mission/mission";
 import { memberBudgets } from "@/mission/store";
 import { settledSteps, type Step } from "@/nodes/steps";
+import { nodesMessages } from "@/nodes/messages";
 import type { TerminalReportStatus } from "@/nodes/types";
 import { terminalOf, useNodes } from "@/store/nodes";
 import { useSubagents } from "@/store/subagents";
-import { useTerminalStatus } from "@/store/terminalStatus";
 import { useCanvas } from "../canvasStore";
 import { SceneLayer } from "./layers";
 import { BUDGET_COLOR, budgetTitle, dotsOf, TIMELINE_GAP } from "./timeline";
@@ -90,8 +91,7 @@ function sameTimeline(before: TimelineProps, after: TimelineProps): boolean {
 
 const Timeline = memo(function Timeline({ nodeId, steps: kept, report, x, y, width, bar }: TimelineProps) {
   const running = useSubagents(nodeId);
-  // A step "en cours" is only marked as live under a process that runs (not after an interruption or a crash).
-  const alive = useTerminalStatus(nodeId).state === "running";
+  const t = useMessages(nodesMessages).stepMark;
   // A reported agent's frieze reads as finished even where its steps were not settled with its report.
   const steps = settledSteps(kept, report);
   const dots = dotsOf(steps, width);
@@ -100,19 +100,20 @@ const Timeline = memo(function Timeline({ nodeId, steps: kept, report, x, y, wid
     // and with TIMELINE_GAP the TIMELINE_ROOM (24) that ROW_GAP keeps free under every terminal.
     <div data-steps={nodeId} className="absolute" style={{ left: x, top: y, width }}>
       {bar && <BudgetBar {...bar} />}
-      {/* Through the middle of the 8px dots. */}
+      {/* The track, through the middle of the 8px row of marks. */}
       {steps.length > 0 && <div className="absolute inset-x-0 top-1 h-px -translate-y-1/2 bg-dp-line" />}
       {dots.map((dot, i) => (
         <div key={i} className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: dot.x, width: dot.slot }}>
-          {/* Still: only a waiting agent's status dot moves. A step under way stays in its own colour, ringed while its process runs. */}
-          <span
-            data-step={dot.state}
-            className={cn("size-2 rounded-full", dot.state === "en_cours" && alive && "ring-1 ring-dp-text-3 ring-offset-1 ring-offset-transparent")}
-            style={{ backgroundColor: dot.color }}
-          />
+          {/* A segment on the track, never a dot (the agent's mark), and still: only a waiting agent's status dot moves.
+              Its shape tells the state (STEP_LOOK), its name says it; the title below is not read twice. */}
+          <span className="flex h-2 items-center">
+            <span data-step={dot.state} role="img" aria-label={t.name(dot.title, t.state[dot.state])} className={STEP_LOOK[dot.state]} style={{ color: dot.color }} />
+          </span>
           {/* 8 + 1 + 12: TIMELINE_HEIGHT, the frieze's whole height. */}
           <span className="mt-px flex max-w-full px-1 text-xs leading-3 text-dp-text-2">
-            <span className="truncate">{dot.title}</span>
+            <span aria-hidden className="truncate">
+              {dot.title}
+            </span>
             {dot.state === "en_cours" && running > 0 && <span className="shrink-0">{` ×${running}`}</span>}
           </span>
         </div>

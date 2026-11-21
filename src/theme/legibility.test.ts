@@ -6,7 +6,7 @@ import { blend, contrast, oklabDistance } from "./colorMath";
 import { cssBlock, readSource, sourceFiles } from "./cssBlocks";
 import { displayColorFor } from "./sceneColors";
 import { PALETTES as SCHEMES, type ThemeChoice } from "@/app/theme";
-import { BAR_TOKEN, GROUND_TOKENS, PROGRESS_TOKEN, SERIES_HUES, TEXT_TOKENS, TONES, TONE_SOFT, TONE_SOFT_ALPHA, TONE_TEXT, TONE_TOKEN } from "@/openui/tones";
+import { BAR_TOKEN, GROUND_TOKENS, PROGRESS_TOKEN, SERIES_HUES, TEXT_TOKENS, TONES, TONE_FILL, TONE_SOFT, TONE_SOFT_ALPHA, TONE_TEXT, TONE_TOKEN } from "@/openui/tones";
 import { SYNTAX_HUES } from "@/studio/syntaxHues";
 import { TOAST_CLASSES, TOAST_TONES } from "@/components/ui/sonner";
 import { NEUTRAL_EDGE, PART_COLOR } from "@/openui/charts";
@@ -123,6 +123,60 @@ describe("a control's own boundary reaches 3:1, where a divider's hairline does 
       expect(classes, file).toMatch(/(?:^|\s)border-dp-line-strong(?=\s|$)/);
       expect(classes, file).not.toMatch(/(?:^|\s)border-dp-line(?=\s|$)/);
     }
+  });
+});
+
+describe("a floating surface stacked on another has an edge of its own in the dark palettes (card 20)", () => {
+  const DARK = Object.entries(PALETTES).filter(([palette]) => SCHEMES[palette as ThemeChoice].scheme === "dark");
+  /** The rule index.css gives the edge: its selector list and its one declaration. */
+  const edgeRule = () => {
+    const bare = readSource("index.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = /([^{}]+)\{\s*border-color:\s*var\(--dp-line-strong\);\s*\}/.exec(bare);
+    expect(rule, "index.css draws the stacked surfaces' edge in --dp-line-strong").not.toBeNull();
+    return rule![1].replace(/\s+/g, " ").trim();
+  };
+
+  it("draws the edge of menus, popovers, selects, dialogs and toasts in --dp-line-strong, under the dark scheme only", () => {
+    const selector = edgeRule();
+    for (const slot of ["dropdown-menu-content", "dropdown-menu-sub-content", "popover-content", "select-content", "dialog-content"]) {
+      expect(selector, slot).toContain(`[data-slot="${slot}"]`);
+    }
+    expect(selector).toContain('[data-sonner-toaster] [data-sonner-toast][data-styled="true"]');
+    // The two toasts the app draws itself (Sonner's data-styled is false for them) carry their own mark, and take the same edge.
+    for (const mark of ["data-decision-toast", "data-resume-toast"]) expect(selector, mark).toContain(`[${mark}]`);
+    expect(readSource("shell/DecisionToast.tsx")).toContain("data-decision-toast");
+    expect(readSource("agents/ResumeAllToast.tsx")).toContain("data-resume-toast");
+    // Each selector of the list is keyed on the scheme, which theme.ts writes: dark exactly for electric and expressive, calm keeps its hairline and its shadow.
+    expect(selector.split(/,(?![^(]*\))/).every((part) => part.trim().startsWith(':root[data-theme="dark"] '))).toBe(true);
+    expect(DARK.map(([palette]) => palette)).toEqual(["electric", "expressive"]);
+    expect(SCHEMES.calm.scheme).toBe("light");
+    expect(cssBlock(readSource("index.css"), "@theme inline")["--color-dp-line-strong"]).toBe("var(--dp-line-strong)");
+  });
+
+  it("reaches 1.5:1 against its own fill, the surface beneath, the canvas, the dialog's veiled ground, a card and a terminal's head, and 3:1 against its fill", () => {
+    for (const [palette, selector] of DARK) {
+      const t = cssBlock(tokens, selector);
+      // A border is painted over its own element's fill (background-clip: border-box).
+      const edge = over(t["--dp-surface"], t["--dp-line-strong"]);
+      const grounds: Record<string, string> = { fill: t["--dp-surface"], canvas: t["--dp-canvas"], veil: over(t["--dp-canvas"], t["--dp-scrim"]), card: t["--dp-card"], head: t["--dp-terminal-head"] };
+      for (const [ground, hex] of Object.entries(grounds)) {
+        expect(contrast(edge, hex), `${palette} stacked edge against the ${ground}`).toBeGreaterThanOrEqual(1.5);
+      }
+      expect(contrast(edge, grounds.fill), `${palette} stacked edge against its fill`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("measures what the hairline left: the edge under 1.5:1 against the fill, and the fill itself 1.09:1 to 1.15:1 from the dialog's veiled ground", () => {
+    for (const [palette, selector] of DARK) {
+      const t = cssBlock(tokens, selector);
+      const veil = over(t["--dp-canvas"], t["--dp-scrim"]);
+      expect(contrast(over(t["--dp-surface"], t["--dp-line"]), t["--dp-surface"]), `${palette} the hairline's edge`).toBeLessThan(1.5);
+      expect(contrast(t["--dp-surface"], veil), `${palette} the dialog's fill against the veiled ground`).toBeLessThan(1.2);
+    }
+    // The audit's numbers: the expressive dialog stands 1.09:1 from the ground behind the veil; the veil moves the canvas 1.03:1.
+    const expressive = cssBlock(tokens, PALETTES.expressive);
+    expect(contrast(expressive["--dp-surface"], over(expressive["--dp-canvas"], expressive["--dp-scrim"]))).toBeCloseTo(1.09, 2);
+    expect(contrast(expressive["--dp-canvas"], over(expressive["--dp-canvas"], expressive["--dp-scrim"]))).toBeCloseTo(1.03, 2);
   });
 });
 
@@ -340,10 +394,12 @@ describe("an agent's generated output (src/openui) reads in every palette", () =
     expect(sourceFiles()["openui/charts.tsx"]).toContain("boxShadow: `inset 0 0 0 1px var(${NEUTRAL_EDGE})`");
   });
 
-  it("draws with exactly those tokens: the charts' bars and the progress fill name them", () => {
+  it("draws with exactly those tokens: the charts' bars, the progress fill and a toned progress's fill name them", () => {
     const sources = sourceFiles();
-    expect(sources["openui/charts.tsx"]).toContain(`fill-${BAR_TOKEN.slice(2)}`);
+    expect(sources["openui/charts.tsx"]).toContain(`const BAR = "bg-${BAR_TOKEN.slice(2)}"`);
     expect(sources["openui/parts.tsx"]).toContain(`bg-${PROGRESS_TOKEN.slice(2)}`);
+    // A toned bar is its tone's ink, measured above as text (4.5:1), so past a graphic's 3:1.
+    for (const tone of TONES) expect(TONE_FILL[tone]).toBe(`bg-${TONE_TOKEN[tone].slice(2)}`);
   });
 });
 
@@ -393,5 +449,177 @@ describe("toasts: every type, the description, the detail and the buttons read i
       expect(contrast(t[token(cancel, "text-")], surface), `${palette} cancel`).toBeGreaterThanOrEqual(4.5);
       expect(contrast(t[token(cancel, "hover:text-")], over(surface, t[token(cancel, "hover:bg-")])), `${palette} cancel, pointed at`).toBeGreaterThanOrEqual(4.5);
     }
+  });
+});
+
+describe("states the opacity hid: each pair measured in every palette, composited the way the browser does (card 1 of the design audit)", () => {
+  const index = readSource("index.css");
+  const GROUNDS = ["--dp-canvas", "--dp-surface", "--dp-card", "--dp-terminal-head"];
+  const each = (check: (palette: string, t: Record<string, string>) => void) => {
+    for (const [palette, selector] of Object.entries(PALETTES)) check(palette, cssBlock(tokens, selector));
+  };
+  /** The class tokens of the first match's first group (a `className` string), as written in `file`. */
+  const classesOf = (file: string, re: RegExp) => {
+    const match = re.exec(readSource(file));
+    expect(match, `${file}: ${re}`).not.toBeNull();
+    return match![1].split(/\s+/);
+  };
+  /** The alpha, 0 to 1, a class of `classes` with this prefix writes (`bg-dp-danger/15` for `bg-dp-danger/`). */
+  const alphaOf = (classes: string[], prefix: string) => {
+    const found = classes.find((c) => c.startsWith(prefix));
+    expect(found, `${prefix}… in ${classes.join(" ")}`).toBeDefined();
+    return Number(found!.slice(prefix.length)) / 100;
+  };
+  /** --dp-danger-on-soft, danger a step toward the ink, as tokens.css mixes it. */
+  const dangerOnSoft = (t: Record<string, string>) => {
+    const mix = /^color-mix\(in srgb, var\((--dp-[\w-]+)\) (\d+)%, var\((--dp-[\w-]+)\)\)$/.exec(cssBlock(tokens, ":root")["--dp-danger-on-soft"])!;
+    return blend(t[mix[3]], t[mix[1]], Number(mix[2]) / 100);
+  };
+
+  it("writes the usage meter's hint in text-3, at 4.5:1 on the title bar's surface and under the pointer, where opacity-70 read 3.4:1 to 4.3:1", () => {
+    const hint = classesOf("shell/UsageMeter.tsx", /<span className="([^"]*)">· \{emptyHint\}<\/span>/);
+    expect(hint).toEqual(["text-dp-text-3"]);
+    expect(readSource("shell/TitleBar.tsx")).toContain("dp-glass-strong");
+    each((palette, t) => {
+      // The title bar is a dp-glass-strong: the surface. The button is a ghost, which fills with --dp-hover under the pointer.
+      expect(contrast(t["--dp-text-3"], t["--dp-surface"]), `${palette} hint on the title bar`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(t["--dp-text-3"], over(t["--dp-surface"], t["--dp-hover"])), `${palette} hint under the pointer`).toBeGreaterThanOrEqual(4.5);
+    });
+    // What it read before, the button's text-2 at 70 % over the surface: the audit's 3.67:1 in calm and 4.27:1 in electric.
+    for (const palette of ["calm", "electric"] as const) {
+      const t = cssBlock(tokens, PALETTES[palette]);
+      expect(contrast(blend(t["--dp-surface"], t["--dp-text-2"], 0.7), t["--dp-surface"]), `${palette} the old hint`).toBeLessThan(4.5);
+    }
+  });
+
+  it("writes the tooltips' second lines (the folder, the live count) at 4.5:1 on the tooltip's inverse ground; text-3 is no ink there", () => {
+    // The tooltip is bg-foreground text-background: the ink under the canvas colour, so the quiet line is the canvas colour at an alpha.
+    expect(readSource("components/ui/tooltip.tsx")).toMatch(/bg-foreground[^"]*text-background/);
+    expect(index).toMatch(/--background: var\(--dp-canvas\);/);
+    expect(index).toMatch(/--foreground: var\(--dp-text\);/);
+    const alphas: number[] = [];
+    for (const file of ["shell/GitChip.tsx", "shell/WorkspaceTabs.tsx", "agents/LaunchFolderBar.tsx"]) {
+      const source = readSource(file);
+      expect(source, `${file} fades no hint line with opacity`).not.toMatch(/opacity-70/);
+      const found = [...source.matchAll(/text-background\/(\d+)/g)].map((m) => Number(m[1]) / 100);
+      expect(found.length, `${file} writes its hint's second line`).toBeGreaterThan(0);
+      alphas.push(...found);
+    }
+    each((palette, t) => {
+      for (const alpha of alphas) {
+        expect(contrast(blend(t["--dp-text"], t["--dp-canvas"], alpha), t["--dp-text"]), `${palette} /${alpha * 100} on the tooltip`).toBeGreaterThanOrEqual(4.5);
+      }
+      // The card's own suggestion, for the record: text-3 on the tooltip's ground does not read in any palette.
+      expect(contrast(t["--dp-text-3"], t["--dp-text"]), `${palette} text-3 on the tooltip`).toBeLessThan(4.5);
+    });
+    // The step below (/80) is what electric cannot carry: the alpha chosen is the least that holds.
+    const electric = cssBlock(tokens, PALETTES.electric);
+    expect(contrast(blend(electric["--dp-text"], electric["--dp-canvas"], 0.8), electric["--dp-text"])).toBeLessThan(4.5);
+    // The audit's number: opacity-70 read 3.60:1 there.
+    expect(contrast(blend(electric["--dp-text"], electric["--dp-canvas"], 0.7), electric["--dp-text"])).toBeCloseTo(3.6, 1);
+  });
+
+  it("rings a stopped agent's dot in text-3 at full strength: 3:1 on every ground, and still a step quieter than idle's text-2", () => {
+    const look = (state: string) => classesOf("nodes/terminal/StatusDot.tsx", new RegExp(`\\n  ${state}: "([^"]*)"`));
+    const stopped = look("stopped");
+    expect(stopped).toContain("border-dp-text-3");
+    expect(stopped.filter((c) => c.includes("opacity"))).toEqual([]);
+    expect(look("idle")).toContain("border-dp-text-2");
+    each((palette, t) => {
+      for (const ground of GROUNDS) {
+        const ring = contrast(t["--dp-text-3"], t[ground]);
+        expect(ring, `${palette} stopped ring on ${ground}`).toBeGreaterThanOrEqual(3);
+        expect(ring, `${palette} stopped ring quieter than idle's on ${ground}`).toBeLessThan(contrast(t["--dp-text-2"], t[ground]));
+      }
+    });
+    // The audit's number: the ring at opacity-60 read 2.47:1 in calm.
+    const calm = cssBlock(tokens, PALETTES.calm);
+    expect(contrast(blend(calm["--dp-surface"], calm["--dp-text-3"], 0.6), calm["--dp-surface"])).toBeCloseTo(2.47, 1);
+  });
+
+  it("keeps a destructive button's label at 4.5:1 on its fill, at rest and under the pointer, on the surfaces and cards it sits on", () => {
+    const classes = classesOf("components/ui/button.tsx", /destructive:\s*"([^"]*)"/);
+    const rest = alphaOf(classes, "bg-dp-danger/");
+    const hover = alphaOf(classes, "hover:bg-dp-danger/");
+    expect(hover, "the pointer steps the fill up").toBeGreaterThan(rest);
+    expect(classes).toContain("text-dp-danger");
+    expect(classes).toContain("hover:text-dp-danger-on-soft");
+    expect(cssBlock(index, "@theme inline")["--color-dp-danger-on-soft"]).toBe("var(--dp-danger-on-soft)");
+    each((palette, t) => {
+      // Dialogs, panels and the loops bar are surfaces; a board's card is a card. None is drawn straight on the canvas
+      // (where electric's danger/10 reads 4.2:1 at rest, as it did before).
+      for (const ground of ["--dp-surface", "--dp-card"]) {
+        expect(contrast(t["--dp-danger"], blend(t[ground], t["--dp-danger"], rest)), `${palette} at rest on ${ground}`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(dangerOnSoft(t), blend(t[ground], t["--dp-danger"], hover)), `${palette} under the pointer on ${ground}`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+    // The audit's number: danger itself on danger/20 in expressive, the default palette.
+    const expressive = cssBlock(tokens, PALETTES.expressive);
+    expect(contrast(expressive["--dp-danger"], blend(expressive["--dp-surface"], expressive["--dp-danger"], 0.2))).toBeCloseTo(4.26, 1);
+    // And the step /20 cannot take with the lifted label either, in electric on a card: why the fill is /15.
+    const electric = cssBlock(tokens, PALETTES.electric);
+    expect(contrast(dangerOnSoft(electric), blend(electric["--dp-card"], electric["--dp-danger"], 0.2))).toBeLessThan(4.5);
+  });
+
+  it("gives a menu's destructive row the same pair on its focus fill, in every palette (the dark: step is gone)", () => {
+    const row = classesOf("components/ui/dropdown-menu.tsx", /"(group\/dropdown-menu-item[^"]*)"/);
+    const fill = alphaOf(row, "data-[variant=destructive]:focus:bg-dp-danger/");
+    expect(row).toContain("data-[variant=destructive]:focus:text-dp-danger-on-soft");
+    expect(row.filter((c) => c.startsWith("dark:") && c.includes("destructive"))).toEqual([]);
+    each((palette, t) => {
+      // A menu is the surface (index.css, the data-slot rule).
+      expect(contrast(dangerOnSoft(t), blend(t["--dp-surface"], t["--dp-danger"], fill)), `${palette} focused row`).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+
+  it("brings the composer's focus to the bar, in the shared accent ring that clears 3:1 on the canvas", () => {
+    const bar = classesOf("shell/CommandBar.tsx", /data-command-bar className="([^"]*)"/);
+    expect(bar).toEqual(expect.arrayContaining(["has-[textarea:focus-visible]:ring-2", "has-[textarea:focus-visible]:ring-dp-accent/70"]));
+    // The field has none of its own: it is outline-none, so the bar draws it.
+    expect(readSource("agents/CommandInput.tsx")).toMatch(/caret-dp-accent outline-none/);
+    each((palette, t) => {
+      for (const ground of ["--dp-canvas", "--dp-surface"]) {
+        expect(contrast(blend(t[ground], t["--dp-accent"], 0.7), t[ground]), `${palette} bar ring on ${ground}`).toBeGreaterThanOrEqual(3);
+      }
+    });
+  });
+
+  it("steps the accent button's hover clearly (accent/85, no brightness filter), with its label still at 4.5:1 on the hover fill", () => {
+    const base = classesOf("components/ui/button.tsx", /default:\s*"([^"]*)"/);
+    const hover = alphaOf(base, "hover:bg-dp-accent/");
+    const accent = /export function AccentButton[\s\S]*?\n}(?:\r?\n|$)/.exec(readSource("shell/buttons.tsx"))![0];
+    // The Button's own hover is the accent's: AccentButton restates none (a twMerge override would win over it).
+    expect(accent).not.toMatch(/hover:|brightness|filter/);
+    each((palette, t) => {
+      for (const ground of ["--dp-canvas", "--dp-surface", "--dp-card"]) {
+        const lit = blend(t[ground], t["--dp-accent"], hover);
+        expect(contrast(t["--dp-on-accent"], lit), `${palette} label on the hover fill over ${ground}`).toBeGreaterThanOrEqual(4.5);
+        // It moved 1.09:1 to 1.10:1 with brightness-110: now a step an eye sees.
+        expect(contrast(lit, t["--dp-accent"]), `${palette} hover against rest over ${ground}`).toBeGreaterThanOrEqual(1.25);
+      }
+    });
+  });
+
+  it("greys a row that draws its reason by its ink, never by opacity: text-3 reads 4.5:1 on the menu, the terminal head and under the pointer", () => {
+    const palette = readSource("commands/Palette.tsx");
+    expect(palette, "the palette's rows").not.toMatch(/data-\[disabled=true\]:opacity-50/);
+    expect(palette).toContain('line.disabled !== null ? "truncate text-dp-text-3" : "truncate text-dp-text"');
+    expect(palette).toContain('<span className="ml-auto shrink-0 text-xs text-dp-text-3">{line.disabled}</span>');
+    const plan = readSource("nodes/kanban/PlanMenu.tsx");
+    expect(plan).toContain('<DropdownMenuItem disabled className="text-dp-text-3 data-disabled:opacity-100">');
+    expect(plan).toContain('<span className="ml-auto text-xs text-dp-text-3">{t.noCards}</span>');
+    expect(readSource("mission/RouterToggle.tsx"), "the inert router switch").not.toMatch(/opacity-50/);
+    const agents = readSource("agents/AgentMenu.tsx");
+    expect(agents).toContain("disabled:opacity-100");
+    expect(agents.match(/group-disabled\/button:text-dp-text-3/g)).toHaveLength(3);
+    each((name, t) => {
+      for (const ground of ["--dp-surface", "--dp-terminal-head"]) {
+        expect(contrast(t["--dp-text-3"], t[ground]), `${name} reason on ${ground}`).toBeGreaterThanOrEqual(4.5);
+        // A menu and the palette fill a row under the pointer (--dp-hover).
+        expect(contrast(t["--dp-text-3"], over(t[ground], t["--dp-hover"])), `${name} reason under the pointer on ${ground}`).toBeGreaterThanOrEqual(4.5);
+      }
+      // The audit's number: the reason at opacity-50 read about 2.4:1; under 3:1 in every palette.
+      expect(contrast(blend(t["--dp-surface"], t["--dp-text-3"], 0.5), t["--dp-surface"]), `${name} the old reason`).toBeLessThan(3);
+    });
   });
 });

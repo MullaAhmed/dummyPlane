@@ -1,8 +1,11 @@
+import { linkedAgentsOf } from "@/agents/agentLinks";
 import { AGENTS } from "@/agents/catalog";
 import { fromStoredKind } from "@/canvas/nodeElement";
 import { formatClock } from "@/i18n/format";
 import { messages } from "@/i18n";
-import { agentState } from "@/mission/store";
+import { sameName, type Member } from "@/mission/mission";
+import { managerNameOf } from "@/mission/manager";
+import { agentState, linkedTeamAgents, missionOf } from "@/mission/store";
 import { showOutput } from "@/nodes/output/show";
 import { entryOfElement, subagentNodesStore } from "@/nodes/subagent/store";
 import { subagentAbout, subagentAnswer, subagentType } from "@/nodes/subagent/title";
@@ -11,10 +14,10 @@ import { COMPONENT_NAMES } from "@/openui/detect";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { refused, said, type ToolResult } from "./agentTools";
 import { agentMessages } from "./messages";
-import { outAgentState } from "./protocol";
+import { outAgentState, outReport } from "./protocol";
 
 /**
- * The tools about dummyPlane's nodes themselves: an agent shows its output
+ * The tools about dummyPlane's nodes themselves: an agent or a Fleet shows its output
  * (show_output, output_guide), and any agent reads a node from the link the
  * user pasted to it (read_node), with no wire between them: the user handing
  * the link over is the consent.
@@ -22,7 +25,7 @@ import { outAgentState } from "./protocol";
 
 const t = () => messages(agentMessages);
 
-/** Their specs: show_output and output_guide for agents, read_node for everyone. */
+/** Their specs: show_output and output_guide for agents and a Fleet, read_node for everyone. */
 export function outputTools() {
   const d = t().tools;
   return [
@@ -118,8 +121,51 @@ function readSubagent(elementId: string, link: string): ToolResult | null {
   return said(`${out.join("\n\n")}\n\n(${link})`);
 }
 
-/** read_node: what the node behind a dummyPlane link shows. */
-export async function readNodeTool(args: Record<string, unknown>): Promise<ToolResult> {
+/** What the caller named: its terminal, and what its mission kept of it when the terminal is gone. */
+interface Called {
+  nodeId: string;
+  fleetId: string;
+  member?: Member;
+}
+
+/**
+ * The agent the caller names the way its own `mission` and `team` print it: by name, by id, or by the first characters
+ * of an id. For a Fleet, a Manager or a mission's agent: the mission's members (closed ones too), its Manager, and the
+ * agents the Fleet is wired to. Only the missions the caller runs or works for: reading by name is no way round the
+ * link the user hands over.
+ */
+function agentCalled(callerId: string, wanted: string): Called | null {
+  const prefix = /^[0-9a-f-]{4,}$/i.test(wanted) ? wanted.toLowerCase() : null;
+  const nodes = nodesStore.getState().nodes;
+  const found: Called[] = [];
+  const consider = (called: Called, name: string) => {
+    if (called.nodeId === wanted || sameName(name, wanted) || (prefix !== null && called.nodeId.startsWith(prefix))) found.push(called);
+  };
+  for (const [fleetId, record] of Object.entries(nodes)) {
+    const mission = missionOf(record);
+    if (!mission || !(fleetId === callerId || mission.manager === callerId || mission.members.some((m) => m.nodeId === callerId))) continue;
+    for (const member of mission.members) consider({ nodeId: member.nodeId, fleetId, member }, member.name);
+    // `mission` names its Manager by its name; "Manager" is what an unnamed one is called.
+    if (mission.manager) consider({ nodeId: mission.manager, fleetId }, managerNameOf(fleetId));
+    // The agents wired to the Fleet, which `mission` lists as linked before they join its team.
+    for (const agent of linkedTeamAgents(fleetId)) consider({ nodeId: agent.nodeId, fleetId }, agent.name);
+  }
+  // An id says which one; a name shared by an agent and its replacement says the live one, else the latest.
+  const last = (list: Called[]) => list[list.length - 1];
+  return found.find((f) => f.nodeId === wanted) ?? last(found.filter((f) => nodes[f.nodeId])) ?? last(found) ?? null;
+}
+
+/** A member its mission still lists whose terminal is gone: what the mission kept of it, said as stopped, not as unknown. */
+function readGoneMember({ fleetId, member }: Called & { member: Member }, link: string): ToolResult {
+  const r = t().read;
+  const out = [r.memberGone(member.name, nodeNameOf(nodesStore.getState().nodes[fleetId]) || "its Fleet"), r.task(member.task)];
+  if (member.report) out.push(r.report(outReport(member.report.status), member.report.summary));
+  out.push(r.branch(member.branch));
+  return said(`${out.join("\n")}\n\n(${link})`);
+}
+
+/** read_node: what the node behind a dummyPlane link shows; `callerId` is the agent asking, for the names a mission lists. */
+export async function readNodeTool(args: Record<string, unknown>, callerId = ""): Promise<ToolResult> {
   const r = t().read;
   const raw = typeof args.link === "string" ? args.link : "";
   if (!raw.trim()) return refused(r.what);
@@ -130,7 +176,21 @@ export async function readNodeTool(args: Record<string, unknown>): Promise<ToolR
   if (parsed.kind === "subagent") return readSubagent(parsed.id, link) ?? refused(r.subagentGone(link));
   if (parsed.kind !== null && fromStoredKind(parsed.kind) === null) return refused(r.notALink(link));
   const record = nodesStore.getState().nodes[parsed.id];
-  if (!record) return (parsed.kind === null && readSubagent(parsed.id, link)) || refused(r.notFound(link));
+  if (!record) {
+    const sub = parsed.kind === null ? readSubagent(parsed.id, link) : null;
+    if (sub) return sub;
+    // A fleet reads its team by the names `mission` and `team` print: a name, a short id, or the id of a terminal since closed.
+    if (parsed.kind === null || parsed.kind === "terminal") {
+      const called = agentCalled(callerId, parsed.id);
+      if (called) {
+        if (nodesStore.getState().nodes[called.nodeId]) return readTerminal(called.nodeId, lines);
+        if (called.member) return readGoneMember({ ...called, member: called.member }, link);
+      }
+      const linked = linkedAgentsOf(callerId)?.find((a) => sameName(a.name, parsed.id));
+      if (linked) return readTerminal(linked.nodeId, lines);
+    }
+    return refused(r.notFound(link));
+  }
   switch (record.kind) {
     case "terminal":
     case "fleet":

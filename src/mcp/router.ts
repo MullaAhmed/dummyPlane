@@ -6,11 +6,11 @@ import { isManagerRecord, nodesStore, sessionOf, terminalOf } from "@/store/node
 import { AGENT_ONLY, agentTools, declareSteps, installedExtrasSpec, installedExtrasTool, markStep, refused, reportTool, spawnAgentSpec, spawnAgentTool } from "./agentTools";
 import { BOARD_TOOLS, boardTool, boardTools } from "./boardTools";
 import { linkTool, linkTools } from "./linkTools";
-import { outputGuideSpec, outputGuideTool, outputTools, readNodeSpec, readNodeTool, showOutputTool } from "./nodeTools";
-import { agentMessages } from "./messages";
+import { outputGuideSpec, outputGuideTool, outputTools, readNodeSpec, readNodeTool, showOutputTool } from "./nodeTools";import { agentMessages } from "./messages";
 import { FLEET_ONLY, fleetTool, fleetTools, MANAGER_ONLY, managerTool, managerTools, runsTheOldWay } from "./fleetTools";
 import { internalCall, RENAMED } from "./protocol";
 import { handOffTool, handOffTools } from "./handOff";
+import { SUB_AGENT_TOOLS, subAgentTool, subAgentTools } from "./subAgentTools";
 
 const t = () => messages(agentMessages).router;
 
@@ -25,15 +25,17 @@ export async function answer(call: McpCall): Promise<unknown> {
   if (call.method === "tools/list") {
     // Remote Control is Claude's: a fleet on another CLI is not offered it. spawn_agent is every session's but the
     // Manager's (its team starts from the queue), as listed once per session. The team's tools are a Fleet's only
-    // while it runs a mission launched before Managers existed.
+    // while it runs a mission launched before Managers existed. A Fleet shows outputs (show_output) as an agent does;
+    // a Manager has only the guide, since its summary is its finish's.
     const claude = sessionOf(record)?.agent !== "codex";
     const own = fleet
-      ? [...fleetTools({ legacy: runsTheOldWay(missionOf(record)), claude }), spawnAgentSpec(true), installedExtrasSpec(), ...boardTools(), outputGuideSpec()]
+      ? [...fleetTools({ legacy: runsTheOldWay(missionOf(record)), claude }), spawnAgentSpec(true), installedExtrasSpec(), ...boardTools(), ...outputTools()]
       : manager
         ? [...managerTools(), outputGuideSpec()]
         : [...agentTools(), ...linkTools(), ...boardTools(), ...outputTools()];
-    // hand_off: only an agent wired to a Fleet (never a Fleet, a Manager or a mission's team) has it.
-    return { tools: [...own, ...handOffTools(call.nodeId), readNodeSpec(), notesToolSpec()] };
+    // hand_off: every ordinary agent has it, wired to a Fleet yet or not (never a Fleet, a Manager or a mission's team).
+    // run_command and answer_dialog: every role acts on its own sub-agents (a Manager on its team, a Fleet also on its Manager).
+    return { tools: [...own, ...subAgentTools(), ...handOffTools(call.nodeId), readNodeSpec(), notesToolSpec()] };
   }
   const asked = String(call.params.name ?? "");
   const { name, args } = internalCall(asked, (call.params.arguments ?? {}) as Record<string, unknown>);
@@ -42,12 +44,16 @@ export async function answer(call: McpCall): Promise<unknown> {
   // Read-only and for all: the caller's project comes from the base, it may not be the one on screen.
   if (name === "notes") return notesTool(call.nodeId, fleet, args);
   // A link the user pasted is theirs to hand over: any agent, any fleet reads it, with no wire.
-  if (name === "read_node") return readNodeTool(args);
+  if (name === "read_node") return readNodeTool(args, call.nodeId);
   // A fleet writes its summary in OpenUI Lang too (finish): the guide is for all.
   if (name === "output_guide") return outputGuideTool();
+  // A parent's hold on its own sub-agents, whatever its role: each checks who it acts on (`./subAgentTools`).
+  if (SUB_AGENT_TOOLS.has(name)) return (await subAgentTool(call.nodeId, name, args)) ?? refused(t().unknown(asked));
   // A Fleet's sub-agent is a regular agent in its own terminal, for work beside its mission's queue.
   if (fleet && name === "spawn_agent") return spawnAgentTool(call.nodeId, args);
   if (fleet && name === "installed_extras") return installedExtrasTool(call.nodeId);
+  // Its results too go in an output beside its own node, not in an agent opened to draw one (show_output is in AGENT_ONLY for the rest).
+  if (fleet && name === "show_output") return showOutputTool(call.nodeId, args);
   // The boards the user wired to an agent or a Fleet: theirs to read, and to add cards to or move them on (refused on a mission's own);
   // and open_board, a board of their own opened beside them and wired to them. A Manager has neither: its board is the mission's.
   if (fleet && BOARD_TOOLS.has(name)) return boardTool(call.nodeId, name, args) ?? refused(t().unknown(asked));

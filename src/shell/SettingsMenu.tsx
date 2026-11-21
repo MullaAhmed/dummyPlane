@@ -1,8 +1,7 @@
 import { useId, type ReactElement, type ReactNode } from "react";
-import { Bell, BellRing, Bot, CircleArrowDown, CirclePause, Download, FileText, Gauge, ImageDown, Info, LayoutDashboard, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, Route, SlidersHorizontal, SquareTerminal, Upload } from "lucide-react";
+import { Bell, BellRing, Bot, CircleArrowDown, CirclePause, Download, FileText, Gauge, ImageDown, LayoutDashboard, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, Route, SlidersHorizontal, SquareTerminal, Upload } from "lucide-react";
 import { arrangeWorkspace } from "@/agents/arrangeCanvas";
 import { ARRANGE_LAYOUTS, readArrangeLayout } from "@/agents/arrangeLayout";
-import { showAbout } from "@/app/about";
 import { setArrangeLayout, useArrangeLayout } from "@/app/arrangeLayoutSetting";
 import { autoArrangeStore, setAutoArrange, useAutoArrange } from "@/app/autoArrangeSetting";
 import { setFollowWaiting, useFollowWaiting } from "@/app/followWaitingSetting";
@@ -39,15 +38,15 @@ import { showModelLevels } from "./modelLevels";
 import { showTroubleshooting } from "./troubleshoot";
 import { exportCurrentScene, exportCurrentPng, importIntoScene } from "./sceneActions";
 
-/**
- * One 32 px row everywhere, a 16 px icon column and a 10 px gap, so every label
- * starts on the same line and every tick sits in the same column; the highlight eases.
+/*
+ * The row itself (32 px, the UI step, an 8 px gap after a 16 px icon) is the menu primitive's own anatomy, so every label
+ * starts on the same line and every tick sits in the same column; the highlight snaps, like every menu row
+ * (docs/design-system.md, Interaction: no transition on the fill). Only the padding is set here.
  */
-const ROW = "h-8 gap-2.5 text-(length:--text-ui) transition-[background-color,color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none";
 /** An action, or a submenu's trigger. */
-const ITEM = cn(ROW, "px-2");
+const ITEM = "px-2";
 /** A setting: its tick sits at the right, so the row keeps room for it. */
-const CHOICE = cn(ROW, "pl-2 pr-8");
+const CHOICE = "pl-2 pr-8";
 /** The leading icons stay a step quieter than the labels; a highlighted row lights them up. */
 const ICON = "text-dp-text-2";
 /** A group's name: the menu label already wears `.dp-label`; this sets it closer to its rows than to the group above. */
@@ -123,7 +122,9 @@ export function SettingsMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-      <DropdownMenuContent side={side} align={align} sideOffset={12} collisionPadding={12} className="w-64 p-1">
+      {/* The menus' own collision padding keeps it under the title bar, where its 15 rows scroll at the 960x600 minimum.
+          Opened from the rail: the toasts lift clear of it (toastLift.ts). */}
+      <DropdownMenuContent side={side} align={align} sideOffset={12} data-rail-overlay="" className="w-64 p-1">
         <Section label={t.theme}>
           <DropdownMenuRadioGroup value={choice} onValueChange={(value) => void setThemeChoice(readThemeChoice(value))}>
             {(Object.keys(PALETTES) as ThemeChoice[]).map((palette) => (
@@ -189,6 +190,9 @@ export function SettingsMenu({
           <DropdownMenuItem className={ITEM} onSelect={showModelLevels}>
             <SlidersHorizontal className={ICON} /> {t.modelLevels}
           </DropdownMenuItem>
+        </Section>
+        <DropdownMenuSeparator className={SEPARATOR} />
+        <Section label={t.alerts}>
           <DropdownMenuCheckboxItem
             className={CHOICE}
             checked={nativeNotifications}
@@ -213,6 +217,9 @@ export function SettingsMenu({
           >
             <BellRing className={ICON} /> {t.finishAlerts}
           </DropdownMenuCheckboxItem>
+        </Section>
+        <DropdownMenuSeparator className={SEPARATOR} />
+        <Section label={t.layout}>
           <DropdownMenuCheckboxItem
             className={CHOICE}
             checked={autoArrange}
@@ -268,10 +275,6 @@ export function SettingsMenu({
             </DropdownMenuItem>
             <DropdownMenuItem className={ITEM} onSelect={() => void openLogDir()}>
               <FileText className={ICON} /> {t.openLogs}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator className={SEPARATOR} />
-            <DropdownMenuItem className={ITEM} onSelect={() => void showAbout()}>
-              <Info className={ICON} /> {t.about}
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>

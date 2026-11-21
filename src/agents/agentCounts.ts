@@ -6,8 +6,8 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { tallyAgents, workspaceNodeIds, type AgentTally } from "./agentState";
 
 /**
- * The counts of the workspace on screen: the agents the agents panel lists, so each counter of the title bar
- * matches the panel it opens. Working, waiting and active count the same agents (Fleets included, plain shells
+ * The counts of the workspace on screen: the agents the agents panel lists, so the rail's waiting pip, the title
+ * bar's Working count and the panel's filters read the same numbers. Working, waiting and active count the same agents (Fleets included, plain shells
  * and agents that exited not), so working + waiting never exceeds active.
  */
 export function useWorkspaceAgentCounts(): AgentTally {

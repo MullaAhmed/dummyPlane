@@ -1,4 +1,4 @@
-import { useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { useRef, useState, type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import { Ellipsis } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 export function NodeHeader({ className, ...props }: ComponentProps<"header">) {
   return (
     <header
+      // Its buttons take a press whether or not the node is the active one (canvas/liveControls.ts).
+      data-node-chrome=""
       {...props}
       className={cn("@container/head flex h-9 shrink-0 items-center gap-2 border-b border-dp-line bg-dp-terminal-head px-3 text-xs", className)}
     />
@@ -62,17 +64,23 @@ export const WIDE_ONLY = "hidden @md/head:flex";
 /** The quiet icon buttons of a header: muted until pointed at. */
 const HEADER_ICON = "rounded-md text-dp-text-2 hover:text-dp-text";
 
-/** An icon action of a header; its name shows in a tooltip, the glyph alone not always saying it. */
-export function HeaderButton(props: { label: string; onClick: () => void; children: ReactNode }) {
+/** An icon action of a header; its name shows in a tooltip, the glyph alone not always saying it. The rest goes to its button. */
+export function HeaderButton({
+  label,
+  onClick,
+  children,
+  className,
+  ...rest
+}: { label: string; onClick: (event: MouseEvent<HTMLButtonElement>) => void; children: ReactNode } & Omit<ComponentProps<"button">, "onClick" | "children">) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={props.label} onClick={props.onClick} className={HEADER_ICON}>
-          {props.children}
+        <Button {...rest} type="button" variant="ghost" size="icon-sm" aria-label={label} onClick={onClick} className={cn(HEADER_ICON, className)}>
+          {children}
         </Button>
       </TooltipTrigger>
       <TooltipContent side="bottom" sideOffset={6}>
-        {props.label}
+        {label}
       </TooltipContent>
     </Tooltip>
   );

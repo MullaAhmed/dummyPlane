@@ -55,5 +55,5 @@ it("tells the pantheon picked, and that it only applies to the agents added next
   await open("dc");
   await act(async () => radios()[3].click());
   expect(onPick).toHaveBeenCalledWith("star-wars");
-  expect(document.querySelector('[data-slot="dropdown-menu-sub-content"]')!.textContent).toContain("Applies to agents added from now on.");
+  expect(document.querySelector('[data-slot="dropdown-menu-sub-content"]')!.textContent).toContain("Applies to agents added from now on");
 });

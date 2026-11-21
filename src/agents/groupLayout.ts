@@ -209,6 +209,61 @@ export function freeSpot(spot: Rect, obstacles: readonly Rect[]): Rect {
   return candidates.find(isFree) ?? spot;
 }
 
+/** Far enough to stand for "without end" in the scene. */
+const FAR = 1_000_000;
+
+/**
+ * `spot` placed by `freeSpot` among `obstacles`, kept out from under `avoid` (the occupied lane on screen,
+ * agents/laneCover.ts) when it meets it: that box then stretches right, up and down without end, so the way out is to
+ * its left, where the canvas shows, not past the window's edge. A spot that meets none, or that finds no room left of
+ * it, is placed as before.
+ */
+export function freeSpotClear(spot: Rect, obstacles: readonly Rect[], avoid: readonly Rect[]): Rect {
+  const met = avoid.filter((box) => overlap(spot, box) > 0);
+  if (met.length === 0) return freeSpot(spot, obstacles);
+  const bands = met.map(stretched);
+  const clear = freeSpot(spot, [...obstacles, ...bands]);
+  const near = Math.abs(clear.x - spot.x) < FAR / 2 && Math.abs(clear.y - spot.y) < FAR / 2;
+  return near && met.every((box) => clear.x + clear.width + NODE_GAP <= box.x) ? clear : freeSpot(spot, obstacles);
+}
+
+/** `box` stretched right, up and down without end: what lies right of its left edge, at any height. */
+function stretched(box: Rect): Rect {
+  return { x: box.x, y: box.y - FAR, width: box.width + FAR, height: box.height + 2 * FAR };
+}
+
+/**
+ * The cell `freeCell` gives a terminal joining `frame`, unless it meets `avoid` (the occupied lane on screen,
+ * agents/laneCover.ts): then the first free cell in a column that keeps left of that box, the grid's holes first, then
+ * the column grown down (past MAX_ROWS, by MAX_ROWS at most), so a terminal that arrives on its own lands left of the
+ * lane, out of view below rather than under the Agents panel. Where no column keeps left of it, `freeCell`'s.
+ */
+export function freeCellClear(frame: Rect, members: readonly Rect[], avoid: readonly Rect[]): { cell: Rect; frame: Rect } {
+  const normal = freeCell(frame, members);
+  const met = avoid.filter((box) => overlap(normal.cell, box) > 0);
+  if (met.length === 0) return normal;
+  const bands = met.map(stretched);
+  const clearOf = (cell: Rect) => bands.every((band) => overlap(cell, band) === 0);
+  const columns = Math.max(1, Math.floor((frame.width - 2 * PADDING + COLUMN_GAP) / (CELL.width + COLUMN_GAP)));
+  const rows = Math.max(1, Math.floor((frame.height - PADDING_TOP - PADDING_BOTTOM + ROW_GAP) / (CELL.height + ROW_GAP)));
+  // A column meets the stretched box whole or not at all: the columns left of it, in order.
+  const kept: number[] = [];
+  for (let col = 0; col < columns && clearOf(cellAt(frame, col, 0)); col++) kept.push(col);
+  const deepest = Math.max(rows, MAX_ROWS) + MAX_ROWS;
+  for (const [from, to] of [
+    [0, rows],
+    [rows, deepest],
+  ]) {
+    for (const col of kept) {
+      for (let row = from; row < to; row++) {
+        const cell = cellAt(frame, col, row);
+        if (!isTaken(cell, members)) return { cell, frame: grownTo(frame, cell) };
+      }
+    }
+  }
+  return normal;
+}
+
 /** Where "Link a fleet" puts it: left of the group, tops aligned. */
 export function fleetSpot(frame: Rect): Point {
   const { width, height } = NODE_SIZE.fleet;

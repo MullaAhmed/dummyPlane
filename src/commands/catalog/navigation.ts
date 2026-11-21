@@ -5,12 +5,13 @@ import { framesFromScene, hiddenNodeIds } from "@/canvas/groups";
 import { stepTerminal, terminalOrder } from "@/canvas/terminalOrder";
 import { fitScene, zoomTo } from "@/canvas/viewActions";
 import { agentsPanelStore, setAgentsPanel } from "@/agents/agentsPanelState";
+import { gitWindowStore, openGitWindow } from "@/git/gitWindowStore";
 import { currentWaitingAgents } from "@/agents/waitingAgents";
 import { focusCommandBar } from "@/shell/commandBarFocus";
 import { projectsStore } from "@/store/projects";
 import { openNotes } from "@/notes/notesStore";
 import { inCodeWorkspace, openGoToLine } from "@/studio/GoToLine";
-import type { Command, CommandContext } from "../command";
+import { inputOf, type Command, type CommandContext } from "../command";
 import { goToNextWaiting } from "../goToRun";
 import { command, sectionNamed } from "./define";
 import { catalog } from "./messages";
@@ -43,9 +44,9 @@ export const NAVIGATION: readonly Command[] = [
   command("terminal.previous", { section: nav, shortcut: "Ctrl+Shift+Tab", available: withTerminals, run: (ctx) => step(-1, ctx) }),
   command("agent.nextWaiting", { section: nav, available: withWaiting, run: (ctx) => goToNextWaiting(ctx.terminalId) }),
   command("palette.goTo", { section: nav, shortcut: "Ctrl+P", available: always, run: (ctx) => openPalette("goTo", ctx) }),
-  command("canvas.overview", { section: nav, shortcut: "Ctrl+Shift+A", available: inProject, run: () => overview() }),
+  command("canvas.overview", { section: nav, shortcut: "Ctrl+Shift+A", available: inProject, run: (ctx) => overview(inputOf(ctx)) }),
   command("canvas.release", { section: nav, shortcut: "Shift+Escape", available: inProject, run: () => releaseToCanvas() }),
-  command("canvas.fit", { section: nav, available: inProject, run: () => fitScene() }),
+  command("canvas.fit", { section: nav, available: inProject, run: (ctx) => fitScene(inputOf(ctx)) }),
   command("canvas.zoom100", { section: nav, available: inProject, run: () => zoomTo(1) }),
   command("commandBar.focus", { section: nav, available: inProject, run: () => void focusCommandBar() }),
   command("agentsPanel.toggle", {
@@ -55,6 +56,13 @@ export const NAVIGATION: readonly Command[] = [
     run: () => setAgentsPanel(!agentsPanelStore.getState().open),
   }),
   command("notes.open", { section: nav, available: inProject, run: () => openNotes() }),
+  // The branch chip's window, from the keyboard: offered where the chip is, in a repository.
+  command("git.window", {
+    section: nav,
+    shortcut: "Ctrl+Shift+B",
+    available: (ctx) => ctx.project && gitWindowStore.getState().repo !== null,
+    run: () => openGitWindow(),
+  }),
   command("project.home", { section: nav, available: inProject, run: () => projectsStore.getState().goHome() }),
   command("project.close", { section: nav, available: inProject, run: () => projectsStore.getState().close() }),
   command("editor.goToLine", { section: nav, shortcut: "Ctrl+G", available: () => inCodeWorkspace(), run: () => openGoToLine() }),

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
 import { useMessages } from "@/i18n"
 import { componentsMessages } from "@/components/messages"
+import { closeAutoFocusTo, RememberOpener } from "@/lib/focusReturn"
 
 function Dialog({
   ...props
@@ -39,7 +40,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-dp-canvas/60 duration-(--dp-dur) ease-(--dp-ease-out) data-closed:duration-(--dp-dur-fast) data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 duration-(--dp-dur) ease-(--dp-ease-out) data-closed:duration-(--dp-dur-fast) data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -51,25 +52,38 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  instant = false,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  /** A command opened it (the palette, a shortcut): it and its scrim show and leave at once (`data-instant`). */
+  instant?: boolean
 }) {
   const t = useMessages(componentsMessages)
+  // A dialog a command, a shortcut or a menu item opened has no trigger of its own: closing gives the keyboard back to
+  // what had it when it opened (the row, the menu's button, the element the palette was opened from).
+  const opener = React.useRef<HTMLElement | null>(null)
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay data-instant={instant ? "" : undefined} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        data-instant={instant ? "" : undefined}
         // The header leaves the close button its corner (DialogHeader reads it).
         data-close-button={showCloseButton ? "" : undefined}
         className={cn(
-          // Never taller than the window: past it, the dialog scrolls, so its title and its buttons stay reachable.
-          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-dp-surface p-4 text-sm text-dp-text ring-1 ring-dp-line duration-(--dp-dur) ease-(--dp-ease-out) data-closed:duration-(--dp-dur-fast) outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Never taller than the window less the title bar: centred, with OVERLAY_TOP (46 px) above and below, so it starts
+          // under the title bar. Past that height a dialog with a DialogBody becomes a column whose body scrolls between
+          // its header and its footer; one without scrolls whole, so its title and its buttons stay reachable.
+          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-92px)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto p-4 text-sm text-dp-text duration-(--dp-dur) ease-(--dp-ease-out) data-closed:duration-(--dp-dur-fast) outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "has-data-[slot=dialog-body]:flex has-data-[slot=dialog-body]:flex-col",
           className
         )}
         {...props}
+        onCloseAutoFocus={closeAutoFocusTo(opener, onCloseAutoFocus)}
       >
+        <RememberOpener into={opener} />
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
@@ -98,6 +112,14 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
       {...props}
     />
   )
+}
+
+/**
+ * What scrolls in a tall dialog: between the header and the footer, which stay in view. Its 16 px sides reach the
+ * dialog's edges and 2 px above and below give a focus ring at the edge of a field room the scroll would clip.
+ */
+function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  return <div data-slot="dialog-body" className={cn("-mx-4 -my-0.5 min-h-0 overflow-y-auto px-4 py-0.5", className)} {...props} />
 }
 
 function DialogFooter({
@@ -162,6 +184,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,

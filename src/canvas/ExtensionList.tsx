@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { ListChecks, ListX, RotateCw, Search } from "lucide-react";
+import { InlineProblem } from "@/components/InlineProblem";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -136,16 +137,8 @@ export function ExtensionList(props: {
 
   if (lists.state === "loading") return <Note>{t.loading}</Note>;
   if (lists.state === "error") {
-    return (
-      <div className="flex flex-col items-start gap-2">
-        <p role="alert" className="text-xs break-words text-dp-text-2">
-          {s.listFailed(lists.message)}
-        </p>
-        <Button type="button" variant="secondary" size="sm" onMouseDown={keepCanvasFocus} onClick={props.onRetry} className="text-xs font-normal">
-          {s.retry}
-        </Button>
-      </div>
-    );
+    // The retry takes no focus off the canvas, like every button of this panel.
+    return <InlineProblem place="row" title={s.listFailed} next={s.listNext} error={lists.message} action={{ label: s.retry, onClick: props.onRetry, onMouseDown: keepCanvasFocus }} />;
   }
 
   const items = lists.data[kind] ?? [];
@@ -305,7 +298,7 @@ function ListToolbar(props: { count: string; canSelect: boolean; canUnselect: bo
  * row's hover (HOVERED_BOX), unless the row is locked.
  */
 export const QUIET_BOX =
-  "border-dp-text-3 bg-transparent transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none after:-inset-1 dark:bg-transparent data-checked:border-dp-text-3 data-checked:bg-dp-accent-soft data-checked:text-dp-text dark:data-checked:bg-dp-accent-soft";
+  "border-dp-text-3 bg-transparent transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) after:-inset-1 dark:bg-transparent data-checked:border-dp-text-3 data-checked:bg-dp-accent-soft data-checked:text-dp-text dark:data-checked:bg-dp-accent-soft";
 export const HOVERED_BOX = "group-hover/row:border-dp-text-2 data-checked:group-hover/row:border-dp-text-2";
 
 /**
@@ -413,17 +406,17 @@ function RestartLine({ nodeId, choice, saved }: { nodeId: string; choice: Extens
         </p>
         {pending && (
           <div className="flex items-center justify-between gap-3">
-            <p className="min-w-0 truncate text-xs leading-7 text-dp-text-3">{t.runningOldChoice}</p>
+            <p className="min-w-0 py-1.5 text-xs leading-4 break-words text-dp-text">{t.runningOldChoice}</p>
             {offer}
           </div>
         )}
       </div>
     );
   }
-  // One line either way, as tall as the button (leading-7): beside it, the shorter note fits the panel's width.
+  // As tall as the button on one line (py-1.5 and leading-4 make 28 px), and it wraps rather than cut what the restart does.
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-t border-dp-line pt-2">
-      <p className="min-w-0 truncate text-xs leading-7 text-dp-text-3">{pending ? t.runningOldChoice : fleet ? t.appliesOnRestartFleet : t.appliesOnRestart}</p>
+      <p className={cn("min-w-0 py-1.5 text-xs leading-4 break-words", pending ? "text-dp-text" : "text-dp-text-2")}>{pending ? t.runningOldChoice : fleet ? t.appliesOnRestartFleet : t.appliesOnRestart}</p>
       {offer}
     </div>
   );

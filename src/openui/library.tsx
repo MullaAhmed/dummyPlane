@@ -2,14 +2,16 @@ import { createLibrary, defineComponent } from "@openuidev/react-lang";
 import { z } from "zod/v4";
 import { BarChart, Breakdown, LineChart } from "./charts";
 import * as P from "./parts";
+import SKILL from "./skill/SKILL.md?raw";
 import { TONES } from "./tones";
 
 /**
  * dummyPlane's OpenUI library: what an agent may build an output with
  * (show_output), drawn with the app's own parts on the palette's tokens.
  * Small on purpose: each description feeds `outputGuide()`, the text an
- * agent reads before it writes OpenUI Lang. No raw HTML, no images, no
- * Query()/Mutation(): output is data, and nothing in it runs by itself.
+ * agent reads before it writes OpenUI Lang, with the design rules of
+ * `./skill/SKILL.md`. No raw HTML, no images, no Query()/Mutation(): output
+ * is data, and nothing in it runs by itself.
  */
 
 /** Any component of this library, for a container's children: set below, once every component exists. */
@@ -29,7 +31,7 @@ const Stack = defineComponent({
 
 const Row = defineComponent({
   name: "Row",
-  description: "Lays its children side by side in equal shares, wrapping when narrow: Stats, small Cards, Badges.",
+  description: "Lays its children side by side, wrapping when narrow. Two to four Stats make one strip of figures; Buttons, Links and Badges keep their own width; anything else takes an equal share.",
   props: z.object({ children: children(), gap: gap.optional() }),
   component: ({ props, renderNode }) => <P.Row {...props} renderNode={renderNode} />,
 });
@@ -99,7 +101,7 @@ const KeyValue = defineComponent({
 
 const Stat = defineComponent({
   name: "Stat",
-  description: "A figure with its label, and an optional change line (delta); a tone (success, warning, danger…) inks both. Several side by side in a Row.",
+  description: "A figure with its label, and an optional change line (delta) that names its reference (\"+12 since main\"): its sign draws an arrow. A tone (success, warning, danger…) inks both: only when the figure is good or bad news. Two to four side by side in a Row.",
   props: z.object({ label: z.string(), value: z.union([z.string(), z.number()]), delta: z.string().optional(), tone: tone.optional() }),
   component: ({ props }) => <P.Stat {...props} />,
 });
@@ -127,8 +129,8 @@ const Code = defineComponent({
 
 const Progress = defineComponent({
   name: "Progress",
-  description: "A progress bar: value out of max (100 by default), with an optional label.",
-  props: z.object({ value: z.number(), max: z.number().optional(), label: z.string().optional() }),
+  description: "A ratio against its limit: value out of max (100 by default), an optional label, and a tone (warning, danger…) when the ratio is news.",
+  props: z.object({ value: z.number(), max: z.number().optional(), label: z.string().optional(), tone: tone.optional() }),
   component: ({ props }) => <P.Progress {...props} />,
 });
 
@@ -148,7 +150,7 @@ const Divider = defineComponent({
 
 const Bars = defineComponent({
   name: "BarChart",
-  description: "Bars, one per label: BarChart([\"a\", \"b\"], [3, 5], \"Title\").",
+  description: "Named amounts, one bar per label, three or more: BarChart([\"api\", \"web\", \"cli\"], [42, 31, 8], \"Bundle size, kB\"). Short labels draw columns, longer ones rows of bars.",
   props: z.object({ labels: z.array(z.string()), values: z.array(z.number()), title: z.string().optional() }),
   component: ({ props }) => <BarChart {...props} />,
 });
@@ -162,7 +164,7 @@ const Parts = defineComponent({
 
 const Lines = defineComponent({
   name: "LineChart",
-  description: "Lines over labels (x axis), one per series: LineChart([\"Mon\", \"Tue\"], [{name: \"p95 ms\", values: [120, 98]}], \"Title\").",
+  description: "Lines over labels (x axis, in order), one per series, four at most in one unit: LineChart([\"Mon\", \"Tue\"], [{name: \"p95 ms\", values: [120, 98]}], \"Title\"). Its legend shows each series' last value; a hover, any other.",
   props: z.object({ labels: z.array(z.string()), series: z.array(z.object({ name: z.string(), values: z.array(z.number()) })), title: z.string().optional() }),
   component: ({ props }) => <LineChart {...props} />,
 });
@@ -183,29 +185,31 @@ export const LIBRARY_COMPONENT_NAMES: readonly string[] = COMPONENTS.map((c) => 
 
 export const outputLibrary = createLibrary({ components: COMPONENTS, root: "Stack" });
 
-const EXAMPLE = `root = Stack([verdict, split, groups, next])
-verdict = Callout("danger", "Two tickets break a commitment in code: fix them before the release.", "Six tickets checked")
-split = Breakdown([{label: "Done", value: 2, tone: "success"}, {label: "Partial", value: 2, tone: "warning"}, {label: "Not started", value: 2, tone: "danger"}])
-groups = Tabs([Tab("Fix first", [fix], 2), Tab("Partial", [partial], 2), Tab("Done", [done], 2)])
-fix = Table(["Ticket", "Problem"], [["OPE-12", "Scans files up to 2 GiB, not 4 GB"], ["OPE-31", "Imports reach the AI search"]])
-partial = Table(["Ticket", "Status", "Missing"], [["OPE-40", Badge("In progress", "info"), "A test that a deleted file stops serving"], ["OPE-44", Badge("Todo", "neutral"), "The 30-day log window"]])
-done = Table(["Ticket", "Proof"], [["OPE-7", Badge("Tested", "success")], ["OPE-9", Badge("Needs prod check", "warning")]])
-next = Button("Fix the two tickets", "Fix OPE-12 and OPE-31")`;
+/** The guide's example of the syntax; the design rules bring their own, good and bad. */
+const EXAMPLE = `root = Stack([verdict, figures, checks])
+verdict = Callout("success", "Every check passes on main.", "Ready to merge")
+figures = Row([Stat("Tests", 412, "+12 since main"), Stat("Coverage", "84%", "+2 pt", "success")])
+checks = Table(["Check", "Status", "Time, s"], [["Lint", Badge("Passed", "success"), 9], ["Types", Badge("Passed", "success"), 21]])`;
 
+/** The design rules (`./skill/SKILL.md`), without the front matter that makes the file a skill; Git may check it out with CRLF. */
+export const OUTPUT_SKILL = SKILL.replace(/\r\n/g, "\n")
+  .replace(/^---\n[\s\S]*?\n---\n+/, "")
+  .trim();
+
+/**
+ * What output_guide answers: the syntax and every component's signature,
+ * then the design rules, which say what to build with them.
+ */
 export function outputGuide(): string {
-  return outputLibrary.prompt({
+  const syntax = outputLibrary.prompt({
     preamble:
-      "You show results to the user in dummyPlane with show_output, written in OpenUI Lang: one statement per line, `name = Component(args…)`, arguments by position. dummyPlane draws it in an output node beside your terminal, in the app's own style, about 560 by 520 pixels before it scrolls. An output is looked at, not read: it has to beat the same words in your terminal.",
+      "You show results to the user in dummyPlane with show_output, written in OpenUI Lang: one statement per line, `name = Component(args…)`, arguments by position. dummyPlane draws it in an output node beside your terminal, in the app's own style, about 560 by 520 pixels before it scrolls. The syntax and the components come first; the design rules after them say what to build.",
     additionalRules: [
-      "The first screen answers: open with the verdict (a Callout), or the figures (a Breakdown for parts of a whole, Stats in a Row), then the detail. The node's header shows your title: do not repeat it as a Heading.",
-      "Few words: a Text is a sentence or two, never a paragraph. Items that each have a status or a reason are a Table, one row each, the status a Badge cell; never a List of long sentences.",
-      "Detail goes behind a click: the categories of one report in Tabs, each Tab with its count; supporting detail in a Card with collapsed true. Never a long column of Cards.",
-      "Tones carry meaning: success, warning and danger on Stats, Badges, Breakdown parts and Callouts. One or two Callouts at most, or none stands out.",
-      "Pick the component that fits: Table to compare, Breakdown for shares, Stat for a lone figure, KeyValue for facts, Code for code, Markdown only for prose that must stay prose.",
       "Strings are double-quoted; write \\n for a line break inside Markdown or Code text.",
       "Do not use Query(), Mutation(), $variables or @actions: output is static.",
       "show_output answers with the errors to fix, if any, and with warnings on what will read badly; call it again with the whole program. A call without output updates your latest output in place; pass output (the id it gave) to update that one, or new: true to show another one beside it.",
     ],
     examples: [EXAMPLE],
   });
+  return `${syntax}\n\n${OUTPUT_SKILL}\n`;
 }

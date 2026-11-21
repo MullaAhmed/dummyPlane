@@ -2,24 +2,45 @@
 //! Bound to 127.0.0.1 on a port the system picks; every request must carry the
 //! token drawn at startup.
 
+use std::fmt;
 use std::io::Read;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use serde_json::{Value, json};
+use serde::de::{Deserialize, Deserializer, IgnoredAny, MapAccess, SeqAccess, Visitor};
+use serde_json::{Map, Value, json};
 use tiny_http::{Header, Method, Request, Response, Server};
 
 use super::activity::{
     Activity, HookSource, claude_activity, claude_session_ended, clean_message, codex_activity,
     gemini_activity,
 };
+use super::delete_guard;
 use super::forked_skills::{self, Fork, SKILL_TOOL};
 use super::mcp;
 use super::subagents::SubagentHook;
 
-/// Larger bodies are refused.
+/// A status line's body: larger ones are refused.
 pub const MAX_BODY: usize = 64 * 1024;
+
+/// A hook's body is read whole up to this size, and no further. A `PostToolUse` of Claude's
+/// `Edit` or `Write` carries the old and the new text and the tool's response (the file as it
+/// was, its patch), so it grows with the file: 64 KiB refused any edit of a big file, and the
+/// event was lost. Past this size the body is not read on: see `parse_hook_body`. It stays under
+/// `MAX_ANNOUNCED_BODY`, so the rest of such a body is still drained and answered.
+const HOOK_MAX_BODY: usize = 16 * 1024 * 1024;
+
+/// The longest shell command the delete guard reads. Its time grows in step with the command
+/// (up to a second a MiB, measured on a debug build, for a command of `rm`s, nested shells or
+/// thousands of targets), and a hook not answered in the 2 seconds its settings give it lets the
+/// call run: a longer command, though the hook was read whole, is asked about instead
+/// (`pre_tool_use_unread`). A model's command is never that long.
+const GUARD_MAX_COMMAND: usize = 256 * 1024;
+
+/// Of a hook body past `HOOK_MAX_BODY`, a text field longer than this is not kept: the fields
+/// that matter (names, a mode, a folder, a message) are far shorter.
+const SALVAGED_TEXT: usize = 4 * 1024;
 
 /// A hook event that changes a terminal's activity.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -386,6 +407,180 @@ fn json_body(request: &mut Request) -> Result<Value, u16> {
     serde_json::from_slice(&body).map_err(|_| 400)
 }
 
+/// What a hook posted.
+#[derive(Debug)]
+struct HookBody {
+    json: Value,
+    /// The body was past the size read whole: `json` holds only what its top level said in short
+    /// values (`salvage`), and nothing of what was inside its objects, a tool's input included.
+    cut: bool,
+}
+
+/// At most `cap` bytes of `reader`, and whether it went on past them. Never holds more than
+/// `cap + 1` bytes, whatever the body announces or sends; `hint` (the announced length) only
+/// sizes the buffer once.
+fn read_capped(reader: &mut dyn Read, cap: usize, hint: usize) -> std::io::Result<(Vec<u8>, bool)> {
+    let mut body = Vec::with_capacity(hint.min(cap + 1));
+    reader.take(cap as u64 + 1).read_to_end(&mut body)?;
+    let cut = body.len() > cap;
+    body.truncate(cap);
+    Ok((body, cut))
+}
+
+/// A hook's body as JSON: whole when it fits in `cap` bytes (what a hook is asked about, a
+/// command included, is then read in full), else only its short top-level fields, `cut`. A
+/// body that is not JSON is refused (400), and a cut one that does not open as an object (413).
+fn parse_hook_body(reader: &mut dyn Read, hint: usize, cap: usize) -> Result<HookBody, u16> {
+    let (body, cut) = read_capped(reader, cap, hint).map_err(|_| 400_u16)?;
+    if !cut {
+        let json = serde_json::from_slice(&body).map_err(|_| 400_u16)?;
+        return Ok(HookBody { json, cut });
+    }
+    let fields = salvage(&body);
+    // A JSON object whose first field is the huge one has nothing short to keep, and it is still
+    // answered (`HookBody::cut`): a refusal here would let a call it asks about run. What is no
+    // object, so no hook's, is refused.
+    if fields.is_empty() && !body.trim_ascii_start().starts_with(b"{") {
+        return Err(413);
+    }
+    Ok(HookBody {
+        json: Value::Object(fields),
+        cut,
+    })
+}
+
+/// The top-level fields of a JSON object cut short, as far as they are short scalars: the event's
+/// name, the tool's, the session's folder and mode, a notification's message. A field that holds
+/// an object or a list, or a long text, is walked past without being kept, so the memory used is
+/// that of the keys and the short values, not of the body. The cut itself is an error to serde
+/// after the last whole field, which is the end of what is kept, not a failure.
+fn salvage(prefix: &[u8]) -> Map<String, Value> {
+    let mut fields = Map::new();
+    let mut reader = serde_json::Deserializer::from_slice(prefix);
+    let _ = (&mut reader).deserialize_map(TopLevel(&mut fields));
+    fields
+}
+
+struct TopLevel<'a>(&'a mut Map<String, Value>);
+
+impl<'de> Visitor<'de> for TopLevel<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a JSON object")
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<(), A::Error> {
+        while let Some(key) = map.next_key::<String>()? {
+            if let Short(Some(value)) = map.next_value()? {
+                self.0.insert(key, value);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// A short scalar, kept; anything else is skipped over.
+struct Short(Option<Value>);
+
+impl<'de> Deserialize<'de> for Short {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_any(ShortValue)
+    }
+}
+
+struct ShortValue;
+
+impl<'de> Visitor<'de> for ShortValue {
+    type Value = Short;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("any JSON value")
+    }
+
+    fn visit_bool<E>(self, value: bool) -> Result<Short, E> {
+        Ok(Short(Some(Value::Bool(value))))
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Short, E> {
+        Ok(Short(Some(Value::from(value))))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Short, E> {
+        Ok(Short(Some(Value::from(value))))
+    }
+
+    fn visit_f64<E>(self, value: f64) -> Result<Short, E> {
+        Ok(Short(
+            serde_json::Number::from_f64(value).map(Value::Number),
+        ))
+    }
+
+    fn visit_unit<E>(self) -> Result<Short, E> {
+        Ok(Short(Some(Value::Null)))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Short, E> {
+        Ok(Short(
+            (value.len() <= SALVAGED_TEXT).then(|| Value::String(value.to_string())),
+        ))
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Short, A::Error> {
+        while map.next_entry::<IgnoredAny, IgnoredAny>()?.is_some() {}
+        Ok(Short(None))
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Short, A::Error> {
+        while seq.next_element::<IgnoredAny>()?.is_some() {}
+        Ok(Short(None))
+    }
+}
+
+/// Whether the shell command of a call is longer than the delete guard reads.
+fn command_too_long(json: &Value) -> bool {
+    json["tool_input"]["command"]
+        .as_str()
+        .is_some_and(|command| command.len() > GUARD_MAX_COMMAND)
+}
+
+/// What a `PreToolUse` gets back when its command was not read for deletes (`delete_guard`),
+/// because its body was cut (`HookBody::cut`) or its command is past `GUARD_MAX_COMMAND`. The
+/// tools dummyPlane refuses by name are still refused (`pre_tool_use`: their name was read);
+/// for anything else a hook that answers nothing, or 413, lets the call run: so the user is
+/// asked, as the guard asks, and where nobody can answer (`dontAsk`) it is refused, saying why.
+fn pre_tool_use_unread(json: &Value, terminals: bool, manager: bool) -> Value {
+    if let Some(decision) = pre_tool_use(json, terminals, manager) {
+        return decision;
+    }
+    let tool = json["tool_name"].as_str().unwrap_or("tool");
+    let size = GUARD_MAX_COMMAND / 1024;
+    let unattended = json["permission_mode"].as_str() == Some("dontAsk");
+    let (decision, reason) = if unattended {
+        (
+            "deny",
+            format!(
+                "In dummyPlane, this {tool} call was stopped: it is larger than the {size} KiB of a command dummyPlane reads, so it could not be checked for deletes, and nobody can approve it in this session. Do not retry it as it is: send it as smaller calls."
+            ),
+        )
+    } else {
+        (
+            "ask",
+            format!(
+                "{} dummyPlane asks before a {tool} call it cannot read: this one is larger than the {size} KiB of a command it reads, so it could not be checked for deletes. The user approves it only if it really is meant to run. If it is refused or goes unanswered, do not retry it as it is: send it as smaller calls.",
+                delete_guard::GUARD_MARKER
+            ),
+        )
+    };
+    json!({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": decision,
+            "permissionDecisionReason": reason,
+        }
+    })
+}
+
 fn status_line_of(request: &mut Request, token: &str, sink: &dyn HookSink) -> u16 {
     let header = token_header(request);
     let node_id = match parse_status_route(request.url(), token, header.as_deref()) {
@@ -414,21 +609,16 @@ fn status_of(request: &mut Request, token: &str, sink: &dyn HookSink) -> (u16, O
     if *request.method() != Method::Post {
         return (405, None);
     }
-    let mut body = Vec::new();
-    if request
-        .as_reader()
-        .take(MAX_BODY as u64 + 1)
-        .read_to_end(&mut body)
-        .is_err()
-    {
-        return (400, None);
-    }
-    if body.len() > MAX_BODY {
-        return (413, None);
-    }
-    let Ok(json) = serde_json::from_slice::<serde_json::Value>(&body) else {
-        return (400, None);
+    let hint = request.body_length().unwrap_or(0);
+    let HookBody { json, cut } = match parse_hook_body(request.as_reader(), hint, HOOK_MAX_BODY) {
+        Ok(body) => body,
+        Err(status) => return (status, None),
     };
+    if cut {
+        log::warn!(
+            "hook of {node_id} is past {HOOK_MAX_BODY} bytes: only its short fields were read"
+        );
+    }
     let (activity, session_ended) = match source {
         HookSource::Claude => {
             if let Some(hook) = SubagentHook::parse(&json) {
@@ -436,10 +626,20 @@ fn status_of(request: &mut Request, token: &str, sink: &dyn HookSink) -> (u16, O
                 return (204, None);
             }
             let event = json["hook_event_name"].as_str().unwrap_or_default();
-            if event == "PreToolUse" {
+            // A body cut short that names no event could be the question below as well.
+            if event == "PreToolUse" || (cut && event.is_empty()) {
                 // A question, not an activity: the terminal's state stays as it is.
                 let terminals = SUBAGENT_TERMINALS.load(Ordering::Relaxed);
-                return match pre_tool_use(&json, terminals, from_manager(request.url())) {
+                let manager = from_manager(request.url());
+                let decision = if cut || command_too_long(&json) {
+                    // The command was not read, so no delete was looked for: never a silent allow.
+                    Some(pre_tool_use_unread(&json, terminals, manager))
+                } else {
+                    // A delete is read whatever the "Sub-agents open as terminals" switch says.
+                    delete_guard::pre_tool_use(&json, request.url())
+                        .or_else(|| pre_tool_use(&json, terminals, manager))
+                };
+                return match decision {
                     Some(decision) => (200, Some(decision)),
                     None => (204, None),
                 };
@@ -907,7 +1107,12 @@ mod tests {
             404
         );
         assert_eq!(send(server.port, "POST", &path, b"not json"), 400);
-        let huge = vec![b' '; MAX_BODY + 1];
+        // Not a status line: a hook's body may pass 64 KiB (`a_hook_past_64_kib_is_read_whole`), and
+        // this one, which is not JSON, is refused for that.
+        let big = vec![b' '; MAX_BODY + 1];
+        assert_eq!(send(server.port, "POST", &path, &big), 400);
+        // Past what a hook is read whole, with nothing in it to read.
+        let huge = vec![b' '; HOOK_MAX_BODY + 1];
         assert_eq!(send(server.port, "POST", &path, &huge), 413);
         // An event dummyPlane does not track is accepted and ignored.
         assert_eq!(
@@ -1265,8 +1470,30 @@ mod tests {
             assert_eq!(fleet_pre(tool), (204, String::new()), "{tool}");
             assert_eq!(manager_pre(tool), (204, String::new()), "{tool}");
         }
+        // A delete is read all the same: the switch is about sub-agents, not about the user's files.
+        let scoped = delete_guard::with_scope(
+            &format!("/hook/claude/n1?t={}", server.token),
+            std::path::Path::new("/work/proj"),
+        );
+        let bash = |command: &str| {
+            let body = json!({
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_input": { "command": command },
+                "cwd": "/work/proj",
+            })
+            .to_string();
+            exchange(server.port, "POST", &scoped, &[], body.as_bytes())
+        };
+        let (status, body) = bash("rm -rf /work/other");
+        assert_eq!(status, 200);
+        let body = serde_json::from_str::<Value>(&body).unwrap();
+        assert_eq!(body["hookSpecificOutput"]["permissionDecision"], "ask");
+        assert_eq!(bash("rm -rf dist node_modules"), (204, String::new()));
         set_subagent_terminals(true);
         assert_eq!(pre("Agent").0, 200);
+        assert_eq!(bash("rm -rf /work/other").0, 200);
+        assert_eq!(bash("rm -rf dist node_modules"), (204, String::new()));
 
         // A question, not an activity: no hit.
         assert!(rx.recv_timeout(Duration::from_millis(300)).is_err());
@@ -1336,6 +1563,348 @@ mod tests {
         let huge = vec![b' '; MAX_BODY + 1];
         assert_eq!(send(server.port, "POST", &path, &huge), 413);
         assert!(sink.statuses.lock().unwrap().is_empty());
+    }
+
+    /// A Claude hook body of `event` for an edit whose text is `padding` bytes long, three times.
+    fn edit_body(event: &str, padding: usize) -> Vec<u8> {
+        let text = "x".repeat(padding);
+        format!(
+            r#"{{"session_id":"s1","cwd":"/work/proj","hook_event_name":"{event}","tool_name":"Edit","tool_input":{{"file_path":"/work/proj/a.rs","old_string":"{text}","new_string":"{text}"}},"tool_response":{{"filePath":"/work/proj/a.rs","originalFile":"{text}","structuredPatch":[{{"lines":["-a","+b"]}}]}}}}"#
+        )
+        .into_bytes()
+    }
+
+    /// Regression: "PostToolUse:Edit hook failed HTTP 413": the edit of a big file posts its old and
+    /// new text and the file as it was, and 64 KiB refused it, so the event was lost.
+    #[test]
+    fn a_hook_past_64_kib_is_read_whole() {
+        let (tx, rx) = mpsc::channel();
+        let server = start(Arc::new(TestSink::new(tx))).unwrap();
+        let path = format!("/hook/claude/n1?t={}", server.token);
+        let body = edit_body("PostToolUse", 100 * 1024);
+        assert!(body.len() > 3 * MAX_BODY && body.len() < HOOK_MAX_BODY);
+        assert_eq!(send(server.port, "POST", &path, &body), 204);
+        let hit = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(
+            (hit.node_id.as_str(), hit.source, hit.activity),
+            ("n1", HookSource::Claude, Activity::Working)
+        );
+        // The same, as a Gemini or Codex session would post it.
+        let codex = format!("/hook/codex/n2?t={}", server.token);
+        let turn = format!(
+            r#"{{"type":"agent-turn-complete","last-assistant-message":"{}"}}"#,
+            "y".repeat(2 * MAX_BODY)
+        );
+        assert_eq!(send(server.port, "POST", &codex, turn.as_bytes()), 204);
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(5)).unwrap().activity,
+            Activity::Idle
+        );
+    }
+
+    /// Past the hard cap the event is still answered and recorded, from the short fields the body
+    /// opens with, rather than dropped.
+    #[test]
+    fn a_hook_past_the_hard_cap_is_recorded_from_its_short_fields() {
+        let (tx, rx) = mpsc::channel();
+        let server = start(Arc::new(TestSink::new(tx))).unwrap();
+        let path = format!("/hook/claude/n1?t={}", server.token);
+        let body = edit_body("PostToolUse", HOOK_MAX_BODY / 2);
+        assert!(body.len() > HOOK_MAX_BODY);
+        assert_eq!(send(server.port, "POST", &path, &body), 204);
+        let hit = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(hit.activity, Activity::Working);
+        // A cut `Stop` still ends the turn.
+        let stop = edit_body("Stop", HOOK_MAX_BODY / 2);
+        assert_eq!(send(server.port, "POST", &path, &stop), 204);
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(5)).unwrap().activity,
+            Activity::Idle
+        );
+        // The server goes on serving.
+        assert_eq!(
+            send(
+                server.port,
+                "POST",
+                &path,
+                br#"{"hook_event_name":"UserPromptSubmit"}"#
+            ),
+            204
+        );
+    }
+
+    /// A hook is answered 200 with a decision, whatever the size of the call it asks about.
+    fn pre_bash(port: u16, url: &str, command: &str, mode: &str) -> (u16, Value) {
+        let body = json!({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": { "command": command },
+            "cwd": "/work/proj",
+            "permission_mode": mode,
+        })
+        .to_string();
+        let (status, body) = exchange(port, "POST", url, &[], body.as_bytes());
+        (status, serde_json::from_str(&body).unwrap_or(Value::Null))
+    }
+
+    /// Past 64 KiB a command is judged all the same, and past the hard cap, where it cannot be
+    /// read, it is asked about: a hook answered 413 lets the call run.
+    #[test]
+    fn a_big_pre_tool_use_is_judged_and_one_too_big_to_read_is_asked_about() {
+        let (tx, rx) = mpsc::channel();
+        let server = start(Arc::new(TestSink::new(tx))).unwrap();
+        let url = delete_guard::with_scope(
+            &format!("/hook/claude/n1?t={}", server.token),
+            std::path::Path::new("/work/proj"),
+        );
+        let decision = |body: &Value| {
+            body["hookSpecificOutput"]["permissionDecision"]
+                .as_str()
+                .unwrap_or("none")
+                .to_string()
+        };
+        let reason = |body: &Value| {
+            body["hookSpecificOutput"]["permissionDecisionReason"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string()
+        };
+
+        // Past 64 KiB: read in full, so the delete at its end is found, and a harmless one passes.
+        let padding = "# x".repeat(30 * 1024);
+        assert!(padding.len() > MAX_BODY && padding.len() < GUARD_MAX_COMMAND);
+        let (status, body) = pre_bash(
+            server.port,
+            &url,
+            &format!("{padding}\nrm -rf /work/other"),
+            "default",
+        );
+        assert_eq!((status, decision(&body).as_str()), (200, "ask"));
+        assert!(
+            reason(&body).contains("leaves the agent's own folder"),
+            "{body}"
+        );
+        let (status, _) = pre_bash(
+            server.port,
+            &url,
+            &format!("{padding}\nrm -rf dist"),
+            "default",
+        );
+        assert_eq!(status, 204);
+
+        // As long as the guard reads in time it is judged; one byte more, though the hook still reads
+        // it whole, it is asked about, or a guard slower than the hook's timeout would let it run.
+        let tail = "\nrm -rf /work/other";
+        let exact = format!("{}{tail}", "#".repeat(GUARD_MAX_COMMAND - tail.len()));
+        let (status, body) = pre_bash(server.port, &url, &exact, "default");
+        assert_eq!((status, decision(&body).as_str()), (200, "ask"));
+        assert!(
+            reason(&body).contains("leaves the agent's own folder"),
+            "{body}"
+        );
+        for command in ["rm -rf /work/other", "echo hello"] {
+            let long = format!("{command} # {}", "x".repeat(GUARD_MAX_COMMAND));
+            assert!(long.len() < HOOK_MAX_BODY);
+            let (status, body) = pre_bash(server.port, &url, &long, "default");
+            assert_eq!(
+                (status, decision(&body).as_str()),
+                (200, "ask"),
+                "{command}"
+            );
+            assert!(
+                reason(&body).starts_with(delete_guard::GUARD_MARKER),
+                "{body}"
+            );
+            assert!(
+                reason(&body).contains("could not be checked for deletes"),
+                "{body}"
+            );
+        }
+
+        // Past the hard cap the command is not read: asked, with the guard's marker, whatever it is.
+        for command in ["rm -rf /work/other", "echo hello"] {
+            let huge = format!("{command} # {}", "x".repeat(HOOK_MAX_BODY));
+            let (status, body) = pre_bash(server.port, &url, &huge, "default");
+            assert_eq!(
+                (status, decision(&body).as_str()),
+                (200, "ask"),
+                "{command}"
+            );
+            assert!(
+                reason(&body).starts_with(delete_guard::GUARD_MARKER),
+                "{body}"
+            );
+            assert!(
+                reason(&body).contains("could not be checked for deletes"),
+                "{body}"
+            );
+            // Nobody to answer a question (`dontAsk`): refused, and said so.
+            let (status, body) = pre_bash(server.port, &url, &huge, "dontAsk");
+            assert_eq!(
+                (status, decision(&body).as_str()),
+                (200, "deny"),
+                "{command}"
+            );
+            assert!(reason(&body).contains("Do not retry"), "{body}");
+        }
+        // However the body is ordered: here the command comes before the tool's name.
+        let huge = format!(
+            r#"{{"hook_event_name":"PreToolUse","tool_input":{{"command":"{}"}},"tool_name":"PowerShell"}}"#,
+            "x".repeat(HOOK_MAX_BODY)
+        );
+        let (status, body) = exchange(server.port, "POST", &url, &[], huge.as_bytes());
+        let body: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!((status, decision(&body).as_str()), (200, "ask"));
+        // Nothing of the event is read when the cut comes first: still a question, never a pass,
+        // whether a short field opens the body or the huge one does.
+        for opening in [r#""session_id":"s1","#, ""] {
+            let unnamed = format!(
+                r#"{{{opening}"tool_input":{{"command":"{}"}},"hook_event_name":"PreToolUse","tool_name":"Bash"}}"#,
+                "x".repeat(HOOK_MAX_BODY)
+            );
+            let (status, body) = exchange(server.port, "POST", &url, &[], unnamed.as_bytes());
+            let body: Value = serde_json::from_str(&body).unwrap();
+            assert_eq!(
+                (status, decision(&body).as_str()),
+                (200, "ask"),
+                "{opening}"
+            );
+        }
+        // A body that is no object has no hook in it: refused, nothing asked.
+        let spaces = vec![b' '; HOOK_MAX_BODY + 1];
+        assert_eq!(exchange(server.port, "POST", &url, &[], &spaces).0, 413);
+        assert!(rx.recv_timeout(Duration::from_millis(300)).is_err());
+    }
+
+    #[test]
+    fn what_cannot_be_read_still_gets_the_refusals_it_names() {
+        let call = |tool: &str| json!({ "hook_event_name": "PreToolUse", "tool_name": tool });
+        // The sub-agent tools are refused by name, as for a call that fits.
+        for tool in ["Agent", "Task", "Workflow"] {
+            let decision = pre_tool_use_unread(&call(tool), true, false);
+            assert_eq!(decision["hookSpecificOutput"]["permissionDecision"], "deny");
+            assert!(
+                decision["hookSpecificOutput"]["permissionDecisionReason"]
+                    .as_str()
+                    .unwrap()
+                    .contains("spawn_agent")
+            );
+        }
+        // Where they are allowed, and for every other tool, a call that was not read is asked about.
+        for (tool, terminals) in [
+            ("Agent", false),
+            ("Bash", true),
+            ("PowerShell", true),
+            ("Skill", true),
+        ] {
+            let decision = pre_tool_use_unread(&call(tool), terminals, false);
+            assert_eq!(
+                decision["hookSpecificOutput"]["permissionDecision"], "ask",
+                "{tool}"
+            );
+            assert_eq!(
+                decision["hookSpecificOutput"]["hookEventName"],
+                "PreToolUse"
+            );
+        }
+        // No tool named: the same.
+        let nameless = json!({ "hook_event_name": "PreToolUse", "permission_mode": "dontAsk" });
+        assert_eq!(
+            pre_tool_use_unread(&nameless, true, false)["hookSpecificOutput"]["permissionDecision"],
+            "deny"
+        );
+    }
+
+    /// Counts what a reader gave.
+    struct Counting<R> {
+        inner: R,
+        read: usize,
+    }
+
+    impl<R: Read> Read for Counting<R> {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let read = self.inner.read(buf)?;
+            self.read += read;
+            Ok(read)
+        }
+    }
+
+    #[test]
+    fn a_body_of_any_length_is_read_up_to_the_cap_and_no_further() {
+        // A body that never ends: the read stops one byte past the cap.
+        let mut endless = Counting {
+            inner: std::io::repeat(b'a'),
+            read: 0,
+        };
+        let (body, cut) = read_capped(&mut endless, 4096, 0).unwrap();
+        assert_eq!((body.len(), cut), (4096, true));
+        assert_eq!(endless.read, 4097);
+        // A body that fits is whole, and so is one of exactly the cap.
+        for length in [0, 10, 4096] {
+            let (body, cut) = read_capped(&mut &vec![b'a'; length][..], 4096, length).unwrap();
+            assert_eq!((body.len(), cut), (length, false));
+        }
+        // What the announced length says does not size the buffer past the cap.
+        let (body, _) = read_capped(&mut std::io::empty(), 4096, usize::MAX).unwrap();
+        assert!(body.capacity() <= 4097);
+
+        // A JSON object that never ends, cut at the cap: its first fields are kept, and nothing
+        // is read past the cap.
+        let head =
+            br#"{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"old_string":""#;
+        let mut endless = Counting {
+            inner: std::io::Cursor::new(head.to_vec()).chain(std::io::repeat(b'a')),
+            read: 0,
+        };
+        let body = parse_hook_body(&mut endless, 0, 8192).unwrap();
+        assert!(body.cut);
+        assert_eq!(endless.read, 8193);
+        assert_eq!(
+            body.json,
+            json!({ "hook_event_name": "PostToolUse", "tool_name": "Edit" })
+        );
+    }
+
+    #[test]
+    fn a_hook_body_is_whole_cut_or_refused() {
+        let parse = |body: &[u8], cap: usize| parse_hook_body(&mut &body[..], body.len(), cap);
+        // Whole: any shape, however deep.
+        let whole = parse(br#"{"a":{"b":[1,2]},"c":"d"}"#, 1024).unwrap();
+        assert!(!whole.cut);
+        assert_eq!(whole.json, json!({ "a": { "b": [1, 2] }, "c": "d" }));
+        assert_eq!(parse(b"not json", 1024).unwrap_err(), 400);
+        assert_eq!(parse(br#"{"a":"#, 1024).unwrap_err(), 400);
+
+        // Cut: the short scalars before the cut are kept, in any order, and lists, objects and long
+        // text are walked past without being kept (a quote inside a string does not end it).
+        let long = "q".repeat(SALVAGED_TEXT + 1);
+        let text = format!(
+            r#"{{"id":7,"on":true,"off":null,"ratio":1.5,"long":"{long}","nested":{{"hook_event_name":"x\"}}","l":[1,{{"k":"v"}}]}},"list":["a","b"],"hook_event_name":"PostToolUse","message":"ok é","tool_input":{{"command":"rm -rf /"#
+        );
+        let cut = parse(text.as_bytes(), text.len() - 4).unwrap();
+        assert!(cut.cut);
+        assert_eq!(
+            cut.json,
+            json!({
+                "id": 7, "on": true, "off": null, "ratio": 1.5,
+                "hook_event_name": "PostToolUse", "message": "ok é",
+            })
+        );
+        // A text cut in the middle is not kept.
+        let cut = parse(br#"{"hook_event_name":"Stop","message":"half"#, 38).unwrap();
+        assert_eq!(cut.json, json!({ "hook_event_name": "Stop" }));
+        // An object whose first field is the huge one has nothing short to keep, and is not refused:
+        // its answer may be a question (`status_of`).
+        let first = parse(br#"{"tool_input":{"command":"rm -rf /"#, 10).unwrap();
+        assert!(first.cut);
+        assert_eq!(first.json, json!({}));
+        let first = parse(b"  \n{garbage", 4).unwrap();
+        assert!(first.cut);
+        assert_eq!(first.json, json!({}));
+        // What is no object, so no hook's, is refused.
+        assert_eq!(parse(&[b' '; 64], 16).unwrap_err(), 413);
+        assert_eq!(parse(&[b'['; 64], 16).unwrap_err(), 413);
+        assert_eq!(parse(b"garbage", 4).unwrap_err(), 413);
     }
 
     #[test]

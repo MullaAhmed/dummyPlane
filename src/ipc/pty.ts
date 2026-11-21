@@ -5,7 +5,7 @@ import type { ExtensionChoice } from "./claudeExtensions";
 import type { SubagentExtras } from "./subagentExtras";
 import { call } from "./invoke";
 
-export type ShellKind = "default" | "powershell" | "pwsh" | "cmd" | "gitbash";
+export type ShellKind = "default" | "powershell" | "pwsh" | "cmd" | "gitbash" | "wsl";
 export type ClaudeMode = "new" | "resume" | "continue";
 
 /** What a mission lets its agents do unasked. */

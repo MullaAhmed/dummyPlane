@@ -24,11 +24,16 @@ export function GitChip() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     // The next read is scheduled once the previous one is done: on a large
     // repository, git can take longer than the polling period.
+    // What it found, the palette's Git window (Ctrl+Shift+B) opens too: only a repository.
+    const found = (next: GitStatus | null) => {
+      setStatus(next);
+      gitWindowStore.setState({ repo: next ? path : null });
+    };
     const read = () =>
       gitStatus(path)
         .then(
-          (next) => alive && setStatus(next),
-          () => alive && setStatus(null),
+          (next) => alive && found(next),
+          () => alive && found(null),
         )
         .finally(() => {
           if (alive) timer = setTimeout(read, POLL_MS);
@@ -37,6 +42,7 @@ export function GitChip() {
     return () => {
       alive = false;
       clearTimeout(timer);
+      gitWindowStore.setState({ repo: null });
     };
   }, [path]);
 
@@ -48,12 +54,13 @@ export function GitChip() {
       label={
         <span className="flex flex-col">
           <span className="break-all font-mono">{status.branch}</span>
-          <span className="break-all font-mono opacity-70">{path}</span>
+          <span className="break-all font-mono text-background/85">{path}</span>
         </span>
       }
     >
       <Button
         variant="ghost"
+        data-git-chip
         aria-label={t.open(status.branch, status.changed)}
         onClick={() => gitWindowStore.getState().open(path)}
         className="dp-glass-strong pointer-events-auto h-8 gap-2 rounded-lg px-3 font-mono text-xs font-normal text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"

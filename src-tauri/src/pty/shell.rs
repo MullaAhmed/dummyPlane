@@ -12,6 +12,9 @@ pub enum ShellKind {
     Pwsh,
     Cmd,
     GitBash,
+    /// The default distribution of the Windows Subsystem for Linux: a plain
+    /// shell only (`launch_shell`).
+    Wsl,
 }
 
 /// The agents of the launch menu.
@@ -440,7 +443,57 @@ pub fn resolve_shell(kind: ShellKind, locate: Locate) -> AppResult<ShellProgram>
                 syntax: ShellSyntax::Posix,
             })
             .ok_or_else(|| AppError::NotFound("Git Bash not found".to_string())),
+        // No argument: WSL opens its default distribution's shell in the
+        // terminal's folder, translated (`D:\code` → `/mnt/d/code`).
+        ShellKind::Wsl => locate("wsl")
+            .map(|p| ShellProgram {
+                program: p,
+                args: Vec::new(),
+                syntax: ShellSyntax::Posix,
+            })
+            .ok_or_else(|| AppError::NotFound("WSL not found".to_string())),
     }
+}
+
+/// The shell a terminal starts in. WSL runs a plain Shell or a Custom command
+/// only: an agent's command line carries Windows paths (its settings, its
+/// tools) and calls Windows programs, which a Linux shell cannot use. An agent
+/// asked for in it starts in the default shell instead.
+pub fn launch_shell(spec: &SpawnSpec) -> ShellKind {
+    match (spec.shell, spec.agent) {
+        (ShellKind::Wsl, Agent::Shell | Agent::Custom) => ShellKind::Wsl,
+        (ShellKind::Wsl, _) => ShellKind::Default,
+        (shell, _) => shell,
+    }
+}
+
+/// Whether WSL has a Linux distribution to open: `wsl.exe` ships with Windows
+/// even when none is installed. Each registered distribution is a subkey of
+/// `Lxss` naming it.
+#[cfg(windows)]
+pub fn wsl_distro_installed() -> bool {
+    use winreg::{RegKey, enums::HKEY_CURRENT_USER};
+    let Ok(lxss) = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Lxss")
+    else {
+        return false;
+    };
+    lxss.enum_keys().flatten().any(|id| {
+        lxss.open_subkey(&id)
+            .and_then(|distro| distro.get_value::<String, _>("DistributionName"))
+            .is_ok_and(|name| shell_distro(&name))
+    })
+}
+
+#[cfg(not(windows))]
+pub fn wsl_distro_installed() -> bool {
+    false
+}
+
+/// Docker Desktop registers its own distributions (`docker-desktop`,
+/// `docker-desktop-data`): they run its engine, they are no shell to work in.
+pub fn shell_distro(name: &str) -> bool {
+    !name.to_ascii_lowercase().starts_with("docker-desktop")
 }
 
 /// Git for Windows ships `bin\bash.exe` at its root, while `git.exe` lives in `cmd\`
@@ -986,7 +1039,7 @@ pub fn build_plan(
         let cwd = &spec.cwd;
         return Err(AppError::NotFound(format!("folder not found: {cwd}")));
     }
-    let shell = resolve_shell(spec.shell, locate)?;
+    let shell = resolve_shell(launch_shell(spec), locate)?;
     let manual = manual_claude(spec, &shell, hooks, locate)?;
     let command = match &manual {
         Some(manual) => Some(manual.launch.clone()),
@@ -1655,6 +1708,74 @@ mod tests {
         assert_eq!(codex_line(agent(None), &AgentHooks::default()), "codex");
     }
 
+    /// Codex's Work mode has no sandbox and nobody to ask (`-s danger-full-access -a never`: a commit needs it),
+    /// and dummyPlane's delete guard is a hook of Claude Code: so only the agent's prompt keeps its recursive deletes
+    /// in its folder, and the night dialog says so. Codex 0.167 has a `PreToolUse` hook, but it runs only once
+    /// the user has trusted it, and `--dangerously-bypass-hook-trust` would also run their other untrusted hooks:
+    /// no launch of dummyPlane's passes it, nor `--dangerously-bypass-approvals-and-sandbox`.
+    #[test]
+    fn a_codex_work_launch_carries_the_prompt_rule_and_never_bypasses_hook_trust() {
+        use crate::agents::{codex_profile, prompts};
+        let work = |role| CodexLaunch {
+            role,
+            permission: Some(Permission::Work),
+            ..Default::default()
+        };
+        for role in [Role::Agent, Role::Fleet, Role::Manager] {
+            let hooks = AgentHooks {
+                codex_args: codex_profile::cli_args(role, "http://127.0.0.1:4242/mcp"),
+                ..codex_tooled()
+            };
+            for permission in [
+                None,
+                Some(Permission::Ask),
+                Some(Permission::Edits),
+                Some(Permission::Work),
+            ] {
+                let launch = CodexLaunch {
+                    permission,
+                    ..work(role)
+                };
+                for syntax in [
+                    ShellSyntax::PowerShell,
+                    ShellSyntax::Cmd,
+                    ShellSyntax::Posix,
+                ] {
+                    let line = agent_command(&codex_spec(launch.clone()), syntax, &hooks)
+                        .unwrap()
+                        .unwrap();
+                    assert!(!line.contains("dangerously"), "{role:?}: {line}");
+                    assert!(!line.contains("hook-trust"), "{role:?}: {line}");
+                }
+            }
+        }
+        // The Work agent's own launch: no sandbox, no question.
+        let hooks = codex_tooled();
+        assert_eq!(
+            codex_line(work(Role::Agent), &hooks),
+            "codex -p dummyplane-n1 -s danger-full-access -a never"
+        );
+        // Its profile holds the prompt, and the prompt says that nothing stops it.
+        let prompt = prompts::for_codex(Role::Agent);
+        let profile = codex_profile::profile_toml(
+            &codex_profile::Profile {
+                mcp_url: "http://127.0.0.1:4242/mcp",
+                prompt: &prompt,
+                role: Role::Agent,
+                linear: false,
+            },
+            &[],
+        );
+        assert!(
+            profile.contains(
+                "Nothing stops you: never run a recursive delete outside the folder you were started in, nor of a drive-relative path, the root of a drive or the home folder; ask the user first."
+            ),
+            "{profile}"
+        );
+        assert!(!profile.contains("dummyPlane denies"), "{profile}");
+        assert!(!profile.contains("dangerously"));
+    }
+
     #[test]
     fn a_codex_terminal_resumes_its_saved_thread_with_its_model() {
         let launch = CodexLaunch {
@@ -1923,6 +2044,82 @@ mod tests {
         .unwrap();
         assert_eq!(found.syntax, ShellSyntax::PowerShell);
         assert_eq!(found.args, vec!["-NoLogo".to_string()]);
+    }
+
+    #[test]
+    fn wsl_must_be_on_path_and_opens_a_posix_shell() {
+        assert_eq!(
+            resolve_shell(ShellKind::Wsl, &nothing_on_path)
+                .unwrap_err()
+                .kind(),
+            "notFound"
+        );
+        let found = resolve_shell(ShellKind::Wsl, &|name: &str| {
+            (name == "wsl").then(|| PathBuf::from("C:/Windows/System32/wsl.exe"))
+        })
+        .unwrap();
+        assert_eq!(found.program, PathBuf::from("C:/Windows/System32/wsl.exe"));
+        assert_eq!(found.syntax, ShellSyntax::Posix);
+        assert!(found.args.is_empty());
+    }
+
+    #[test]
+    fn only_a_shell_or_a_custom_command_starts_in_wsl() {
+        let spec = |agent| SpawnSpec {
+            cwd: "C:/code".into(),
+            shell: ShellKind::Wsl,
+            agent,
+            command: String::new(),
+            claude: None,
+            codex: None,
+            ollama: None,
+        };
+        assert_eq!(launch_shell(&spec(Agent::Shell)), ShellKind::Wsl);
+        assert_eq!(launch_shell(&spec(Agent::Custom)), ShellKind::Wsl);
+        for agent in [Agent::Claude, Agent::Codex, Agent::Aider, Agent::Ollama] {
+            assert_eq!(launch_shell(&spec(agent)), ShellKind::Default, "{agent:?}");
+        }
+        let git_bash = SpawnSpec {
+            shell: ShellKind::GitBash,
+            ..spec(Agent::Claude)
+        };
+        assert_eq!(launch_shell(&git_bash), ShellKind::GitBash);
+    }
+
+    #[test]
+    fn the_plan_opens_wsl_for_a_shell_and_the_default_shell_for_an_agent() {
+        let wsl = PathBuf::from("C:/Windows/System32/wsl.exe");
+        let locate = |name: &str| (name == "wsl").then(|| wsl.clone());
+        let in_wsl = |agent, claude| SpawnSpec {
+            shell: ShellKind::Wsl,
+            ..spec(agent, claude)
+        };
+        let shell = build_plan(
+            "n",
+            &in_wsl(Agent::Shell, None),
+            &locate,
+            &AgentHooks::default(),
+        )
+        .unwrap();
+        assert_eq!(shell.program, wsl);
+        assert_eq!(shell.initial_input, None);
+        let agent = build_plan(
+            "n",
+            &in_wsl(Agent::Claude, claude(ClaudeMode::New, "")),
+            &locate,
+            &AgentHooks::default(),
+        )
+        .unwrap();
+        assert_ne!(agent.program, wsl);
+        assert!(agent.initial_input.unwrap().starts_with("claude "));
+    }
+
+    #[test]
+    fn docker_desktop_distributions_are_no_shell() {
+        assert!(shell_distro("Ubuntu"));
+        assert!(shell_distro("Debian"));
+        assert!(!shell_distro("docker-desktop"));
+        assert!(!shell_distro("docker-desktop-data"));
     }
 
     #[test]

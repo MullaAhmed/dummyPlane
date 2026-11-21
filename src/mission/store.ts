@@ -4,9 +4,10 @@ import { framesFromScene, groupOf } from "@/canvas/groups";
 import { cachedElements } from "@/canvas/sceneCache";
 import { AGENTS } from "@/agents/catalog";
 import { linkedAgents, NO_LINKS, fleetLinks } from "@/agents/wires";
+import { agentStateIn, type AgentState as PillState } from "@/agents/agentState";
 import { agentActivityStore } from "@/store/agentActivity";
 import { isManagerNode, nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
-import { isRunning } from "@/store/terminalStatus";
+import { isRunning, terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import { budgetOf, NEW_MISSION, spentMin, type Member, type Mission, type ReportStatus } from "./mission";
 
@@ -122,15 +123,31 @@ export function releaseSpawnedPermission(fleetId: string, permission: Mission["p
 }
 
 /**
- * The running mission an agent works for, once its sub-task was sent;
- * a closed fleet's only with `evenClosed`.
+ * The running mission an agent works for, once its sub-task was sent (or before, with `evenUnsent`: its sub-task
+ * still waits for its session); a closed fleet's only with `evenClosed`.
  */
-export function memberOf(nodeId: string, { evenClosed = false } = {}): { fleetId: string; member: Member } | null {
+export function memberOf(nodeId: string, { evenClosed = false, evenUnsent = false } = {}): { fleetId: string; member: Member } | null {
   for (const [fleetId, record] of Object.entries(nodesStore.getState().nodes)) {
     const mission = missionOf(record);
     if (mission?.state !== "en_cours") continue;
     if (!evenClosed && closedFleets.has(fleetId)) continue;
-    const member = mission.members.find((m) => m.nodeId === nodeId && m.sentAt !== undefined);
+    const member = mission.members.find((m) => m.nodeId === nodeId && (evenUnsent || m.sentAt !== undefined));
+    if (member) return { fleetId, member };
+  }
+  return null;
+}
+
+/**
+ * The member of a running mission whose sub-task dummyPlane kept but never typed (it gave up after a minute, or its
+ * terminal never came up), when nothing says its text is still on its way: what the agent does is then its own doing,
+ * its sub-task given another way (written by its Manager, pasted by the user). A member with no text kept is one
+ * still being made, or handed another's sub-task: none of the agent's words are its sub-task's.
+ */
+export function unsentMemberOf(nodeId: string): { fleetId: string; member: Member } | null {
+  for (const [fleetId, record] of Object.entries(nodesStore.getState().nodes)) {
+    const mission = missionOf(record);
+    if (mission?.state !== "en_cours") continue;
+    const member = mission.members.find((m) => m.nodeId === nodeId && m.sentAt === undefined && m.brief !== undefined && !m.handedTo);
     if (member) return { fleetId, member };
   }
   return null;
@@ -192,13 +209,34 @@ export function memberGroupId(member: Member): string | null {
 
 export type AgentState = "travaille" | "attend" | "inactif" | "arrêté";
 
-/** An agent's state as the fleet reads it. */
+/**
+ * An agent's state as the canvas pill reads it (`@/agents/agentState`: the one reading every count shares); null for
+ * a node that is no agent (a plain shell).
+ */
+export function pillStateOf(nodeId: string): PillState | null {
+  return agentStateIn(nodeId, nodesStore.getState().nodes, terminalStatusStore.getState().statuses, agentActivityStore.getState().activities);
+}
+
+/** What the fleet's logic asks of each of the pill's states: is it at work, waiting for the user, resting, or gone. */
+const FLEET_STATE: Record<PillState, AgentState> = {
+  starting: "arrêté",
+  active: "inactif",
+  working: "travaille",
+  waiting: "attend",
+  ready: "inactif",
+  done: "inactif",
+  // Its agent exited, back at its shell ("Agent exited"): nobody works there, whatever its last activity said.
+  left: "arrêté",
+  stopped: "arrêté",
+};
+
+/** An agent's state as the fleet reads it: the pill's, in fewer words, so that the two cannot drift apart. */
 export function agentState(nodeId: string): AgentState {
+  const pill = pillStateOf(nodeId);
+  if (pill) return FLEET_STATE[pill];
   if (!isRunning(nodeId)) return "arrêté";
   const activity = agentActivityStore.getState().activities[nodeId];
-  // Its agent exited, back at its shell ("Agent exited"): nobody works there, whatever its last activity said.
-  if (activity?.left) return "arrêté";
-  return activity?.activity === "working" ? "travaille" : activity?.activity === "waiting" ? "attend" : "inactif";
+  return activity?.left ? "arrêté" : activity?.activity === "working" ? "travaille" : activity?.activity === "waiting" ? "attend" : "inactif";
 }
 
 /** An agent's time and budget for its bar; `report` once it reported: its time is then frozen at that moment. */

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { focusNode } from "@/canvas/focusNode";
-import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
+import { FLOAT_INSET, LANE_BOTTOM, LANE_RIGHT, LANE_TOP } from "@/shell/layout";
 import type { Activity } from "@/ipc/activity";
 import type { TerminalPayload } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
@@ -52,10 +52,11 @@ afterEach(async () => {
 
 const byLabel = (label: string) => host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`);
 
-it("floats under the tabs, down to the command bar at most, with the chips' actions", () => {
+it("stands in the right lane, under the tabs, down to the lane's foot at most, with the chips' actions", () => {
   const panel = host.firstElementChild as HTMLElement;
-  expect(panel.style.top).toBe(`${TOP_ROW_HEIGHT + 14}px`);
-  expect(panel.style.maxHeight).toBe(`calc(100% - ${TOP_ROW_HEIGHT + 14 + BOTTOM_BAR_HEIGHT + 14}px)`);
+  expect([panel.style.right, panel.style.top]).toEqual([`${LANE_RIGHT}px`, `${LANE_TOP}px`]);
+  expect(panel.className).toContain("w-84");
+  expect(panel.style.maxHeight).toBe(`calc(100% - ${LANE_TOP + LANE_BOTTOM}px)`);
   for (const label of ["Add to canvas", "New console", "Compose a group", "Pause all", "Resume all", "More actions", "Close the panel"]) {
     expect(byLabel(label), label).not.toBeNull();
   }
@@ -66,18 +67,19 @@ it("starts New console at the center of the view, the click not taken for a poin
   expect(newConsole).toHaveBeenCalledWith();
 });
 
-it("filters on the store's filter: All, Active, Waiting, Working and Done, in that order", async () => {
+it("filters on the store's filter: All, Waiting, Working and Ready, in that order, no Active", async () => {
   const filters = [...host.querySelectorAll<HTMLButtonElement>("[data-filter]")];
-  expect(filters.map((f) => f.textContent?.replace(/\d+$/, ""))).toEqual(["All", "Active", "Waiting", "Working", "Done"]);
-  await act(async () => filters[4].click());
+  expect(filters.map((f) => f.textContent?.replace(/\d+$/, ""))).toEqual(["All", "Waiting", "Working", "Ready"]);
+  expect(host.querySelector('[data-filter="active"]')).toBeNull();
+  await act(async () => filters[3].click());
   expect(agentsPanelStore.getState().filter).toBe("done");
-  expect(filters[4].dataset.on).toBe("true");
+  expect(filters[3].dataset.on).toBe("true");
   // One filter is always on: pressing it again keeps it.
-  await act(async () => filters[4].click());
+  await act(async () => filters[3].click());
   expect(agentsPanelStore.getState().filter).toBe("done");
 });
 
-it("counts and lists the agents by Active, Waiting, Working and Done; one that starts shows under All only", async () => {
+it("counts and lists the agents by Waiting, Working and Ready; one that starts, or whose activity is unknown, shows under All only", async () => {
   const claude = (name: string, extra: Partial<TerminalPayload> = {}): TerminalPayload => ({
     title: name,
     name,
@@ -105,15 +107,12 @@ it("counts and lists the agents by Active, Waiting, Working and Done; one that s
   }
   await act(async () => canvasStore.getState().setNodeIds(["ada", ...states.map(([id]) => id)]));
   const counts = () => [...host.querySelectorAll<HTMLButtonElement>("[data-filter]")].map((f) => f.textContent);
-  // Ada (stopped), Dee (Ready) and Eve (Done) are done; every running agent that has not reported is active, Gus
-  // (activity unknown) included, as the title bar's "N active" counts them: Eve, Done, is not also active.
-  // Hal, starting, is in All alone.
-  expect(counts()).toEqual(["All8", "Active5", "Waiting1", "Working2", "Done3"]);
+  // Ada (stopped), Dee (Ready) and Eve (Done) are at rest or ended: the Ready filter. Gus (activity unknown) and Hal (starting) are in All alone.
+  expect(counts()).toEqual(["All8", "Waiting1", "Working2", "Ready3"]);
   const shown = async (filter: string) => {
     await act(async () => agentsPanelStore.setState({ filter: filter as "all" }));
     return ["Ada", "Bob", "Cy", "Dee", "Eve", "Fay", "Gus", "Hal"].filter((name) => host.textContent?.includes(name));
   };
-  expect(await shown("active")).toEqual(["Bob", "Cy", "Dee", "Fay", "Gus"]);
   expect(await shown("waiting")).toEqual(["Cy"]);
   expect(await shown("working")).toEqual(["Bob", "Fay"]);
   expect(await shown("done")).toEqual(["Ada", "Dee", "Eve"]);
@@ -151,6 +150,26 @@ it("offers a group's menu on its header, on hover; No group has none", async () 
   expect([...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).toContain("Rename");
 });
 
+it("marks a group by its role's bar and each agent, Fleets too, by its status dot: the round dot is an agent's alone", async () => {
+  await nodesStore.getState().create("atlas", { workspaceId: "w1", kind: "fleet", payload: { name: "Atlas" } });
+  terminalStatusStore.getState().set("atlas", { state: "running" });
+  agentActivityStore.getState().apply({ nodeId: "atlas", activity: "working", since: 1 });
+  await act(async () => {
+    canvasStore.getState().setNodeIds(["ada", "atlas"]);
+    canvasStore.setState({ frames: [{ id: "g1", name: "Backend", x: 0, y: 0, width: 10, height: 10, group: { role: "backend", pantheon: "egypt" }, memberIds: ["ada"] }] });
+  });
+  const header = host.querySelector<HTMLElement>('[data-section="g1"]')!;
+  // The group's colour as the terminal header draws a role: a 2px bar, hidden beside the group's name.
+  const bar = header.querySelector<HTMLElement>('[aria-hidden] > [class~="w-0.5"]')!;
+  expect(bar.style.backgroundColor).not.toBe("");
+  expect(header.querySelector(".rounded-full")).toBeNull();
+  // The Fleet's row ends on the dot and word its node's header shows.
+  const fleet = [...host.querySelectorAll("button")].find((b) => b.textContent?.startsWith("Atlas"))!;
+  expect(fleet.querySelector("[data-status]")?.getAttribute("data-status")).toBe("working");
+  expect(fleet.textContent).toBe("AtlasWorking");
+  agentActivityStore.setState({ activities: {} });
+});
+
 it("folds a group and closes", async () => {
   expect(host.textContent).toContain("Ada");
   await act(async () => host.querySelector<HTMLButtonElement>("[data-section]")!.click());
@@ -159,7 +178,31 @@ it("folds a group and closes", async () => {
   expect(agentsPanelStore.getState().open).toBe(false);
 });
 
-it("opens Compose a group and a group's menu on request", async () => {
+it("gives Close's keyboard back to what opened the panel, else to the rail's Agents button", async () => {
+  const toggle = document.createElement("button");
+  toggle.setAttribute("data-agents-toggle", "");
+  document.body.append(toggle);
+  const terminal = document.createElement("textarea");
+  document.body.append(terminal);
+  // Opened from the palette while a terminal had the keyboard: Close gives it back there.
+  await act(async () => root.render(null));
+  terminal.focus();
+  await act(async () => root.render(<AgentsPanel />));
+  byLabel("Close the panel")!.focus();
+  await act(async () => byLabel("Close the panel")!.click());
+  expect(document.activeElement).toBe(terminal);
+  // Open when the app started, nothing had the keyboard: the rail's button takes it.
+  await act(async () => root.render(null));
+  terminal.blur();
+  await act(async () => root.render(<AgentsPanel />));
+  byLabel("Close the panel")!.focus();
+  await act(async () => byLabel("Close the panel")!.click());
+  expect(document.activeElement).toBe(toggle);
+  toggle.remove();
+  terminal.remove();
+});
+
+it("opens Compose a group on request, and leaves a group's Add an agent to its own list (GroupAgentMenu), which a group the panel does not list needs too", async () => {
   await act(async () => requestUi({ kind: "composeGroup" }));
   expect(document.querySelector('[data-slot="popover-content"]')).not.toBeNull();
   await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
@@ -168,15 +211,16 @@ it("opens Compose a group and a group's menu on request", async () => {
       frames: [{ id: "g1", name: "Backend", x: 0, y: 0, width: 10, height: 10, group: { role: "general", pantheon: "egypt" }, memberIds: ["ada"] }],
     }),
   );
-  await act(async () => requestUi({ kind: "groupMenu", id: "g1" }));
-  expect([...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).toContain("Rename");
+  await act(async () => requestUi({ kind: "groupAgentMenu", id: "g1", at: { x: 5, y: 5 } }));
+  // Not the panel's to answer: nothing opens here.
+  expect(document.querySelector('[role="menu"]')).toBeNull();
 });
 
 it("stops above the Resume offer instead of sitting under it", async () => {
   const panel = host.firstElementChild as HTMLElement;
   const before = panel.style.maxHeight;
   await act(async () => resumeOfferStore.setState({ open: true }));
-  expect(panel.style.maxHeight).toBe(`calc(100% - ${TOP_ROW_HEIGHT + 14 + RESUME_OFFER_ROOM + 14}px)`);
+  expect(panel.style.maxHeight).toBe(`calc(100% - ${LANE_TOP + RESUME_OFFER_ROOM + FLOAT_INSET}px)`);
   expect(panel.style.maxHeight).not.toBe(before);
   await act(async () => resumeOfferStore.setState({ open: false }));
   expect(panel.style.maxHeight).toBe(before);

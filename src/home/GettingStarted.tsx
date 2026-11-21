@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "@/components/ui/button";
 import { useAgents } from "@/agents/agentsStore";
 import { loadDiagnostics } from "@/app/diagnostics";
+import { FUNCTIONS_SHORTCUT } from "@/commands/shortcuts";
 import { useMessages } from "@/i18n";
 import { keyLabel } from "@/i18n/format";
 import { cn } from "@/lib/utils";
@@ -53,7 +54,7 @@ export function GettingStarted({ hasProject }: { hasProject: boolean }) {
   const steps = [
     { id: "agent", title: t.installAgent, hint: t.installAgentHint, done: hasAgent === true },
     { id: "project", title: t.addProject, hint: t.addProjectHint, done: hasProject },
-    { id: "launch", title: t.launch, hint: t.launchHint(keyLabel("Ctrl+K")), done: false },
+    { id: "launch", title: t.launch, hint: t.launchHint(keyLabel(FUNCTIONS_SHORTCUT)), done: false },
   ];
   return (
     <section data-getting-started className="dp-glass-strong mb-6 rounded-xl p-6">

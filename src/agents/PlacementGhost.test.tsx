@@ -12,11 +12,14 @@ const { launchAgent } = vi.hoisted(() => ({ launchAgent: vi.fn(async () => null)
 vi.mock("./launchAgent", () => ({ launchAgent }));
 const { addFleet } = vi.hoisted(() => ({ addFleet: vi.fn(async () => undefined) }));
 vi.mock("@/fleet/fleets", () => ({ addFleet }));
+const { arriveLaunched } = vi.hoisted(() => ({ arriveLaunched: vi.fn() }));
+vi.mock("./arrivals", () => ({ arriveLaunched }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const OPTIONS = { cwd: "C:/", shell: "default", command: "" };
-// A 1000 × 600 canvas at (0, 40) in the window, scrolled by (100, 50), at 100 %: its middle is the scene's (400, 250).
+// A 1000 × 600 canvas at (0, 40) in the window, scrolled by (100, 50), at 100 %: the middle of its work area (under the
+// 72 px bars, above the 60 px band, between the rails) is the scene's (400, 256).
 const VIEW = { ...EMPTY_VIEW, width: 1000, height: 600, offsetTop: 40, scrollX: 100, scrollY: 50 };
 
 let host: HTMLDivElement;
@@ -73,22 +76,38 @@ it("ends by the keyboard too: Enter places the agent in the middle of the canvas
   const heard = vi.fn();
   document.addEventListener("keydown", heard);
   await place({ agent: "claude", options: OPTIONS } as never);
-  // Before the pointer moves, the ghost stands in the middle (500, 340), and the hint says Enter, to screen readers too.
+  // Before the pointer moves, the ghost stands in the work area's middle (500, 346), and the hint says Enter, to screen readers too.
   const ghost = host.querySelector<HTMLElement>("[data-ghost]")!;
   expect(parseFloat(ghost.style.left) + parseFloat(ghost.style.width) / 2).toBe(500);
-  expect(parseFloat(ghost.style.top) + parseFloat(ghost.style.height) / 2).toBe(340);
+  expect(parseFloat(ghost.style.top) + parseFloat(ghost.style.height) / 2).toBe(346);
   const hint = host.querySelector("[role='status']")!;
   expect(hint.textContent).toBe("Click or press Enter to place the agent · Esc to cancel");
   const enter = press(trigger);
   expect(enter.defaultPrevented).toBe(true);
   // Nothing else hears it: not the focused button, not Excalidraw.
   expect(heard).not.toHaveBeenCalled();
-  expect(launchAgent).toHaveBeenCalledWith("claude", OPTIONS, { x: 400, y: 250 });
+  expect(launchAgent).toHaveBeenCalledWith("claude", OPTIONS, { x: 400, y: 256 });
   expect(uiStore.getState().placing).toBeNull();
   document.removeEventListener("keydown", heard);
   // Done: Enter is the page's again.
   expect(press(trigger).defaultPrevented).toBe(false);
   expect(launchAgent).toHaveBeenCalledTimes(1);
+});
+
+it("gives the placed terminal the keyboard, not a placed fleet", async () => {
+  launchAgent.mockResolvedValueOnce("batman" as never);
+  arriveLaunched.mockClear();
+  await place({ agent: "claude", options: OPTIONS } as never);
+  press(document.body);
+  await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  expect(arriveLaunched).toHaveBeenCalledExactlyOnceWith("batman");
+  workspacesStore.setState({ activeId: "w1" });
+  await place({ fleet: true } as never);
+  press(document.body);
+  await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  expect(addFleet).toHaveBeenCalledTimes(1);
+  expect(arriveLaunched).toHaveBeenCalledTimes(1);
+  workspacesStore.setState({ activeId: null });
 });
 
 it("places with Enter where the ghost is once the pointer has moved over the canvas, and a fleet too", async () => {
@@ -103,7 +122,7 @@ it("places with Enter where the ghost is once the pointer has moved over the can
   // The next placement starts from the middle again.
   await place({ agent: "claude", options: OPTIONS } as never);
   press(document.body);
-  expect(launchAgent).toHaveBeenLastCalledWith("claude", OPTIONS, { x: 400, y: 250 });
+  expect(launchAgent).toHaveBeenLastCalledWith("claude", OPTIONS, { x: 400, y: 256 });
   workspacesStore.setState({ activeId: null });
 });
 

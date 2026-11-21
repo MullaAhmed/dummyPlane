@@ -3,9 +3,9 @@ import { CaptureUpdateAction, Excalidraw, getSceneVersion, newElementWith } from
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import "@excalidraw/excalidraw/index.css";
-import { toastError } from "@/lib/errorToast";
+import { logError, toastError } from "@/lib/errorToast";
 import { usePalette, useTheme } from "@/app/theme";
-import { Button } from "@/components/ui/button";
+import { InlineProblem } from "@/components/InlineProblem";
 import { completeArrival } from "@/commands/pendingArrival";
 import { assignMissingNames } from "@/agents/naming";
 import { dismissResumeOffer, offerResumeAll } from "@/agents/ResumeAllToast";
@@ -29,13 +29,17 @@ import { isAlive } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
 import { setActiveTerminal } from "./activeTerminal";
 import { createActivationTracker } from "./activation";
-import { canvasStore, EMPTY_VIEW, fullSizeView, viewFrom } from "./canvasStore";
+import { currentWorkArea } from "@/shell/lane";
+import { canvasStore, EMPTY_VIEW, fullSizeView, useCanvas, viewFrom } from "./canvasStore";
 import { installDoubleClickSelect } from "./doubleClickSelect";
+import { arrivedInPlace } from "./arrive";
+import { activatedByPress, installLiveControls } from "./liveControls";
 import { scheduleEraserGuard } from "./eraserGuard";
 import { framesFromScene } from "./groups";
 import { drawnSelectionOf } from "./drawnSelection";
+import { EmptyCanvas, isEmptyScene } from "./EmptyCanvas";
 import { SelectionPanel } from "./SelectionPanel";
-import { isDummyPlaneLink } from "./nodeElement";
+import { isDummyPlaneLink, nodeKindOf } from "./nodeElement";
 import { classifyAddedNodes } from "./nodeCopies";
 import { createRemovalGuard, type RemovalVerdict } from "./removalGuard";
 import { pinCanvasScroll } from "./scrollPin";
@@ -74,7 +78,11 @@ export function Canvas({ workspaceId }: { workspaceId: string }) {
     let alive = true;
     loadScene(workspaceId).then(
       (loaded) => alive && setScene(loaded),
-      (failure: unknown) => alive && setError(String(failure)),
+      (failure: unknown) => {
+        if (!alive) return;
+        logError(messages(canvasMessages).loadFailed, failure);
+        setError(String(failure));
+      },
     );
     return () => {
       alive = false;
@@ -91,12 +99,8 @@ export function Canvas({ workspaceId }: { workspaceId: string }) {
   if (error)
     return (
       <Centered ref={status}>
-        <div className="grid justify-items-center gap-3">
-          <p>{t.loadFailed(error)}</p>
-          <Button type="button" variant="secondary" size="sm" onClick={retry}>
-            {t.retryLoad}
-          </Button>
-        </div>
+        {/* The status around it speaks: the problem adds no live region of its own. */}
+        <InlineProblem place="row" role={null} title={t.loadFailed} next={t.loadNext} error={error} action={{ label: t.retryLoad, onClick: retry }} />
       </Centered>
     );
   if (!scene) return <Centered ref={status}>{t.loading}</Centered>;
@@ -120,6 +124,8 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
   // A running agent never leaves unasked, nor one being started again; sceneSync tells which nodes left.
   const guardRemovals = useMemo(() => createRemovalGuard(isAlive, scene.initialData.elements ?? []), [scene]);
   const removedNow = useRef<string[]>([]);
+  // Whether the scene holds nothing: the invitation's. Read from the loaded scene first, so a workspace with terminals never flashes it before Excalidraw's first change.
+  const [empty, setEmpty] = useState(() => isEmptyScene(scene.initialData.elements ?? []));
 
   // The shell (rails, zoom, panels) drives the Excalidraw instance on screen.
   useEffect(() => {
@@ -139,6 +145,12 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
 
   // A click or a double-click on a terminal or the Fleet selects it, whatever tool is active (a drag still draws or pans).
   useEffect(() => (api ? installDoubleClickSelect() : undefined), [api]);
+  // A press on a control of a node that is not the active one activates it and stays the control's.
+  useEffect(() => (api ? installLiveControls() : undefined), [api]);
+  // With the selection tool, an inactive node's controls take the pointer (theme/excalidraw.css).
+  const liveControls = useCanvas((s) => s.view.tool === "selection");
+  // A node selected alone: Excalidraw's link bar has nothing of the user's to show there (theme/excalidraw.css hides it).
+  const nodeAlone = useCanvas((s) => s.view.selectedIds.length === 1 && s.nodeIds.includes(s.view.selectedIds[0]));
 
   // A Ctrl+P target of this workspace waits for its scene to be on screen.
   useEffect(() => {
@@ -159,6 +171,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       createSceneDerivation({
         selection: (elements, selected) => canvasStore.getState().setDrawnSelection(drawnSelectionOf(elements, selected)),
         scene: (elements) => {
+          setEmpty(isEmptyScene(elements));
           const store = canvasStore.getState();
           store.setFrames(framesFromScene(elements));
           store.setNodeIds(liveNodeIds(elements));
@@ -181,6 +194,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       canvasStore.getState().setWires([]);
       canvasStore.getState().setDrawnSelection([]);
       canvasStore.getState().setNoteHosts({});
+      canvasStore.getState().setActiveNode(null);
       // What belongs to this canvas alone: its selection, its tool, its mode and the frame it was renaming. The place
       // and the size stay, as what is placed or drawn next reads them with no guard against a zero size.
       const { view } = canvasStore.getState();
@@ -269,14 +283,19 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       watchNotes(elements, appState, version);
       activateNote(appState.activeEmbeddable);
       canvasStore.getState().setView(viewFrom(appState));
+      const active = appState.activeEmbeddable;
+      canvasStore.getState().setActiveNode(active?.state === "active" ? active.element.id : null);
       derive(elements, version, appState.selectedElementIds);
       if (api) scheduleWireUpkeep(api, elements);
       // The eraser never erases a node: with it active, the nodes are locked, which it skips.
       if (api) scheduleEraserGuard(api, elements, appState.activeTool.type === "eraser", version);
       const activated = trackActivation(appState.activeEmbeddable);
       if (activated) setActiveTerminal(activated);
-      // Deferred: changing the view from inside onChange would re-enter it.
-      if (activated && api) requestAnimationFrame(() => showAtFullSize(api, activated));
+      // Deferred: changing the view from inside onChange would re-enter it. Not for a press on one of the node's
+      // controls (liveControls.ts): the view stays, or the click would land beside the control, and the keyboard stays on it.
+      // Nor for an arrival that leaves the view (a launch): the person keeps their zoom, and the view stays where it was.
+      const keepView = activated !== null && (activatedByPress(activated) || arrivedInPlace(activated));
+      if (activated && api && !keepView) requestAnimationFrame(() => showAtFullSize(api, activated));
     },
     [sync, guardRemovals, trackActivation, watchSpawnDrags, watchLayout, watchNotes, activateNote, derive, workspaceId, api],
   );
@@ -287,7 +306,8 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       <GroupBackdrops />
       <GroupLabels />
       <StepTimelines />
-      <div className="absolute inset-0">
+      <EmptyCanvas show={empty} />
+      <div className="absolute inset-0" data-live-controls={liveControls ? "" : undefined} data-node-alone={nodeAlone ? "" : undefined}>
         <Excalidraw
           theme={theme}
           excalidrawAPI={setApi}
@@ -296,12 +316,22 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
           UIOptions={EXCALIDRAW_UI_OPTIONS}
           validateEmbeddable={isDummyPlaneLink}
           renderEmbeddable={(element) => <NodeHost element={element} />}
+          onLinkOpen={keepNodeLinks}
         />
       </div>
       <WireActivity />
       <SelectionPanel />
     </div>
   );
+}
+
+/**
+ * A node's link is its address on the canvas (`dummyplane://…`), not a page: Excalidraw draws no link icon at
+ * its corner (scripts/excalidraw-link-icon.mjs), and where it still opens one (reading mode, where the whole
+ * node counts as its link) it opens nothing. A drawn shape's link opens as Excalidraw opens it.
+ */
+function keepNodeLinks(element: ExcalidrawElement, event: CustomEvent) {
+  if (nodeKindOf(element)) event.preventDefault();
 }
 
 /**
@@ -313,7 +343,7 @@ function showAtFullSize(api: ExcalidrawImperativeAPI, nodeId: string) {
   if (api.getAppState().zoom.value === 1) return;
   const element = api.getSceneElements().find((e) => e.id === nodeId);
   if (!element) return;
-  api.updateScene({ appState: fullSizeView(element, api.getAppState()) });
+  api.updateScene({ appState: fullSizeView(element, api.getAppState(), currentWorkArea()) });
 }
 
 /**

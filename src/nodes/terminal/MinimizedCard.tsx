@@ -34,6 +34,8 @@ export function cardLine(payload: TerminalPayload, task?: string): string {
  * one line of what it did, and the way back to full size. A double-click
  * anywhere on it expands it, even before Excalidraw has made it active (an
  * inactive node gets no pointer events: the canvas hears the double-click).
+ * Its Expand takes a press whether or not the node is active, as a header's
+ * buttons do (canvas/liveControls.ts).
  */
 export function MinimizedCard(props: { nodeId: string; payload: TerminalPayload; status: TerminalStatus; activity?: AgentActivity }) {
   const { nodeId, payload, status, activity } = props;
@@ -69,7 +71,7 @@ export function MinimizedCard(props: { nodeId: string; payload: TerminalPayload;
   }, [nodeId]);
 
   return (
-    <div ref={ref} data-minimized={nodeId} className="flex h-full min-h-0 flex-col justify-center bg-dp-terminal-head px-3 text-xs">
+    <div ref={ref} data-minimized={nodeId} data-node-chrome="" className="flex h-full min-h-0 flex-col justify-center bg-dp-terminal-head px-3 text-xs">
       <div className="flex h-8 shrink-0 items-center gap-2">
         <meta.Icon aria-hidden className="size-4 shrink-0" style={{ color: agentInk(meta.tint) }} />
         {/* "Double-click to expand" on the name, not on the whole card: there it showed over the Expand button's hint. */}

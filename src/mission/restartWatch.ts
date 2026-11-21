@@ -11,7 +11,7 @@ import { pumpQueue } from "./queue";
 import { isFleetClosed, missionOf, missionRunner } from "./store";
 
 /** The running missions, of fleets still open, that `nodeId` is a member of. */
-function memberships(nodeId: string): { fleetId: string; mission: Mission; member: Member }[] {
+export function memberships(nodeId: string): { fleetId: string; mission: Mission; member: Member }[] {
   const found: { fleetId: string; mission: Mission; member: Member }[] = [];
   for (const [fleetId, record] of Object.entries(nodesStore.getState().nodes)) {
     const mission = missionOf(record);

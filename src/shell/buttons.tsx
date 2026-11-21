@@ -1,4 +1,4 @@
-import { useState, type ComponentProps, type FocusEvent, type ReactElement, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactElement, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -6,18 +6,10 @@ import { cn } from "@/lib/utils";
 type Labelled = { label: string };
 export type HintSide = "top" | "right" | "bottom" | "left";
 
-/** Whether the keyboard brought the focus: a focus handed back after a click (a menu that closes) is not. */
-function keyboardFocus(element: Element): boolean {
-  try {
-    return element.matches(":focus-visible");
-  } catch {
-    return true;
-  }
-}
-
 /**
- * What a button does, in a tooltip, on hover and on keyboard focus. It stays shut
- * while the button's own menu or popover is open (`expanded`): it would cover it.
+ * What a button does, in a tooltip, on hover and on keyboard focus: a focus Tab, Shift+Tab or an arrow brought,
+ * never one the app hands back (TooltipTrigger). It stays shut while the button's own menu or popover is open
+ * (`expanded`): it would cover it. It closes when the button loses the keyboard.
  */
 export function Hint({ label, side = "top", expanded = false, children }: { label: ReactNode; side?: HintSide; expanded?: boolean; children: ReactElement }) {
   const [open, setOpen] = useState(false);
@@ -25,7 +17,9 @@ export function Hint({ label, side = "top", expanded = false, children }: { labe
   if (expanded && open) setOpen(false);
   return (
     <Tooltip open={open && !expanded} onOpenChange={setOpen}>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipTrigger asChild onBlur={() => setOpen(false)}>
+        {children}
+      </TooltipTrigger>
       <TooltipContent side={side} sideOffset={8}>
         {label}
       </TooltipContent>
@@ -37,29 +31,17 @@ export function Hint({ label, side = "top", expanded = false, children }: { labe
 const isExpanded = (props: ComponentProps<"button">) => props["aria-expanded"] === true || props["aria-expanded"] === "true";
 
 /**
- * A button's onFocus that also stops Radix opening the hint on a focus the pointer
- * brought (a menu that closes hands it back): only the keyboard's shows it.
- */
-const keyboardOnlyHint =
-  (onFocus: ComponentProps<"button">["onFocus"]) =>
-  (event: FocusEvent<HTMLButtonElement>) => {
-    onFocus?.(event);
-    if (!keyboardFocus(event.currentTarget)) event.preventDefault();
-  };
-
-/**
  * A Button that names itself in a hint (`hint`) on hover and on keyboard focus, shut while its
  * own menu or popover is open. The kit's buttons and the title bar's meters are built on it.
  */
 export function HintedButton({
   hint,
   hintSide = "bottom",
-  onFocus,
   ...props
 }: ComponentProps<typeof Button> & { hint: ReactNode; hintSide?: HintSide }) {
   return (
     <Hint label={hint} side={hintSide} expanded={isExpanded(props)}>
-      <Button type="button" onFocus={keyboardOnlyHint(onFocus)} {...props} />
+      <Button type="button" {...props} />
     </Hint>
   );
 }
@@ -134,15 +116,17 @@ export function QuietButton({ className, ...props }: ComponentProps<typeof Butto
 }
 
 /**
- * The main action of a screen or a popover: the accent, brighter under the
- * pointer. It takes the Button's `size` (`lg` for a dialog's primary action).
+ * The main action of a screen or a popover: the accent, a clear step toward
+ * the ground under the pointer (the Button's own accent/85: 1.25:1 or more
+ * against its rest in every palette, where a brightness filter moved it 1.1:1).
+ * It takes the Button's `size` (`lg` for a dialog's primary action).
  */
 export function AccentButton({ className, ...props }: ComponentProps<typeof Button>) {
   return (
     <Button
       type="button"
       className={cn(
-        "px-4 text-(length:--text-ui) transition-[color,background-color,scale,filter] hover:bg-dp-accent hover:brightness-110 [&_svg:not([class*='size-'])]:size-4",
+        "px-4 text-(length:--text-ui) [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}

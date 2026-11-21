@@ -8,6 +8,7 @@ import { fleetsOf } from "@/agents/wires";
 import { useMessages } from "@/i18n";
 import type { AgentId } from "@/ipc/pty";
 import { formatDuration } from "@/lib/format";
+import { FootRouterToggle, routerInertText } from "@/mission/RouterToggle";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { useNow } from "@/lib/useNow";
 import { Hint } from "@/shell/buttons";
@@ -28,7 +29,7 @@ export function hasAgentFoot(agent: AgentId): boolean {
 
 /**
  * Under an agent's terminal, one status line: its dot, where it stands and for
- * how long, the Fleets that command it, and Link. The status lives here rather
+ * how long, the Fleets that command it, then its model router and Link. The status lives here rather
  * than in the header: one dot per agent, beside the question it may be asking
  * at the bottom of its terminal. An agent is messaged from the command bar at
  * the bottom of the canvas (shell/CommandBar.tsx), where selecting it puts its
@@ -40,7 +41,8 @@ export function AgentFoot(props: { nodeId: string; payload: TerminalPayload; sta
   // No key typed in the foot reaches the canvas: Backspace on Link would delete the node.
   useNativeKeyDown(foot, () => undefined);
   return (
-    <footer ref={foot} data-agent-foot={nodeId} className="shrink-0 border-t border-dp-line bg-dp-terminal-head">
+    // Its Link and its switch take a press whether or not the node is the active one (canvas/liveControls.ts).
+    <footer ref={foot} data-agent-foot={nodeId} data-node-chrome="" className="shrink-0 border-t border-dp-line bg-dp-terminal-head">
       <AgentStatus nodeId={nodeId} payload={payload} status={status} activity={activity} />
     </footer>
   );
@@ -74,7 +76,13 @@ function AgentStatus(props: { nodeId: string; payload: TerminalPayload; status: 
       label={pill.label}
       title={status.state === "error" ? status.message : undefined}
       facts={[since, from && t.from(from)]}
-      end={<AgentLink nodeId={nodeId} />}
+      end={
+        <>
+          {/* Greyed out, with why, where it has nothing to route (a Manager, a CLI without dummyPlane's tools). */}
+          <FootRouterToggle nodeId={nodeId} inert={routerInertText(payload)} />
+          <AgentLink nodeId={nodeId} />
+        </>
+      }
     />
   );
 }

@@ -7,6 +7,7 @@ import { nodesStore } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
 import { onSubagent, onSubagentOutput, onSubagentSessionEnded, subagentSnapshot } from "./ipc";
 import { placeSubagent } from "./placement";
+import { laneCovers } from "@/agents/laneCover";
 import { subagentNodesStore } from "./store";
 
 /**
@@ -49,7 +50,8 @@ export function ensureSubagentNode(agentId: string): string | undefined {
   const anchorId = parentElement && isLive(elements, parentElement) ? parentElement : entry.nodeId;
   const element = createNodeElement("subagent", { x: 0, y: 0 });
   const tagged = { ...element, customData: { ...element.customData, agentId, parentNodeId: entry.nodeId } };
-  const placed = placeSubagent(elements, tagged, anchorId);
+  // Out from under an occupied lane on the canvas on screen: it arrives without moving the view.
+  const placed = placeSubagent(elements, tagged, anchorId, laneCovers(workspaceId));
   if (!placed) return undefined;
   write(workspaceId, placed);
   subagentNodesStore.getState().setElement(agentId, element.id);

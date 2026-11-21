@@ -2,7 +2,7 @@ import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { revealNode } from "@/canvas/arrive";
 import { canvasStore } from "@/canvas/canvasStore";
-import { groupInfoOf, groupOf, insertIntoFrame, withGroupFolded } from "@/canvas/groups";
+import { groupInfoOf, groupOf, insertIntoFrame, withGroupFolded, type Rect } from "@/canvas/groups";
 import { allowRemoval } from "@/canvas/removalGuard";
 import { createNodeElement, nodeKindOf, nodeLink } from "@/canvas/nodeElement";
 import { expandedSize } from "@/nodes/terminal/minimize";
@@ -16,7 +16,9 @@ import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
 import { announceArrival, IN_VIEW, type Arrival } from "./arrivals";
 import { cloneTerminalPayload } from "./clone";
-import { arrangeInFrame, freeCell, freeSpot, NODE_GAP } from "./groupLayout";
+import { laneCovers } from "./laneCover";
+import { watchLaunched } from "./firstQuestion";
+import { arrangeInFrame, freeCellClear, freeSpotClear, NODE_GAP } from "./groupLayout";
 import { nameForNewAgent, pantheonsForCopiedGroups } from "./naming";
 import { sceneAccess } from "./sceneAccess";
 import { withSpawnedChildren } from "./spawnFamily";
@@ -45,11 +47,17 @@ export type PlaceTerminal = (elements: readonly ExcalidrawElement[], element: Ex
 
 /**
  * `elements` with `element` in the first free cell of the group `groupId` (grown if it was full), or, in none,
- * at the nearest spot clear of the nodes and group frames: where a new terminal goes.
+ * at the nearest spot clear of the nodes and group frames, and of `avoid` (an occupied lane, `laneCovers`): where a
+ * new terminal goes.
  */
-export function placeTerminal(elements: readonly ExcalidrawElement[], element: ExcalidrawElement, groupId: string | null): ExcalidrawElement[] {
+export function placeTerminal(
+  elements: readonly ExcalidrawElement[],
+  element: ExcalidrawElement,
+  groupId: string | null,
+  avoid: readonly Rect[] = [],
+): ExcalidrawElement[] {
   const frame = groupId ? elements.find((e) => e.id === groupId && !e.isDeleted && groupInfoOf(e)) : undefined;
-  return frame ? joinGroup(elements, element, frame) : [...elements, placeFree(elements, element)];
+  return frame ? joinGroup(elements, element, frame, avoid) : [...elements, placeFree(elements, element, avoid)];
 }
 
 /**
@@ -66,7 +74,8 @@ export async function addTerminal(
   center: Point,
   groupId: string | null = null,
   arrival: Arrival = IN_VIEW,
-  place: PlaceTerminal = (elements, element) => placeTerminal(elements, element, groupId),
+  // One that arrives without moving the view (a mission's member while the person types) keeps out from under an occupied lane.
+  place: PlaceTerminal = (elements, element) => placeTerminal(elements, element, groupId, arrival.reveal ? [] : laneCovers(workspaceId)),
 ): Promise<string | null> {
   if (!sceneAccess(workspaceId)) return null;
   const element = createNodeElement("terminal", center);
@@ -91,18 +100,18 @@ export async function addTerminal(
  * `element` moved to the nearest spot that covers no node nor group frame of
  * `elements` (NODE_GAP apart), so two terminals never end up one on top of the other.
  */
-function placeFree(elements: readonly ExcalidrawElement[], element: ExcalidrawElement): ExcalidrawElement {
+function placeFree(elements: readonly ExcalidrawElement[], element: ExcalidrawElement, avoid: readonly Rect[]): ExcalidrawElement {
   const obstacles = elements
     .filter((e) => !e.isDeleted && (nodeKindOf(e) !== null || e.type === "frame"))
     .map(({ x, y, width, height }) => ({ x, y, width, height }));
-  const spot = freeSpot(element, obstacles);
+  const spot = freeSpotClear(element, obstacles, avoid);
   return spot.x === element.x && spot.y === element.y ? element : newElementWith(element, { x: spot.x, y: spot.y });
 }
 
-/** `elements` with `element` in the first free cell of `frame`, grown if it was full. */
-function joinGroup(elements: readonly ExcalidrawElement[], element: ExcalidrawElement, frame: ExcalidrawElement) {
+/** `elements` with `element` in the first free cell of `frame`, grown if it was full, left of `avoid` (an occupied lane) when it can. */
+function joinGroup(elements: readonly ExcalidrawElement[], element: ExcalidrawElement, frame: ExcalidrawElement, avoid: readonly Rect[] = []) {
   const members = elements.filter((e) => !e.isDeleted && e.frameId === frame.id);
-  const placed = freeCell(frame, members);
+  const placed = freeCellClear(frame, members, avoid);
   return insertIntoFrame(
     elements,
     newElementWith(element, { x: placed.cell.x, y: placed.cell.y, frameId: frame.id }),
@@ -119,7 +128,8 @@ export async function duplicateTerminal(workspaceId: string, nodeId: string) {
   // Right of the source, NODE_GAP apart; addTerminal then moves it clear of any neighbour.
   const center = { x: element.x + element.width * 1.5 + NODE_GAP, y: element.y + element.height / 2 };
   const name = await nameForNewAgent(workspaceId, group?.group.pantheon);
-  await addTerminal(workspaceId, cloneTerminalPayload(source, name), center, group?.id ?? null);
+  // A copy the user asked for: its first question (trust this folder?) is theirs, and waits as any question does.
+  watchLaunched([await addTerminal(workspaceId, cloneTerminalPayload(source, name), center, group?.id ?? null)]);
 }
 
 /**

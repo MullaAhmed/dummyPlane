@@ -1,6 +1,8 @@
-import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject } from "react";
 import { FileDiff, RotateCw, X } from "lucide-react";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/EmptyState";
+import { InlineProblem } from "@/components/InlineProblem";
 import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger, PanelToggleItem } from "@/components/PanelTabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +10,15 @@ import { ToggleGroup } from "@/components/ui/toggle-group";
 import { sendToAgents } from "@/agents/broadcast";
 import { AGENTS } from "@/agents/catalog";
 import { reviewChanges, reviewDefaultBase, reviewFileDiff, reviewFiles, reviewReadFile, type ChangedFile, type FileText } from "@/ipc/review";
+import { gitLine, gitRefusal } from "@/git/problems";
+import { openTerminalIn, useCanOpenTerminal } from "@/git/terminal";
+import { logError } from "@/lib/errorToast";
+import { returnFocus, useOpener } from "@/lib/focusReturn";
 import { cn } from "@/lib/utils";
-import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
+import { focusTerminal } from "@/nodes/terminal/registry";
+import { LANE_BOTTOM, LANE_TOP } from "@/shell/layout";
+import { useWorkWindowPlace } from "@/shell/lane";
+import { useKeepToastsOff } from "@/shell/toastLift";
 import { messages, useMessages } from "@/i18n";
 import { AccentButton, IconButton } from "@/shell/buttons";
 import { sessionOf, useNodes } from "@/store/nodes";
@@ -22,9 +31,6 @@ import { reviewStore, useReview } from "./reviewStore";
 /** The files tab lists this many paths at most; the filter finds the others. */
 const MAX_FILES = 400;
 
-/** The panel's own toasts show at the top: the default corner is where "Send" is. */
-const TOAST_AWAY = { position: "top-center" } as const;
-
 /**
  * A row of a file list: the whole width, a hover step, the file being read in the accent's tint.
  * The fill snaps: a fade on rows the pointer sweeps leaves a trail of half-lit ones.
@@ -36,7 +42,35 @@ const ROW_ON = "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft";
 /** A field of the panel: shadcn's Input at the panel's density. */
 const FIELD = "h-7 rounded-md px-2 text-xs md:text-xs";
 
-const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+/** A read that failed, in the panel's words: `title` names what was being read, git's telling line is the detail. */
+interface ReadProblem {
+  title: string;
+  next: string;
+  line: string;
+  /** Outside a repository: the panel offers a terminal in the folder, to run git init. */
+  terminal: boolean;
+}
+
+function readProblem(title: string, failure: unknown): ReadProblem {
+  const t = messages(reviewMessages).problem;
+  const outside = gitRefusal(failure) === "notRepo";
+  const problem = outside ? { title: t.notRepo, next: t.notRepoNext, terminal: true } : { title, next: t.next, terminal: false };
+  logError(problem.title, failure);
+  return { ...problem, line: gitLine(failure) };
+}
+
+function Problem({ problem, cwd }: { problem: ReadProblem; cwd: string }) {
+  const t = useMessages(reviewMessages).problem;
+  const canOpen = useCanOpenTerminal();
+  return (
+    <InlineProblem
+      title={problem.title}
+      next={problem.next}
+      error={problem.line}
+      action={problem.terminal && canOpen ? { label: t.terminal, onClick: () => openTerminalIn(cwd, () => reviewStore.getState().close()) } : undefined}
+    />
+  );
+}
 
 /** What an agent changed and its folder's files, with remarks sent back to it. */
 export function ReviewPanel() {
@@ -68,25 +102,39 @@ function ReviewDrawer({ nodeId }: { nodeId: string }) {
     };
   }, [nodeId, cwd]);
 
+  // What opened it (a row's Review, the terminal's menu, what had the keyboard before the palette): Escape and Close
+  // give the keyboard back to it, else to the terminal reviewed.
+  const opener = useOpener();
+  const aside = useRef<HTMLElement>(null);
+  // A work window: the toasts keep off it (shell/toastLift.ts).
+  const asideRef = useKeepToastsOff(aside);
+  const place = useWorkWindowPlace();
+  const dismiss = useCallback(() => {
+    if (!returnFocus(opener, aside.current)) focusTerminal(nodeId);
+    reviewStore.getState().close();
+  }, [opener, nodeId]);
+
   useEffect(() => {
     // An Escape a menu, a dialog or a field already used is theirs.
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable === true;
-      if (e.key === "Escape" && !e.defaultPrevented && !typing) reviewStore.getState().close();
+      if (e.key === "Escape" && !e.defaultPrevented && !typing) dismiss();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [dismiss]);
 
   if (!session || !cwd) return null;
   const name = session.name || AGENTS[session.agent].label;
   const compared = sinceBase && base ? base : null;
   return (
     <aside
+      ref={asideRef}
       data-review={nodeId}
-      className="dp-glass-strong absolute right-18 z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-xl text-dp-text"
-      style={{ top: TOP_ROW_HEIGHT + 12, bottom: BOTTOM_BAR_HEIGHT + 12 }}
+      // A work window: under the bars, above the command band, beside an occupied lane where it fits (shell/layout.ts).
+      className="dp-glass-strong absolute z-20 flex flex-col overflow-hidden rounded-xl text-dp-text"
+      style={{ top: LANE_TOP, bottom: LANE_BOTTOM, right: place.right, width: place.width }}
     >
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
         <FileDiff className="size-4 shrink-0 text-dp-text-2" />
@@ -98,7 +146,7 @@ function ReviewDrawer({ nodeId }: { nodeId: string }) {
           <IconButton label={t.refresh} onClick={() => setRefresh((n) => n + 1)}>
             <RotateCw />
           </IconButton>
-          <IconButton label={t.close} onClick={() => reviewStore.getState().close()}>
+          <IconButton label={t.close} onClick={dismiss}>
             <X />
           </IconButton>
         </span>
@@ -125,10 +173,10 @@ function ReviewDrawer({ nodeId }: { nodeId: string }) {
           )}
         </div>
         <PanelTabsContent value="changes" className="flex-row">
-          {base === undefined ? <Message>{t.readingRepo}</Message> : <ChangesTab key={`${cwd}:${compared}`} cwd={cwd} base={compared} refresh={refresh} />}
+          {base === undefined ? <EmptyState grace>{t.readingRepo}</EmptyState> : <ChangesTab key={`${cwd}:${compared}`} cwd={cwd} base={compared} refresh={refresh} />}
         </PanelTabsContent>
         <PanelTabsContent value="files" className="flex-row">
-          {base === undefined ? <Message>{t.readingRepo}</Message> : <FilesTab key={cwd} cwd={cwd} refresh={refresh} />}
+          {base === undefined ? <EmptyState grace>{t.readingRepo}</EmptyState> : <FilesTab key={cwd} cwd={cwd} refresh={refresh} />}
         </PanelTabsContent>
       </PanelTabs>
       <Remarks nodeId={nodeId} name={name} />
@@ -136,14 +184,10 @@ function ReviewDrawer({ nodeId }: { nodeId: string }) {
   );
 }
 
-function Message({ children }: { children: ReactNode }) {
-  return <p className="grid flex-1 place-items-center p-6 text-center text-xs text-dp-text-2">{children}</p>;
-}
-
 function ChangesTab({ cwd, base, refresh }: { cwd: string; base: string | null; refresh: number }) {
   const t = useMessages(reviewMessages);
   const [files, setFiles] = useState<ChangedFile[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [problem, setProblem] = useState<ReadProblem | null>(null);
   const [selected, setSelected] = useState<ChangedFile | null>(null);
   const [cut, setCut] = useState(false);
 
@@ -153,21 +197,21 @@ function ChangesTab({ cwd, base, refresh }: { cwd: string; base: string | null; 
       (changes) => {
         if (!alive) return;
         setCut(changes.truncated === true);
-        setError(null);
+        setProblem(null);
         setFiles(changes.files);
         // A refresh stays on the file being read when it is still changed.
         setSelected((current) => changes.files.find((f) => f.path === current?.path) ?? changes.files[0] ?? null);
       },
-      (failure: unknown) => alive && setError(errorText(failure)),
+      (failure: unknown) => alive && setProblem(readProblem(t.problem.changes, failure)),
     );
     return () => {
       alive = false;
     };
   }, [cwd, base, refresh]);
 
-  if (error) return <Message>{error}</Message>;
-  if (!files) return <Message>{t.readingChanges}</Message>;
-  if (files.length === 0) return <Message>{base ? t.noChangesSince(base) : t.noChanges}</Message>;
+  if (problem) return <Problem problem={problem} cwd={cwd} />;
+  if (!files) return <EmptyState grace>{t.readingChanges}</EmptyState>;
+  if (files.length === 0) return <EmptyState>{base ? t.noChangesSince(base) : t.noChanges}</EmptyState>;
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
       <ul className="w-65 shrink-0 overflow-y-auto border-r border-dp-line py-1">
@@ -203,7 +247,7 @@ function ChangesTab({ cwd, base, refresh }: { cwd: string; base: string | null; 
           );
         })}
       </ul>
-      {selected ? <FileDiffView key={selected.path} cwd={cwd} file={selected} base={base} refresh={refresh} /> : <Message>{t.pickFile}</Message>}
+      {selected ? <FileDiffView key={selected.path} cwd={cwd} file={selected} base={base} refresh={refresh} /> : <EmptyState>{t.pickFile}</EmptyState>}
     </div>
   );
 }
@@ -211,7 +255,7 @@ function ChangesTab({ cwd, base, refresh }: { cwd: string; base: string | null; 
 function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: ChangedFile; base: string | null; refresh: number }) {
   const t = useMessages(reviewMessages);
   const [diff, setDiff] = useState<{ lines: DiffLine[]; binary: boolean } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [problem, setProblem] = useState<ReadProblem | null>(null);
   // The line the remark field is open on, by its content: a refresh that moves the line keeps the field on it (P2-48).
   const [commenting, setCommenting] = useState<DiffLine | null>(null);
   // The remark being typed, out of React's state: typing draws the field only, not the 4000 lines (P2-59).
@@ -226,13 +270,13 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
     reviewFileDiff(cwd, file, base).then(
       (text) => {
         if (!alive) return;
-        setError(null);
+        setProblem(null);
         const next = parseDiff(text);
         setDiff(next);
         // A line gone, or no longer told apart from others, closes its field: the words typed stay for the next one.
         setCommenting((line) => (line && openRow(next.lines.slice(0, MAX_LINES), line) >= 0 ? line : null));
       },
-      (failure: unknown) => alive && setError(errorText(failure)),
+      (failure: unknown) => alive && setProblem(readProblem(t.problem.diff(file.path), failure)),
     );
     return () => {
       alive = false;
@@ -255,10 +299,10 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
     for (const cell of stops) cell.tabIndex = cell === kept ? 0 : -1;
   }, [diff]);
 
-  if (error) return <Message>{error}</Message>;
-  if (!diff) return <Message>{t.readingDiff}</Message>;
-  if (diff.binary) return <Message>{t.binaryNoDiff}</Message>;
-  if (diff.lines.length === 0) return <Message>{t.noContentDiff}</Message>;
+  if (problem) return <Problem problem={problem} cwd={cwd} />;
+  if (!diff) return <EmptyState grace>{t.readingDiff}</EmptyState>;
+  if (diff.binary) return <EmptyState>{t.binaryNoDiff}</EmptyState>;
+  if (diff.lines.length === 0) return <EmptyState>{t.noContentDiff}</EmptyState>;
   const placed = new Map<number, Remark[]>();
   for (const remark of remarks) {
     if (remark.file !== file.path || remark.line === undefined) continue;
@@ -397,7 +441,7 @@ function FilesTab({ cwd, refresh }: { cwd: string; refresh: number }) {
   const t = useMessages(reviewMessages);
   const [files, setFiles] = useState<string[] | null>(null);
   const [listCut, setListCut] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [problem, setProblem] = useState<ReadProblem | null>(null);
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -407,19 +451,19 @@ function FilesTab({ cwd, refresh }: { cwd: string; refresh: number }) {
       (list) => {
         if (!alive) return;
         // A read that works clears the failure of the one before (P2-47).
-        setError(null);
+        setProblem(null);
         setListCut(list.truncated === true);
         setFiles(list.files);
       },
-      (failure: unknown) => alive && setError(errorText(failure)),
+      (failure: unknown) => alive && setProblem(readProblem(t.problem.files, failure)),
     );
     return () => {
       alive = false;
     };
   }, [cwd, refresh]);
 
-  if (error) return <Message>{error}</Message>;
-  if (!files) return <Message>{t.readingFiles}</Message>;
+  if (problem) return <Problem problem={problem} cwd={cwd} />;
+  if (!files) return <EmptyState grace>{t.readingFiles}</EmptyState>;
   const wanted = filter.trim().toLowerCase();
   const matching = wanted ? files.filter((f) => f.toLowerCase().includes(wanted)) : files;
   const found = matching.slice(0, MAX_FILES);
@@ -444,7 +488,7 @@ function FilesTab({ cwd, refresh }: { cwd: string; refresh: number }) {
           ))}
         </ul>
       </div>
-      {selected ? <FileView key={selected} cwd={cwd} file={selected} refresh={refresh} /> : <Message>{t.pickFile}</Message>}
+      {selected ? <FileView key={selected} cwd={cwd} file={selected} refresh={refresh} /> : <EmptyState>{t.pickFile}</EmptyState>}
     </div>
   );
 }
@@ -453,26 +497,26 @@ function FilesTab({ cwd, refresh }: { cwd: string; refresh: number }) {
 function FileView({ cwd, file, refresh }: { cwd: string; file: string; refresh: number }) {
   const t = useMessages(reviewMessages);
   const [content, setContent] = useState<FileText | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [problem, setProblem] = useState<ReadProblem | null>(null);
 
   useEffect(() => {
     let alive = true;
     reviewReadFile(cwd, file).then(
       (read) => {
         if (!alive) return;
-        setError(null);
+        setProblem(null);
         setContent(read);
       },
-      (failure: unknown) => alive && setError(errorText(failure)),
+      (failure: unknown) => alive && setProblem(readProblem(t.problem.file(file), failure)),
     );
     return () => {
       alive = false;
     };
   }, [cwd, file, refresh]);
 
-  if (error) return <Message>{error}</Message>;
-  if (!content) return <Message>{t.readingFile}</Message>;
-  if (content.text === null) return <Message>{t.binaryFile(content.size)}</Message>;
+  if (problem) return <Problem problem={problem} cwd={cwd} />;
+  if (!content) return <EmptyState grace>{t.readingFile}</EmptyState>;
+  if (content.text === null) return <EmptyState>{t.binaryFile(content.size)}</EmptyState>;
   // A Windows line end shows no carriage return, as in a diff (parseDiff).
   const lines = content.text.split(/\r?\n/);
   if (lines[lines.length - 1] === "") lines.pop();
@@ -498,10 +542,11 @@ function Remarks({ nodeId, name }: { nodeId: string; name: string }) {
     const { sent, skipped, waiting, starting } = await sendToAgents([nodeId], reviewMessage(remarks));
     if (sent > 0) {
       reviewStore.getState().clear();
-      toast(messages(reviewMessages).sent(name), TOAST_AWAY);
-    } else if (waiting.length > 0) toast.warning(messages(reviewMessages).waiting(name), TOAST_AWAY);
+      // The app's one toaster, bottom right (AppToaster): a toast never moves to another corner.
+      toast(messages(reviewMessages).sent(name));
+    } else if (waiting.length > 0) toast.warning(messages(reviewMessages).waiting(name));
     else if (starting.length > 0) toast.warning(messages(reviewMessages).starting(name));
-    else if (skipped.length > 0) toast.warning(messages(reviewMessages).stopped(name), TOAST_AWAY);
+    else if (skipped.length > 0) toast.warning(messages(reviewMessages).stopped(name));
   };
   return (
     <footer className="flex max-h-[30%] shrink-0 flex-col gap-2 border-t border-dp-line px-3 py-2">

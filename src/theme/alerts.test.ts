@@ -148,6 +148,31 @@ describe("a toast's title, description and buttons take the app's classes (Alert
     // Above sonner's own `[data-sonner-toast]` transition (400 ms, box-shadow named).
     expect(compare(specificity(motion.selector), specificity("[data-sonner-toast]"))).toBeGreaterThan(0);
   });
+
+  it("out-ranks every transition sonner sets on a toast with one on the tokens, the removed toast's 500 ms exit included", () => {
+    const quotes = (s: string) => s.replace(/'/g, '"');
+    const attributes = (compound: string) => quotes(compound).match(/\[[^\]]*\]/g) ?? [];
+    const ours = rules(index).filter(
+      (r) => r.selector.includes("[data-sonner-toast]") && /transition-duration:\s*var\(--dp-dur(-fast)?\);/.test(r.body) && /transition-timing-function:\s*var\(--dp-ease-out\);/.test(r.body),
+    );
+    const checked: string[] = [];
+    for (const rule of rules(sonner)) {
+      // A swipe follows the pointer with none, as sonner wants; reduced motion's `none` is index.css's fade to override (above).
+      if (!/(?:^|[;\s])transition:/.test(rule.body) || /transition:\s*none/.test(rule.body)) continue;
+      for (const theirs of selectors(rule.selector)) {
+        if (!/^\[data-sonner-toast\]/.test(subject(theirs))) continue;
+        checked.push(theirs);
+        const over = ours.some((r) =>
+          selectors(r.selector).some((mine) => attributes(subject(theirs)).every((a) => quotes(subject(mine)).includes(a)) && compare(specificity(mine), specificity(theirs)) > 0),
+        );
+        expect(over, `${theirs} out-ranked on the tokens`).toBe(true);
+      }
+    }
+    expect(checked).toEqual(expect.arrayContaining(["[data-sonner-toast]", expect.stringContaining("[data-removed='true']")]));
+    // The removed toast leaves quicker than a toast enters.
+    const removed = ours.find((r) => r.selector.includes('[data-removed="true"]'))!;
+    expect(removed.body).toMatch(/transition-duration:\s*var\(--dp-dur-fast\);/);
+  });
 });
 
 describe("the alerts' rules are written down (docs/design-system.md, Alerts)", () => {

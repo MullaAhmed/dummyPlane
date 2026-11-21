@@ -2,7 +2,6 @@ import { showNode } from "@/canvas/arrive";
 import { focusGroup } from "@/canvas/canvasFocus";
 import { canvasStore } from "@/canvas/canvasStore";
 import { groupOf, isGroup, type SceneGroup } from "@/canvas/groups";
-import { setAgentsFilter, setAgentsPanel } from "@/agents/agentsPanelState";
 import { canPause, canResume, pauseAgents, pauseAll, resumeAgent, resumeAll, type AgentFacts } from "@/agents/broadcast";
 import { AGENTS } from "@/agents/catalog";
 import { arrangeWorkspace } from "@/agents/arrangeCanvas";
@@ -22,10 +21,11 @@ import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
-import type { Command, CommandContext } from "../command";
+import { inputOf, type Command, type CommandContext } from "../command";
 import { requestUi } from "../uiRequests";
 import { askArrangeLayout } from "./arrangeMenu";
 import { command } from "./define";
+import { windowPointOf } from "./menuPoint";
 import { catalog } from "./messages";
 
 /** The terminal of the moment: the one that had the keyboard when the palette opened. */
@@ -54,10 +54,10 @@ const hasGroup = (ctx: CommandContext) => groupOfCurrent(ctx) !== null;
 // `available` guarantees both before `run`.
 const terminalId = (ctx: CommandContext) => ctx.terminalId as string;
 /** `run` of a group command: nothing happens if the group went between the palette and Enter. */
-function forGroup(run: (id: string) => void | Promise<void>): Command["run"] {
+function forGroup(run: (id: string, ctx: CommandContext) => void | Promise<void>): Command["run"] {
   return (ctx) => {
     const group = groupOfCurrent(ctx);
-    if (group) return run(group.id);
+    if (group) return run(group.id, ctx);
   };
 }
 
@@ -182,20 +182,19 @@ export const CURRENT: readonly Command[] = [
     section: groupSection,
     available: hasGroup,
     // Its label edits the name: the group comes into view first.
-    run: forGroup((id) => {
-      focusGroup(id);
+    run: forGroup((id, ctx) => {
+      focusGroup(id, inputOf(ctx));
       requestAnimationFrame(() => uiStore.getState().setRenamingGroup(id));
     }),
   }),
   command("group.addAgent", {
     section: groupSection,
     available: hasGroup,
-    // The group's menu, in the agents panel.
-    run: forGroup((id) => {
-      setAgentsFilter("all");
-      setAgentsPanel(true);
-      requestUi({ kind: "groupMenu", id });
-    }),
+    // The list of the agents found on this machine (src/agents/GroupAgentMenu.tsx), at the ring's press, else the middle of the canvas; the one picked starts in the group.
+    run: (ctx) => {
+      const group = groupOfCurrent(ctx);
+      if (group) requestUi({ kind: "groupAgentMenu", id: group.id, at: windowPointOf(ctx) });
+    },
   }),
   command("group.linkFleet", {
     section: groupSection,
@@ -257,8 +256,8 @@ export const CURRENT: readonly Command[] = [
   command("group.frame", {
     section: groupSection,
     available: hasGroup,
-    run: forGroup((id) => {
-      focusGroup(id);
+    run: forGroup((id, ctx) => {
+      focusGroup(id, inputOf(ctx));
     }),
   }),
 ];

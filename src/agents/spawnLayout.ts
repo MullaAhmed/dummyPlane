@@ -141,8 +141,17 @@ export type IsDownRoot = (nodeId: string) => boolean;
  * whenever its route or its flags differ from the layout's, nodes moved or not;
  * any other wire between a node and its parent loses those flags. So a second
  * layout changes nothing. Null when nothing changes.
+ *
+ * `yielding` names nodes the tree does not go around: they make room for it
+ * afterwards (a Fleet's mission and the Fleet's own sub-agents, ./missionLayout.ts).
  */
-export function layoutSpawnTree(elements: readonly ExcalidrawElement[], parentOf: ParentOf, nodeId: string, isDownRoot?: IsDownRoot): ExcalidrawElement[] | null {
+export function layoutSpawnTree(
+  elements: readonly ExcalidrawElement[],
+  parentOf: ParentOf,
+  nodeId: string,
+  isDownRoot?: IsDownRoot,
+  yielding?: ReadonlySet<string>,
+): ExcalidrawElement[] | null {
   const tree = spawnTreeOf(elements, parentOf, nodeId);
   if (!tree || !tree.children[tree.rootId]) return null;
   const live = liveNodes(elements);
@@ -180,7 +189,7 @@ export function layoutSpawnTree(elements: readonly ExcalidrawElement[], parentOf
   // What the tree must not cover: nodes outside it (its own notes are in it), frames other than its group's.
   const ownNotes = new Set([...tree.ids].flatMap((id) => (notes.get(id) ?? []).map((n) => n.id)));
   const outside: Rect[] = elements
-    .filter((e) => !e.isDeleted && !tree.ids.has(e.id) && !ownNotes.has(e.id) && e.id !== rootFrame?.id && (nodeKindOf(e) !== null || e.type === "frame"))
+    .filter((e) => !e.isDeleted && !tree.ids.has(e.id) && !ownNotes.has(e.id) && e.id !== rootFrame?.id && !yielding?.has(e.id) && (nodeKindOf(e) !== null || e.type === "frame"))
     .map(rectOf);
   // Neither may one block cover the root, a pinned node or a block placed before it.
   const placed: Rect[] = subRoots.map((id) => printOf(id).rect);

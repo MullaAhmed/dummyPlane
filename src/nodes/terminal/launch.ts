@@ -22,7 +22,16 @@ export const SHELL_LABELS: Record<ShellKind, string> = {
     return messages(nodesMessages).shells.cmd;
   },
   gitbash: "Git Bash",
+  wsl: "WSL",
 };
+
+/**
+ * The shells `agent` can start in. WSL opens a plain Shell or runs a Custom command only: an agent's command line
+ * carries Windows paths and programs a Linux shell cannot use (pty `launch_shell` starts it in the default shell).
+ */
+export function shellsFor(agent: AgentId, shells: readonly ShellKind[]): ShellKind[] {
+  return agent === "shell" || agent === "custom" ? [...shells] : shells.filter((shell) => shell !== "wsl");
+}
 
 /** "Claude · dummyplane": the agent and the last folder of the working directory. */
 export function defaultTitle(agent: AgentId, cwd: string): string {

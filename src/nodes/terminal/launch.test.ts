@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readTerminalPayload, type TerminalPayload } from "@/nodes/types";
 import { STORED_FLEET_ROLE } from "@/ipc/pty";
-import { buildSpawnSpec, canResume, defaultTitle, launchSettingsOf, newConversation, newTerminalPayload, fleetSession, relaunchMode, switchedAgent } from "./launch";
+import { buildSpawnSpec, canResume, defaultTitle, launchSettingsOf, newConversation, newTerminalPayload, fleetSession, relaunchMode, shellsFor, switchedAgent } from "./launch";
 
 const base = { title: "", cwd: "C:\\code\\dummyplane", agent: "shell" as const, command: "", shell: "default" as const };
 
@@ -195,5 +195,20 @@ describe("fleetSession", () => {
     expect(session).toMatchObject({ title: "Chef", name: "Chef", agent: "claude", cwd: "C:/code", shell: "pwsh", role: "orchestrator" });
     expect(buildSpawnSpec(session, "new").claude).toEqual({ mode: "new", sessionId: session.claudeSessionId, title: "Chef", role: "orchestrator" });
     expect(buildSpawnSpec({ ...session, role: undefined }, "new").claude?.role).toBe("agent");
+  });
+});
+
+describe("WSL", () => {
+  const shells = ["powershell", "cmd", "gitbash", "wsl"] as const;
+
+  it("opens a Shell or runs a Custom command, never an agent", () => {
+    expect(shellsFor("shell", shells)).toEqual(["powershell", "cmd", "gitbash", "wsl"]);
+    expect(shellsFor("custom", shells)).toEqual(["powershell", "cmd", "gitbash", "wsl"]);
+    for (const agent of ["claude", "codex", "aider", "ollama"] as const) expect(shellsFor(agent, shells), agent).toEqual(["powershell", "cmd", "gitbash"]);
+  });
+
+  it("is kept when a Shell terminal is read back", () => {
+    const shell = { title: "Shell · api", name: "", cwd: "D:/api", agent: "shell", command: "", shell: "wsl" } as const;
+    expect(readTerminalPayload(shell)?.shell).toBe("wsl");
   });
 });

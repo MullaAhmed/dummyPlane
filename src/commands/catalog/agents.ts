@@ -1,6 +1,6 @@
 import { openAccounts } from "@/accounts/store";
 import { setAgentsPanel } from "@/agents/agentsPanelState";
-import { agentsStore } from "@/agents/agentsStore";
+import { agentsStore, isAvailable } from "@/agents/agentsStore";
 import { pauseAll, resumeAll, workspaceTerminalIds } from "@/agents/broadcast";
 import { AGENTS } from "@/agents/catalog";
 import { AGENT_INSTALLS } from "@/agents/installCommands";
@@ -11,6 +11,7 @@ import type { Command } from "../command";
 import { requestUi } from "../uiRequests";
 import { command, derived, sectionNamed } from "./define";
 import { catalog } from "./messages";
+import { windowPointOf } from "./menuPoint";
 import { inProject } from "./navigation";
 
 /** The agents of "Launch …", in a fixed order. */
@@ -21,7 +22,7 @@ const section = sectionNamed((s) => s.agents);
 /** Before the first look nothing is known to be missing (the Shell has no binary name yet). */
 const missing = (agent: AgentId) => {
   const { agents, loaded } = agentsStore.getState();
-  return loaded && !agents.some((a) => a.id === agent && a.available);
+  return loaded && !isAvailable(agents, agent);
 };
 
 /** Like the Agent menu: a missing agent is offered for install. */
@@ -62,8 +63,8 @@ export const AGENT_COMMANDS: readonly Command[] = [
   command("agent.other", {
     section,
     available: inProject,
-    // The agents of the ＋ menu, without what is not one; from the radial menu, the agent starts at its point.
-    run: (ctx) => requestUi({ kind: "agentMenu", view: "agents", only: "agents", at: ctx.at }),
+    // The list of the agents found on this machine (src/agents/OtherAgentMenu.tsx), at the radial menu's point, else the middle of the canvas; the agent starts at the point.
+    run: (ctx) => requestUi({ kind: "otherAgentMenu", at: windowPointOf(ctx), place: ctx.at }),
   }),
   command("agent.accounts", { section, available: inProject, run: () => openAccounts() }),
   command("agent.console", { section, available: inProject, run: (ctx) => newConsole(ctx.at) }),

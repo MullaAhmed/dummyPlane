@@ -7,7 +7,9 @@ import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, type NodeRecord } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
+import { reviewStore } from "@/review/reviewStore";
 import { readSource } from "@/theme/cssBlocks";
+import { BOTTOM_GUTTER, BOTTOM_STACK_GAP, COMMAND_BAR_MIN_HEIGHT, LOOPS_ROOM_PROPERTY, WAITING_NOTICE_BOTTOM, WAITING_NOTICE_LEFT } from "./layout";
 import { WaitingNotice } from "./WaitingNotice";
 
 vi.mock("@/commands/goToRun", () => ({ goToAgent: vi.fn() }));
@@ -74,7 +76,16 @@ describe("WaitingNotice", () => {
 
   it("clears the tool rail, at any window height", async () => {
     await wait("batman");
-    expect(host.querySelector("section")?.className).toContain("left-[70px]");
+    expect(host.querySelector("section")?.style.left).toBe(`${WAITING_NOTICE_LEFT}px`);
+    expect(WAITING_NOTICE_LEFT).toBe(70);
+  });
+
+  it("stands on the corner's stack, above the loops pill while one shows, and under the work windows", async () => {
+    await wait("batman");
+    const notice = host.querySelector<HTMLElement>("section")!;
+    expect(notice.style.getPropertyValue("--dp-notice-bottom")).toBe(`calc(${WAITING_NOTICE_BOTTOM}px + var(${LOOPS_ROOM_PROPERTY}, 0px))`);
+    expect(notice.className).toContain("z-10");
+    expect(notice.className).not.toContain("z-30");
   });
 
   it("names the workspace of an agent that is not on screen", async () => {
@@ -156,6 +167,37 @@ describe("WaitingNotice", () => {
 
 it("rises above the command band where the bar reaches its column, and moves only its bottom", () => {
   const source = readSource("shell/WaitingNotice.tsx");
-  expect(source).toContain("max-[1340px]:bottom-[calc(var(--dp-bottom-band,2.25rem)+1.25rem)]");
+  expect(source).toContain("max-[1340px]:bottom-(--dp-notice-bottom-narrow)");
+  expect(source).toContain("var(--dp-bottom-band,");
   expect(readSource("shell/ProjectView.tsx")).toContain('setProperty("--dp-bottom-band"');
+});
+
+it("stands above the command band even when the bar has grown, below 1,340 px", async () => {
+  await wait("batman");
+  const narrow = host.querySelector<HTMLElement>("section")!.style.getPropertyValue("--dp-notice-bottom-narrow");
+  // One gap clear of the band, never lower than the stack: the larger of the two.
+  expect(narrow).toBe(
+    `max(calc(${WAITING_NOTICE_BOTTOM}px + var(${LOOPS_ROOM_PROPERTY}, 0px)), calc(var(--dp-bottom-band, ${COMMAND_BAR_MIN_HEIGHT}px) + ${BOTTOM_GUTTER + BOTTOM_STACK_GAP}px))`,
+  );
+});
+
+it("is inert while a work window covers its corner, below about 1,320 px, and live again when it closes", async () => {
+  const width = window.innerWidth;
+  await wait("batman");
+  const notice = () => host.querySelector<HTMLElement>("[data-waiting-notice]")!;
+  await act(async () => {
+    Object.assign(window, { innerWidth: 1440 });
+    window.dispatchEvent(new Event("resize"));
+    reviewStore.setState({ nodeId: "batman" });
+  });
+  // At 1440 the window ends right of the notice's column: nothing covers it.
+  expect(notice().inert).toBe(false);
+  await act(async () => {
+    Object.assign(window, { innerWidth: 960 });
+    window.dispatchEvent(new Event("resize"));
+  });
+  expect(notice().inert).toBe(true);
+  await act(async () => reviewStore.setState({ nodeId: null }));
+  expect(notice().inert).toBe(false);
+  Object.assign(window, { innerWidth: width });
 });

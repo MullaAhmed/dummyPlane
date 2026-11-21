@@ -10,7 +10,8 @@ const CLASS_PREFIX = /^(?:[A-Z]\w*)?Error:\s*/;
 /** Rust's and Windows' "(os error 3)": a code the user can do nothing with. */
 const OS_CODE = /\s*\(os error -?\d+\)/gi;
 
-function rawText(error: unknown): string {
+/** The error's whole message, every line of it: what git or Rust said, as it said it. */
+export function rawText(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") return error.message;
@@ -34,6 +35,14 @@ export function errorDetail(error: unknown): string {
   const text = (line ?? "").replace(CLASS_PREFIX, "").replace(OS_CODE, "").trim();
   if (text === "" || text === "[object Object]" || text === "undefined" || text === "null") return "";
   return text.length > MAX_DETAIL ? `${cutWhole(text, MAX_DETAIL - 1).trimEnd()}…` : text;
+}
+
+/**
+ * The whole error, to the log (console.warn reaches it, app/log.ts), under the title the user was shown: a toast's or
+ * an inline problem's (`InlineProblem`) shows its first line only.
+ */
+export function logError(title: string, error: unknown) {
+  console.warn(`${title}:`, error);
 }
 
 /** The second and third lines of an error toast: what to do next, then the raw detail, quieter, in the code font. */
@@ -60,7 +69,7 @@ export type ErrorToastOptions = Omit<ExternalToast, "description"> & {
  * goes under the title as a detail, and whole to the log, where a user who sends it can be helped.
  */
 export function toastError(title: string, { error, next, ...options }: ErrorToastOptions = {}) {
-  if (error !== undefined) console.warn(`${title}:`, error);
+  if (error !== undefined) logError(title, error);
   const lines = description(next, error === undefined ? "" : errorDetail(error));
   const extra = lines === undefined ? options : { ...options, description: lines };
   return Object.keys(extra).length > 0 ? toast.error(title, extra) : toast.error(title);

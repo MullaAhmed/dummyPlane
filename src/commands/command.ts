@@ -27,6 +27,14 @@ export interface CommandContext {
 }
 
 /**
+ * What ran a command: the radial ring, pressed with the pointer, gives its context the press point (`at`); a
+ * shortcut and the palette, a keyboard surface, give none. The motion a command sets off follows it.
+ */
+export function inputOf(ctx: CommandContext): "keyboard" | "pointer" {
+  return ctx.at === undefined ? "keyboard" : "pointer";
+}
+
+/**
  * One function of the application. Its shortcut, its palette line (J8) and
  * its radial menu entry run this same command: they never diverge.
  */

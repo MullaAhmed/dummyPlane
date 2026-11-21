@@ -12,7 +12,7 @@ export const noteMessages = defineMessages({
   placeholder: "Write a note…",
   delete: "Delete the note",
   /** Its host closed: it stays on the canvas, alone. */
-  alone: "Its terminal was closed: this note stays here on its own.",
+  alone: "Its terminal was closed: this note stays here on its own",
   deleted: (count: number) => (count === 1 ? "Note deleted" : `${count} notes deleted`),
   undo: "Undo",
   notFound: "Note not found",

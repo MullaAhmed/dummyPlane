@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { FileText, RefreshCw } from "lucide-react";
+import { InlineProblem } from "@/components/InlineProblem";
 import { studioRead } from "@/ipc/studio";
-import { useMessages } from "@/i18n";
+import { logError } from "@/lib/errorToast";
+import { messages, useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { IconButton } from "@/shell/buttons";
 import { useNodes } from "@/store/nodes";
@@ -12,7 +14,7 @@ import { nodesMessages } from "../messages";
 /** A state of the body (loading, error, empty file): centred like the other panes' empty states. */
 const NOTE = "grid h-full place-items-center text-center text-xs";
 
-type Content = { state: "loading" } | { state: "ready"; text: string } | { state: "error"; message: string };
+type Content = { state: "loading" } | { state: "ready"; text: string } | { state: "error"; error: unknown };
 
 /** A file of the project on the canvas: read-only, Markdown rendered, code in mono (issue #49). */
 export function FileNode({ nodeId }: { nodeId: string }) {
@@ -27,7 +29,10 @@ export function FileNode({ nodeId }: { nodeId: string }) {
     setContent({ state: "loading" });
     studioRead(project, path).then(
       ({ text }) => setContent({ state: "ready", text }),
-      (error: unknown) => setContent({ state: "error", message: String(error) }),
+      (error: unknown) => {
+        logError(messages(nodesMessages).file.readFailed, error);
+        setContent({ state: "error", error });
+      },
     );
   }, [path]);
 
@@ -49,7 +54,7 @@ export function FileNode({ nodeId }: { nodeId: string }) {
       {/* A native scroller: on the zoomed canvas, a ScrollArea's thumb drag would misread the pointer. */}
       <div className="min-h-0 flex-1 overflow-auto p-3">
         {content.state === "loading" && <p className={cn(NOTE, "text-dp-text-2")}>{t.file.loading}</p>}
-        {content.state === "error" && <p className={cn(NOTE, "text-dp-danger")}>{t.file.readFailed(content.message)}</p>}
+        {content.state === "error" && <InlineProblem place="list" title={t.file.readFailed} next={t.file.readNext} error={content.error} />}
         {content.state === "ready" && content.text === "" && <p className={cn(NOTE, "text-dp-text-2")}>{t.file.empty}</p>}
         {content.state === "ready" && content.text !== "" &&
           (isMarkdown(path) ? renderMarkdown(content.text) : <pre className="font-mono text-xs whitespace-pre">{content.text}</pre>)}

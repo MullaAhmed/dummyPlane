@@ -1,6 +1,8 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { missionRunsBoard, wiredBoardsOf, type WiredBoard } from "@/agents/boardLinks";
-import { freeSpot, NODE_GAP } from "@/agents/groupLayout";
+import { freeSpotClear, NODE_GAP } from "@/agents/groupLayout";
+import { laneCovers } from "@/agents/laneCover";
+import type { Rect } from "@/canvas/groups";
 import { sceneAccess } from "@/agents/sceneAccess";
 import { clip } from "@/agents/taskSummary";
 import { talk } from "@/agents/talkWires";
@@ -10,11 +12,11 @@ import { messages } from "@/i18n";
 import { addCard, emptyBoard, type CardDraft } from "@/kanban/board";
 import { moveCardWithGithub } from "@/kanban/github";
 import { kanbanMessages } from "@/kanban/messages";
-import { boardView } from "@/kanban/missionLink";
 import { oneLine, sameName } from "@/mission/mission";
 import { KANBAN_PRIORITIES, type KanbanColumn, type KanbanPayload, type KanbanPriority } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { refused, said, type ToolResult } from "./agentTools";
+import { boardsAnswer } from "./boardAnswer";
 import { agentMessages } from "./messages";
 
 /**
@@ -37,7 +39,7 @@ const MAX_BOARD_TITLE = 80;
 export function boardTools() {
   const d = t().tools;
   return [
-    { name: "linked_boards", description: d.linkedBoards, inputSchema: { type: "object", properties: {} } },
+    { name: "linked_boards", description: d.linkedBoards, inputSchema: { type: "object", properties: { card: { type: "string", description: d.linkedBoardsCard } } } },
     {
       name: "add_board_card",
       description: d.addBoardCard,
@@ -99,13 +101,12 @@ function wired(nodeId: string): WiredBoard[] | ToolResult {
 
 const isRefusal = (value: WiredBoard[] | ToolResult): value is ToolResult => !Array.isArray(value);
 
-function listBoards(nodeId: string): ToolResult {
+function listBoards(nodeId: string, args: Record<string, unknown>): ToolResult {
   const boards = wired(nodeId);
   if (isRefusal(boards)) return boards;
   if (boards.length === 0) return said(t().boards.none);
   // `editable`: a mission's board is read-only here, so the agent does not try, and fail, to write.
-  const views = boards.map(({ nodeId: boardId, board }) => ({ ...boardView(boardId, board), editable: !missionRunsBoard(boardId) }));
-  return said(JSON.stringify({ note: t().boards.note, boards: views }, null, 2));
+  return boardsAnswer(boards, { tool: "linked_boards", note: t().boards.note, card: args.card, extra: (boardId) => ({ editable: !missionRunsBoard(boardId) }) });
 }
 
 /** A column of `columns` by its id, else by its title. */
@@ -230,11 +231,14 @@ function boardDraft(args: Record<string, unknown>): { title: string; columns: st
   return { title, columns, cards };
 }
 
-/** Right of the caller, its top level with the caller's; then the nearest spot that covers no node nor group frame. */
-function besideCaller(caller: ExcalidrawElement, elements: readonly ExcalidrawElement[]) {
+/**
+ * Right of the caller, its top level with the caller's; then the nearest spot that covers no node nor group frame, and,
+ * as it arrives without moving the view, none under the occupied lane of the canvas on screen (`avoid`, laneCovers).
+ */
+function besideCaller(caller: ExcalidrawElement, elements: readonly ExcalidrawElement[], avoid: readonly Rect[] = []) {
   const { width, height } = NODE_SIZE.kanban;
   const obstacles = elements.filter((e) => !e.isDeleted && (nodeKindOf(e) !== null || e.type === "frame")).map(({ x, y, width, height }) => ({ x, y, width, height }));
-  return freeSpot({ x: caller.x + caller.width + NODE_GAP, y: caller.y, width, height }, obstacles);
+  return freeSpotClear({ x: caller.x + caller.width + NODE_GAP, y: caller.y, width, height }, obstacles, avoid);
 }
 
 /**
@@ -266,7 +270,7 @@ async function openBoard(nodeId: string, args: Record<string, unknown>): Promise
   const caller = now?.elements().find((e) => e.id === nodeId && !e.isDeleted);
   if (!now || !caller) return refused(now ? b.gone : t().links.noCanvas);
   const elements = now.elements();
-  const spot = besideCaller(caller, elements);
+  const spot = besideCaller(caller, elements, laneCovers(workspaceId));
   // A new element, not yet on the scene: placed by its coordinates alone.
   const placed = { ...element, x: spot.x, y: spot.y } as ExcalidrawElement;
   now.write(withBoardLink([...elements, placed], nodeId, element.id));
@@ -285,7 +289,7 @@ async function openBoard(nodeId: string, args: Record<string, unknown>): Promise
 export function boardTool(nodeId: string, name: string, args: Record<string, unknown>): ToolResult | Promise<ToolResult> | null {
   switch (name) {
     case "linked_boards":
-      return listBoards(nodeId);
+      return listBoards(nodeId, args);
     case "add_board_card":
       return addBoardCard(nodeId, args);
     case "move_board_card":

@@ -1,13 +1,14 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import { Tag } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
+import { InlineProblem } from "@/components/InlineProblem";
 import { useMessages } from "@/i18n";
 import { repoHistory, type LogEntry, type LogRef } from "@/ipc/repo";
+import { logError } from "@/lib/errorToast";
 import { cn } from "@/lib/utils";
-import { GitMessage } from "./GitDiff";
 import { layoutGraph, type GraphEdge, type GraphRow } from "./graph";
 import { gitMessages } from "./messages";
-
-const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+import { gitProblem, type GitProblem } from "./problems";
 
 /** A row is h-7: the graph's lines run from one row's edge to the next, with no gap between. */
 const ROW = 28;
@@ -160,17 +161,22 @@ const CommitRow = memo(function CommitRow({ entry, row, columns, now }: { entry:
 export function HistoryTab({ path, refresh }: { path: string; refresh: number }) {
   const t = useMessages(gitMessages);
   const [log, setLog] = useState<LogEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [problem, setProblem] = useState<GitProblem | null>(null);
 
   useEffect(() => {
     let alive = true;
     repoHistory(path).then(
       (entries) => {
         if (!alive) return;
-        setError(null);
+        setProblem(null);
         setLog(entries);
       },
-      (failed: unknown) => alive && setError(errorText(failed)),
+      (failure: unknown) => {
+        if (!alive) return;
+        const next = gitProblem({ what: "history" }, failure);
+        logError(next.title, failure);
+        setProblem(next);
+      },
     );
     return () => {
       alive = false;
@@ -180,9 +186,9 @@ export function HistoryTab({ path, refresh }: { path: string; refresh: number })
   // Laid out once per read of the history, never on a mere render.
   const view = useMemo(() => (log ? { graph: layoutGraph(log), now: new Date() } : null), [log]);
 
-  if (error) return <GitMessage>{error}</GitMessage>;
-  if (!log || !view) return <GitMessage>{t.reading}</GitMessage>;
-  if (log.length === 0) return <GitMessage>{t.history.empty}</GitMessage>;
+  if (problem) return <InlineProblem title={problem.title} next={problem.next} error={problem.line} />;
+  if (!log || !view) return <EmptyState grace>{t.reading}</EmptyState>;
+  if (log.length === 0) return <EmptyState>{t.history.empty}</EmptyState>;
   const { graph, now } = view;
   return (
     <ul className="min-h-0 flex-1 overflow-y-auto py-1">

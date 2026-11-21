@@ -5,6 +5,8 @@ import { expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { screenRectOf } from "@/agents/placement";
+import { agentActivityStore } from "@/store/agentActivity";
+import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
 import { canvasStore, EMPTY_VIEW } from "../canvasStore";
@@ -53,12 +55,38 @@ it("folds on the label's chevron, keeps the counters, and unfolds with a click",
     ),
   );
   expect(host.querySelectorAll("[data-backdrop]").length).toBe(1);
+  // The role as a 2px bar, not a dot (the agent's mark), in a 6px box and 6px of gap: chevron 16 + 6 + 6 = the
+  // 28px Excalidraw's frame name is aligned on under the label.
+  const label = host.querySelector<HTMLElement>('[aria-label="Fold the group"]')!.parentElement!;
+  const bar = label.querySelector<HTMLElement>('[class~="w-0.5"]')!;
+  expect(bar.style.backgroundColor).not.toBe("");
+  expect(bar.parentElement!.className.split(/\s+/)).toEqual(expect.arrayContaining(["w-1.5", "mr-1.5"]));
+  expect(bar.parentElement!.className.split(/\s+/)).not.toContain("w-2");
+  expect(label.querySelector(".rounded-full")).toBeNull();
   await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Fold the group"]')!.click());
   expect((scene[0].customData as { dummyplane: { folded?: boolean } }).dummyplane.folded).toBe(true);
   // Folded: the frame is redrawn from the scene; the label stays, with its counters and the way back.
   await act(async () => canvasStore.setState({ frames: [frame(true)] as never }));
   expect(host.textContent).toContain("API");
-  expect(host.textContent).toContain("2 · idle");
+  // Two members whose agents the stores do not know: the count says no state it cannot back.
+  expect(host.textContent).toContain("API2");
+  expect(host.textContent).not.toMatch(/idle|ready|working|waiting/);
+  // Both at rest: "ready". One waits and one works: worst first, the waiting part in the wait tone.
+  const claude = { workspaceId: "w1", kind: "terminal", payload: { title: "A", name: "A", agent: "claude", cwd: "C:/code", shell: "default", command: "" } };
+  nodesStore.setState({ nodes: { a: claude, b: claude } } as never);
+  await act(async () => {
+    terminalStatusStore.setState({ statuses: { a: { state: "running" }, b: { state: "running" } } } as never);
+    agentActivityStore.setState({ activities: { a: { activity: "idle", since: 0 }, b: { activity: "idle", since: 0 } } });
+  });
+  expect(host.textContent).toContain("API2 · ready");
+  await act(async () => agentActivityStore.setState({ activities: { a: { activity: "working", since: 0 }, b: { activity: "waiting", since: 0 } } }));
+  expect(host.textContent).toContain("2 · 1 waiting · 1 working");
+  expect(host.querySelector(".text-dp-wait")?.textContent).toBe("1 waiting");
+  await act(async () => {
+    nodesStore.setState({ nodes: {} });
+    terminalStatusStore.setState({ statuses: {} });
+    agentActivityStore.setState({ activities: {} });
+  });
   expect(host.querySelector('[aria-label="Unfold the group"]')).not.toBeNull();
   expect(host.querySelectorAll("[data-backdrop]").length).toBe(0);
   await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Unfold the group"]')!.click());

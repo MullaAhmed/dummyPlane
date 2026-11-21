@@ -28,5 +28,5 @@ export const APP: readonly Command[] = [
   command("app.about", { section: help, available: always, run: () => showAbout() }),
   command("app.updates", { section: help, available: always, run: () => checkForUpdate({ manual: true }) }),
   command("app.logs", { section: help, available: always, run: () => openLogDir() }),
-  command("app.troubleshoot", { section: help, available: always, run: () => showTroubleshooting() }),
+  command("app.troubleshoot", { section: help, available: always, run: () => showTroubleshooting({ instant: true }) }),
 ];

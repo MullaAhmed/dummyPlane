@@ -1,19 +1,23 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { canvasStore, useCanvas } from "@/canvas/canvasStore";
 import type { SceneFrame } from "@/canvas/groups";
 import { findTerminalAt } from "@/canvas/hitTest";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import { messages, useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { TOP_ROW_HEIGHT } from "@/shell/layout";
+import { FLOAT_INSET, TOP_ROW_HEIGHT } from "@/shell/layout";
 import { nodesStore, terminalOf, useNodes } from "@/store/nodes";
 import { uiStore, useUi } from "@/store/ui";
 import { linkAgents, linkableAgent } from "./agentLinks";
 import { boardLinkable, linkAgentToBoard } from "./boardLinks";
 import { AGENTS } from "./catalog";
 import { agentsMessages } from "./messages";
+import type { LinkOutcome } from "./linkGroup";
 import { finishButtonAt, forwardWheel } from "./linkOverlay";
+import { handOffWithheld } from "./missionTeam";
 import { linkFleet } from "@/fleet/fleets";
 import { clientRectOf, sceneOf } from "./placement";
 import type { Point } from "./terminals";
@@ -35,6 +39,30 @@ const live = (e: ExcalidrawElement) => !e.isDeleted;
 function agentName(id: string): string {
   const payload = terminalOf(nodesStore.getState().nodes[id]);
   return payload ? payload.name || AGENTS[payload.agent].label : id;
+}
+
+/**
+ * An agent's click on a Fleet: the wire the Fleet's own "+ Link" draws. It never fails silently: a click that adds
+ * nothing says why, and so does one that gives the agent less than the user expects (hand_off, a mission's team).
+ */
+function linkAgentToFleet(agentId: string, fleetId: string, already: boolean) {
+  const l = messages(agentsMessages).link;
+  const fleet = fleetName(fleetId);
+  if (already) return void toast(l.fleetAlready(fleet));
+  // `=== false`: nothing written (its canvas was never read, no wire to add).
+  if (linkFleet(fleetId, agentId) === false) return void toastError(l.fleetNotLinked(fleet), { next: l.fleetNotLinkedNext });
+  const withheld = handOffWithheld(agentId, fleetId);
+  if (withheld) toast(withheld === "team" ? l.fleetTeam(agentName(agentId), fleet) : l.fleetSubagent(agentName(agentId), fleet));
+}
+
+/** Two agents linked but not grouped (./linkGroup.ts): the notice says why, so the link never looks half done. */
+function tellNotGrouped(fromId: string, toId: string, outcome: LinkOutcome | null) {
+  if (outcome?.kind !== "notGrouped") return;
+  const l = messages(agentsMessages).link;
+  const why = l.whyNotGrouped;
+  const text =
+    outcome.reason === "otherGroups" ? why.otherGroups(...outcome.groups) : outcome.reason === "inTheWay" ? why.inTheWay : why[outcome.reason](agentName(outcome.agent));
+  toast(l.notGrouped(agentName(fromId), agentName(toId), text));
 }
 
 /** Where the link mode started: an agent's foot, a Fleet's "+ Link", or a Kanban board's menu. */
@@ -189,9 +217,9 @@ export function LinkMode() {
     if (origin === "board") linkAgentToBoard(target, linking);
     else if (kind === "kanban") linkAgentToBoard(linking, target);
     else if (origin === "fleet") return linkFleet(linking, target);
-    // A fleet that already commands the agent, through its group too, gets no second wire.
-    else if (kind !== "fleet") linkAgents(linking, target);
-    else if (!fleetsOf(linking, links, frames).includes(target)) linkFleet(target, linking);
+    else if (kind !== "fleet") tellNotGrouped(linking, target, linkAgents(linking, target));
+    // A fleet that already commands the agent, through its group too, gets no second wire: and the click says so.
+    else linkAgentToFleet(linking, target, fleetsOf(linking, links, frames).includes(target));
     // A fleet keeps linking, one click each; from an agent or a board the mode ends.
     if (origin !== "fleet") uiStore.getState().setLinking(null);
   };
@@ -262,7 +290,8 @@ export function LinkMode() {
       <div
         data-link-targets
         className="dp-glass-strong pointer-events-none fixed left-1/2 z-40 w-72 -translate-x-1/2 rounded-lg p-1 text-xs text-dp-text-2"
-        style={{ top: TOP_ROW_HEIGHT + 14 }}
+        // One floating inset under the tabs, as the mode chip and the lane (shell/layout.ts).
+        style={{ top: TOP_ROW_HEIGHT + FLOAT_INSET }}
       >
         <p id={hintId} className="px-2 py-1">
           {origin === "agent" ? t.link.agentHint : origin === "board" ? t.link.boardHint : t.link.hint}
@@ -289,7 +318,7 @@ export function LinkMode() {
                 data-active={index === active || undefined}
                 onPointerMove={() => index !== active && setActive(index)}
                 onClick={() => pick(candidate)}
-                className="flex h-7 cursor-default items-center gap-2 rounded-md px-2 text-(length:--text-ui) text-dp-text-2 data-active:bg-dp-hover data-active:text-dp-text data-active:ring-1 data-active:ring-dp-accent/70 data-active:ring-inset"
+                className="flex min-h-8 cursor-default items-center gap-2 rounded-md px-2 text-(length:--text-ui) text-dp-text-2 data-active:bg-dp-hover data-active:text-dp-text data-active:ring-1 data-active:ring-dp-accent/70 data-active:ring-inset"
               >
                 <span className="min-w-0 flex-1 truncate">{candidate.name}</span>
                 <span className="shrink-0 text-xs text-dp-text-3">{candidate.linked ? t.link.linked : t.link.kinds[candidate.kind]}</span>

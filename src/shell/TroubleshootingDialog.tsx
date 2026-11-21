@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { BookOpen, Bug, CircleCheck, CircleAlert, Copy, FileText, FolderOpen, RefreshCw } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -6,9 +6,11 @@ import { toast } from "sonner";
 import { toastError } from "@/lib/errorToast";
 import { diagnosticText, guideUrl, issueUrl, openDataDir } from "@/app/diagnostics";
 import { openLogDir } from "@/app/logs";
+import { InlineProblem } from "@/components/InlineProblem";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AGENTS } from "@/agents/catalog";
+import { appMessages } from "@/app/messages";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AccentButton, QuietButton } from "./buttons";
@@ -37,8 +39,15 @@ function Check({ id, ok, label, value, hint, plain = false }: { id: string; ok: 
 /** Troubleshooting: what dummyPlane sees, and where to go from there. */
 export function TroubleshootingDialog() {
   const t = useMessages(shellMessages).troubleshoot;
-  const { open, diagnostics: d, error } = useTroubleshoot((s) => s);
+  const about = useMessages(appMessages).aboutDescription;
+  const { open, instant, diagnostics: d, error } = useTroubleshoot((s) => s);
   const [checking, setChecking] = useState(false);
+  // The version heads the dialog even while the diagnostics load or when they fail: it is what a report needs first.
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  useEffect(() => {
+    if (open && !d) void getVersion().then(setAppVersion, () => undefined);
+  }, [open, d]);
+  const version = d?.version ?? appVersion;
 
   const recheck = async () => {
     setChecking(true);
@@ -56,40 +65,47 @@ export function TroubleshootingDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && troubleshootStore.setState({ open: false })}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent instant={instant} className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t.title}</DialogTitle>
           <DialogDescription>{t.description}</DialogDescription>
         </DialogHeader>
-        {error && <p className="text-sm text-dp-danger">{t.failed(error)}</p>}
-        {!d && !error && <p className="text-sm text-dp-text-2">{t.loading}</p>}
-        {d && (
-          <div className="grid gap-3 text-(length:--text-ui)">
-            <p className="text-dp-text">
-              dummyPlane {d.version} <span className="text-dp-text-2">· {d.os}</span>
+        {/* What it found scrolls between the header and the footer, under the title bar at 960x600. */}
+        <DialogBody className="grid gap-4">
+          <div data-about className="grid gap-0.5 text-(length:--text-ui)">
+            <p className="font-medium text-dp-text">
+              dummyPlane{version ? ` ${version}` : ""}
+              {d && <span className="font-normal text-dp-text-2"> · {d.os}</span>}
             </p>
-            <div>
-              <p className="dp-label mb-1">{t.agents}</p>
-              <ul className="grid gap-0.5">
-                {d.agents.map((a) => (
-                  <li key={a.id} data-agent={a.id} className="flex items-baseline gap-2">
-                    <span className={cn("w-20 shrink-0", a.path ? "text-dp-text" : "text-dp-text-2")}>{AGENTS[a.id]?.label ?? a.id}</span>
-                    {a.path ? (
-                      <span className="truncate font-mono text-xs text-dp-text-2" title={a.path}>
-                        {a.path}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-dp-text-2">{t.notFound}</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <Check id="git" ok={d.git !== null} label="Git" value={d.git ?? t.notFound} hint={d.git ? undefined : t.gitMissing} />
-            <Check id="gitBash" ok={d.gitBash !== null} label="Git Bash" value={d.gitBash ?? t.notFound} hint={d.gitBash ? undefined : t.gitBashMissing} />
-            <Check id="server" plain ok={d.server} label={t.server} value={d.server ? t.running : t.stopped} hint={d.server ? undefined : t.serverDown} />
+            <p className="text-xs text-dp-text-2">{about}</p>
           </div>
-        )}
+          {error && <InlineProblem place="row" title={t.failed} next={t.failedNext} error={error} />}
+          {!d && !error && <p className="text-sm text-dp-text-2">{t.loading}</p>}
+          {d && (
+            <div className="grid gap-3 text-(length:--text-ui)">
+              <div>
+                <p className="dp-label mb-1">{t.agents}</p>
+                <ul className="grid gap-0.5">
+                  {d.agents.map((a) => (
+                    <li key={a.id} data-agent={a.id} className="flex items-baseline gap-2">
+                      <span className={cn("w-20 shrink-0", a.path ? "text-dp-text" : "text-dp-text-2")}>{AGENTS[a.id]?.label ?? a.id}</span>
+                      {a.path ? (
+                        <span className="truncate font-mono text-xs text-dp-text-2" title={a.path}>
+                          {a.path}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-dp-text-2">{t.notFound}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <Check id="git" ok={d.git !== null} label="Git" value={d.git ?? t.notFound} hint={d.git ? undefined : t.gitMissing} />
+              <Check id="gitBash" ok={d.gitBash !== null} label="Git Bash" value={d.gitBash ?? t.notFound} hint={d.gitBash ? undefined : t.gitBashMissing} />
+              <Check id="server" plain ok={d.server} label={t.server} value={d.server ? t.running : t.stopped} hint={d.server ? undefined : t.serverDown} />
+            </div>
+          )}
+        </DialogBody>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => void recheck()} disabled={checking} className={secondaryButton}>
             <RefreshCw className={checking ? "motion-safe:animate-spin" : undefined} /> {t.checkAgain}

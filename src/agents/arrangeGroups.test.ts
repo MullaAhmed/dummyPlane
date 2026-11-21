@@ -316,6 +316,25 @@ describe("Arrange and attached items", () => {
     expect(get(result, "o").frameId).toBeNull();
   });
 
+  it("keeps an agent's output in its group's frame, beside its agent, the frame fitted around both", () => {
+    nodesStore.setState({ nodes: { o: { workspaceId: "w", kind: "output", payload: { title: "", source: "t", ui: "", updatedAt: 0 } } } });
+    try {
+      // Where show_output put it: right of its agent, in the frame grown to hold it, a member.
+      const g = group("g", 0, 0, 3000, 2000);
+      const elements = [node("u", "terminal", 600, 1200, { frameId: "g" }), node("t", "terminal", 900, 60, { frameId: "g" }), node("o", "output", 900 + W + NODE_GAP, 60, { frameId: "g" }), g];
+      const result = arrangedElements(input(elements));
+      const frame = at(result, "g");
+      expect(get(result, "o").frameId).toBe("g");
+      expect(inside(at(result, "o"), frame)).toBe(true);
+      expect(inside(at(result, "t"), frame)).toBe(true);
+      // Still beside its agent, as one piece of the grid.
+      expect(offset(result, "t", "o")).toEqual({ x: W + NODE_GAP, y: 0 });
+      expect(overlap(at(result, "o"), at(result, "u"))).toBe(0);
+    } finally {
+      nodesStore.setState({ nodes: {} });
+    }
+  });
+
   it("moves an item with its anchor on the canvas, as one block", () => {
     // A note under its terminal: the two take one block, beside the other terminal.
     const elements = [node("a", "terminal", 0, 0), node("b", "terminal", 3000, 3000), node("c", "note", 3000, 3000 + H + ROW_GAP, attachedNode("note", "b"))];

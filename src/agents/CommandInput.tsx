@@ -372,11 +372,11 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
               }}
               onMouseMove={() => i !== row && setActive(i)}
               // No transition: the highlight follows the arrow keys at once. A long detail takes a second line, never a native title.
-              className={cn("flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs", i === row ? "bg-dp-hover text-dp-text" : "text-dp-text-2")}
+              className={cn("flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-(length:--text-ui)", i === row ? "bg-dp-hover text-dp-text" : "text-dp-text-2")}
             >
               {suggestion.target && <TargetIcon target={suggestion.target} />}
               <span className="shrink-0 font-mono text-dp-text">{suggestion.label}</span>
-              <span className="ml-auto line-clamp-2 min-w-0 text-right">{suggestion.detail}</span>
+              <span className="ml-auto line-clamp-2 min-w-0 text-right text-xs">{suggestion.detail}</span>
               {suggestion.target?.kind === "agent" && <AgentStatusDot id={suggestion.target.id} />}
             </li>
           ))}
@@ -414,7 +414,7 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
                     aria-label={t.remove(chipLabels[i])}
                     onMouseDown={keepCaret}
                     onClick={() => removeChip(target)}
-                    className="size-4 rounded-sm text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
+                    className="relative size-4 rounded-sm text-dp-text-2 after:absolute after:-inset-1 hover:text-dp-text"
                   >
                     <X className="size-3" />
                   </Button>

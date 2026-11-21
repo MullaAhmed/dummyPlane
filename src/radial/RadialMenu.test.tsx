@@ -254,7 +254,7 @@ describe("the More arc", () => {
     expect(more().getAttribute("aria-expanded")).toBe("false");
     await pointer(hit(), "click", MORE.x, MORE.y);
     expect(radialStore.getState().ring).not.toBeNull();
-    expect(items().map((b) => b.getAttribute("aria-label"))).toEqual(["Stop the process", "Duplicate", "Review changes", "Remove from group", "Arrange as…"]);
+    expect(items().map((b) => b.getAttribute("aria-label"))).toEqual(["Stop the process", "Duplicate", "Review changes", "Remove from group", "Arrange"]);
     expect(items().map((b) => b.textContent)).toEqual(["Stop", "Duplicate", "Review", "Leave group", "Arrange"]);
     expect(document.querySelector("[data-radial-arc]")!.getAttribute("role")).toBe("group");
     expect(document.querySelector("[data-radial-arc]")!.getAttribute("aria-label")).toBe("More");

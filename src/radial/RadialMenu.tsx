@@ -119,8 +119,8 @@ function Wedge({ line, path, label, pop, box, pointed, pressed, data, expanded, 
       className={cn(
         "group pointer-events-none absolute outline-none transition-[translate,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none [[data-keyboard]_&]:transition-none",
         // Pressed, it sinks back toward the hub: with the mouse (the hit circle tells), or held from the keyboard.
-        pressed && lit && "scale-[0.97]",
-        line.enabled && "active:scale-[0.97]",
+        pressed && lit && "scale-[0.97] motion-reduce:scale-100",
+        line.enabled && "active:scale-[0.97] motion-reduce:active:scale-100",
       )}
       style={{ left: -box, top: -box, width: 2 * box, height: 2 * box, translate: lit ? `${pop.x}px ${pop.y}px` : undefined }}
       onPointerDown={keepKeyboard}
@@ -133,7 +133,7 @@ function Wedge({ line, path, label, pop, box, pointed, pressed, data, expanded, 
         <path
           d={path}
           className={cn(
-            "stroke-1 transition-[fill,stroke] duration-(--dp-dur-fast) ease-(--dp-ease-out) group-focus-visible:stroke-2 group-focus-visible:stroke-dp-accent motion-reduce:transition-none [[data-keyboard]_&]:transition-none",
+            "stroke-1 transition-[fill,stroke] duration-(--dp-dur-fast) ease-(--dp-ease-out) group-focus-visible:stroke-2 group-focus-visible:stroke-dp-accent [[data-keyboard]_&]:transition-none",
             !pointed && "fill-dp-surface stroke-dp-line",
             // Its hairline in the ink written on it: the ground's color, unseen on the canvas, but the edge that keeps
             // its shape over a terminal, whose color the accent nearly is in the light palette.
@@ -145,7 +145,7 @@ function Wedge({ line, path, label, pop, box, pointed, pressed, data, expanded, 
       </svg>
       <span
         className={cn(
-          "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none [[data-keyboard]_&]:transition-none",
+          "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) [[data-keyboard]_&]:transition-none",
           lit ? "text-dp-on-accent" : "text-dp-text",
           !line.enabled && "opacity-50",
         )}
@@ -291,7 +291,7 @@ export function RadialMenu() {
         aria-label={t.closeMenu}
         onPointerDown={keepKeyboard}
         onClick={closeRadial}
-        className="pointer-events-auto absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-dp-line bg-dp-surface text-dp-text-2 transition-[color,background-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-card hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:ring-inset active:scale-[0.97] motion-reduce:transition-none"
+        className="pointer-events-auto absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-dp-line bg-dp-surface text-dp-text-2 transition-[color,background-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-card hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:ring-inset active:scale-[0.97] motion-reduce:transition-[color,background-color] motion-reduce:active:scale-100"
         style={{ left: 0, top: 0, width: 2 * HUB_RADIUS, height: 2 * HUB_RADIUS }}
       >
         {pointed ? (

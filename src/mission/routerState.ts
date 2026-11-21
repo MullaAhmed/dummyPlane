@@ -142,7 +142,7 @@ export function useRouterFollow(nodeId: string): "settings" | "above" | null {
 export type RouterInert = "manager" | "agent";
 
 /**
- * Whether a terminal's switch can act. Every terminal shows the switch (its header, its "⋯" menu, its Edit tab), so
+ * Whether a terminal's switch can act. Every terminal shows the switch (its header, its "⋯" menu, its Edit panel), so
  * it is found in one place whatever runs there; this says whether it does anything. It does on an agent on a CLI with
  * dummyPlane's tools (Claude, Codex), whose sub-agents and sub-tasks the router routes. It does not on a Manager, who
  * runs a board, never a plan's agent, and whose tools hold no `spawn_agent`: its Fleet's switch routes the mission.

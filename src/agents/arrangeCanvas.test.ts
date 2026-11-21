@@ -7,7 +7,8 @@ import { NODE_GAP } from "./groupLayout";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY", NEVER: "NEVER" } }));
 vi.mock("@/nodes/terminal/minimize", () => ({ isMinimized: () => false }));
-vi.mock("./spawnTree", () => ({ spawnedBy: () => null }));
+let parents: Record<string, string> = {};
+vi.mock("./spawnTree", () => ({ spawnedBy: (id: string) => parents[id] ?? null }));
 
 const updateScene = vi.fn();
 const write = vi.fn();
@@ -57,6 +58,7 @@ describe("arrangeWorkspace", () => {
     updateScene.mockClear();
     write.mockClear();
     shown = true;
+    parents = {};
     arrangeLayoutStore.setState(arrangeLayoutStore.getInitialState());
   });
 
@@ -140,6 +142,18 @@ describe("arrangeWorkspace", () => {
     expect(arrangeWorkspace("w", { only: ["a"], undoable: true })).toBe(true);
   });
 
+  it("arranges a multi-selection of one block (a spawn tree's terminals) as Arrange and the ring ask it, never the whole canvas", () => {
+    scene = looseTerminals();
+    parents = { b: "a" };
+    // a and b are one block: it stays as it stands, and c and d, out of place, stay too.
+    expect(arrangeWorkspace("w", { only: ["a", "b"], undoable: true })).toBe(false);
+    expect(arrangeWorkspace("w", { only: ["a", "b"], scope: "selection", undoable: true })).toBe(false);
+    expect(updateScene).not.toHaveBeenCalled();
+    // With c, two blocks: those two alone are arranged; d stays where it stood.
+    expect(arrangeWorkspace("w", { only: ["a", "b", "c"], undoable: true })).toBe(true);
+    expect(where(written()).d).toEqual(where(scene).d);
+  });
+
   it("arranges a group's every member in one undoable step, leaving the scene before it intact for the undo", () => {
     scene = messyGroup();
     const before = structuredClone(scene);
@@ -179,11 +193,18 @@ describe("arrangeWorkspace", () => {
 describe("arrangeCoversCanvas", () => {
   it("says whether an Arrange of the selection takes the whole canvas, as the arrange itself reads it", () => {
     scene = looseTerminals();
+    parents = {};
     expect(arrangeCoversCanvas("w")).toBe(true);
     expect(arrangeCoversCanvas("w", [])).toBe(true);
     expect(arrangeCoversCanvas("w", ["a"])).toBe(true);
     expect(arrangeCoversCanvas("w", ["a", "b"])).toBe(false);
     // Whether or not anything would move.
     expect(arrangeCoversCanvas("w", ["a", "b", "c", "d"])).toBe(false);
+  });
+
+  it("never takes the whole canvas for a selection of several, even of one block: Arrange as… keeps the layout setting as it is", () => {
+    scene = looseTerminals();
+    parents = { b: "a" };
+    expect(arrangeCoversCanvas("w", ["a", "b"])).toBe(false);
   });
 });

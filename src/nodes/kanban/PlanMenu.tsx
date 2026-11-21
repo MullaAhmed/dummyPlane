@@ -44,7 +44,8 @@ export function PlanMenu({ boardId, columnId }: { boardId: string; columnId: str
   });
   if (cards === 0) {
     return (
-      <DropdownMenuItem disabled>
+      // Greyed by its ink, not by the menu's opacity-50: the reason beside it stays at text-3's 4.5:1.
+      <DropdownMenuItem disabled className="text-dp-text-3 data-disabled:opacity-100">
         {t.plan}
         <span className="ml-auto text-xs text-dp-text-3">{t.noCards}</span>
       </DropdownMenuItem>

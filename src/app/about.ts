@@ -1,10 +1,9 @@
-import { getVersion } from "@tauri-apps/api/app";
-import { toast } from "sonner";
-import { messages } from "@/i18n";
-import { appMessages } from "./messages";
+import { showTroubleshooting } from "@/shell/troubleshoot";
 
-/** "About dummyPlane" of the settings menu and the palette. */
-export async function showAbout() {
-  const version = await getVersion();
-  toast(`dummyPlane ${version}`, { description: messages(appMessages).aboutDescription });
+/**
+ * "About dummyPlane" of the palette: the version and what the app is stand at the head of Troubleshooting, a dialog that
+ * stays, where a toast would go in a few seconds, and holds the version a bug report needs.
+ */
+export function showAbout() {
+  return showTroubleshooting({ instant: true });
 }

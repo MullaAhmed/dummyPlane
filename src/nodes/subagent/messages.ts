@@ -5,7 +5,7 @@ export const subagentMessages = defineMessages({
   running: "Running",
   done: "Done",
   close: "Close",
-  ended: "This subagent has ended.",
+  ended: "This subagent has ended",
   waiting: "Waiting for its first output…",
   report: "Report",
   /** Over its last words once it is done: what it hands back. */

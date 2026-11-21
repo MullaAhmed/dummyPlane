@@ -2,6 +2,7 @@ import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
+import type { Point } from "@/agents/terminals";
 import { nodesStore } from "@/store/nodes";
 import { isCanvas, workspacesStore } from "@/store/workspaces";
 
@@ -21,10 +22,10 @@ function canvasOnScreen(timeoutMs = 5000): Promise<ExcalidrawImperativeAPI | nul
 }
 
 /**
- * Puts a file node at the center of the view, for a path relative to the
+ * Puts a file node at `at`, else at the center of the view, for a path relative to the
  * project (issue #49). From the code workspace, it goes to the last canvas shown.
  */
-export async function insertFileNode(path: string): Promise<void> {
+export async function insertFileNode(path: string, at?: Point): Promise<void> {
   const workspaces = workspacesStore.getState();
   const active = workspaces.workspaces.find((w) => w.id === workspaces.activeId);
   if (active && !isCanvas(active)) {
@@ -36,7 +37,7 @@ export async function insertFileNode(path: string): Promise<void> {
   const workspaceId = workspacesStore.getState().activeId;
   if (!api || !workspaceId) return;
   const { width, height, scrollX, scrollY, zoom } = api.getAppState();
-  const center = { x: width / 2 / zoom.value - scrollX, y: height / 2 / zoom.value - scrollY };
+  const center = at ?? { x: width / 2 / zoom.value - scrollX, y: height / 2 / zoom.value - scrollY };
   const element = createNodeElement("file", center);
   nodesStore
     .getState()

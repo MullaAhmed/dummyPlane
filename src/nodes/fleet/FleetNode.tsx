@@ -25,6 +25,7 @@ import { fleetSession } from "../terminal/launch";
 import { markForAutostart, xtermOf } from "../terminal/registry";
 import { keepTerminalWheel } from "../terminal/terminalWheel";
 import { MissingNode } from "../terminal/MissingNode";
+import { EditButton } from "../terminal/EditButton";
 import { NameField } from "../terminal/NameField";
 import { HeaderButton, HeaderMenu, keepFocusAfterMenu, NodeHeader, NodeHeaderEnd, WIDE_ONLY } from "../terminal/NodeHeader";
 import { noteMessages } from "../note/messages";
@@ -108,8 +109,8 @@ export function FleetNode({ nodeId }: { nodeId: string }) {
 
 /**
  * The Fleet's header, built like a terminal's (../terminal/TerminalHeader.tsx):
- * its icon, its name, where its session stands, Remote Control's state, "⋯"
- * for the rest, Close. The clock of its mission joins them from 28rem on.
+ * its icon, its name, where its session stands, Remote Control's state, Edit,
+ * "⋯" for the rest, Close. The clock of its mission joins them from 28rem on.
  */
 function FleetHeader(props: {
   nodeId: string;
@@ -136,7 +137,7 @@ function FleetHeader(props: {
       <Network className="size-4 shrink-0 text-dp-accent" />
       <NameField value={name} editing={editing} onEditingChange={setEditing} onCommit={(next) => renameFleet(nodeId, next)} />
       <NodeHeaderEnd>
-        {/* From 28rem of header on, like a terminal's chips; a narrower node has the same switch in its Edit tab. Claude's levels, or Settings' map for a Codex team. */}
+        {/* From 28rem of header on, like a terminal's chips; a narrower node has the same switch in its Edit panel. Claude's levels, or Settings' map for a Codex team. */}
         <div className={cn(WIDE_ONLY, "items-center gap-1")}>
           {clock && (
             <span title={t.clockTitle} className="font-mono text-dp-text-2 tabular-nums">
@@ -147,6 +148,7 @@ function FleetHeader(props: {
         </div>
         <StatusPill status={status} activity={activity} indigo={AGENTS.claude.tint === INDIGO} labelClassName="@max-xs/head:sr-only" />
         {session && <RemoteButton nodeId={nodeId} wanted={session.remoteControl === true} running={running} />}
+        <EditButton nodeId={nodeId} />
         <HeaderMenu label={t.menu}>
           <DropdownMenuItem onSelect={() => void pauseAll(agentIds)}>{t.pauseAll}</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void resumeAll(agentIds)}>{t.resumeAll}</DropdownMenuItem>

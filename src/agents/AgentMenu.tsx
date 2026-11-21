@@ -1,17 +1,21 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type ReactElement, type ReactNode } from "react";
-import { Check, Kanban, Network, SquareTerminal } from "lucide-react";
+import { Check, ChevronRight, FileText, Kanban, Network } from "lucide-react";
 import { toastError } from "@/lib/errorToast";
 import { useUiRequest } from "@/commands/uiRequests";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { GreyedHint } from "@/shell/GreyedHint";
 import { placeKanban } from "@/kanban/place";
+import { placeMarkdown } from "@/studio/placeMarkdown";
 import { messages, useMessages } from "@/i18n";
-import type { AgentId } from "@/ipc/pty";
+import type { AgentId, ShellKind } from "@/ipc/pty";
 import { cn } from "@/lib/utils";
+import { SHELL_LABELS, shellsFor } from "@/nodes/terminal/launch";
 import { uiStore } from "@/store/ui";
-import { agentsStore, useAgents } from "./agentsStore";
-import { AGENT_ORDER, agentInk, AGENTS, defaultAgent } from "./catalog";
+import { agentsStore, isAvailable, useAgents } from "./agentsStore";
+import { arriveLaunched } from "./arrivals";
+import { AGENT_ORDER, agentInk, AGENTS, defaultAgent, DELETES_NOT_BLOCKED } from "./catalog";
 import { installAgent, pullOllamaModel } from "./installAgent";
 import { AGENT_INSTALLS } from "./installCommands";
 import { InstallPrompt } from "./InstallPrompt";
@@ -21,15 +25,16 @@ import { LaunchFolderBar } from "./LaunchFolderBar";
 import { agentsMessages } from "./messages";
 import { LaunchOptionsForm } from "./LaunchOptionsForm";
 import { OllamaPicker } from "./OllamaPicker";
-import { newConsole, placeFleet } from "./quickActions";
+import { placeFleet } from "./quickActions";
+import { ShellIcon, ShellPicker } from "./ShellPicker";
 import type { Point } from "./terminals";
 
 /**
  * "options" is the Custom agent's form: its command, where and how it runs. The
  * palette's "Launch a custom agent…" asks for it by that name. "launch" is the
- * folder, shell and title of the next agents, the footer's "Options".
+ * folder, shell and title of the next agents, the footer's "Options". "shell" is the shells a Shell terminal opens.
  */
-type View = "agents" | "options" | "launch" | "ollama" | { install: AgentId };
+type View = "agents" | "options" | "launch" | "ollama" | "shell" | { install: AgentId };
 
 /** What takes the keyboard in a view that has none yet: its first control, Back in every sub-view. */
 const FIRST_CONTROL = "button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex='-1'])";
@@ -72,18 +77,24 @@ export function AgentMenu({
   const [typedFolder, setTypedFolder] = useState<string | null>(null);
   const current: LaunchOptions = { ...(options ?? defaultLaunchOptions()), cwd: typedFolder ?? launchFolder.folder };
   const fallback = defaultAgent(agents);
-  const available = (id: AgentId) => agents.find((a) => a.id === id)?.available ?? false;
+  // A Shell terminal can open any of them, WSL included; the next agents' shell (Options) is not changed by it.
+  const shellChoices = shellsFor("shell", shells);
+  const [lastShell, setLastShell] = useState<ShellKind | null>(null);
+  const chosenShell = [lastShell, current.shell].find((shell): shell is ShellKind => !!shell && shellChoices.includes(shell)) ?? shellChoices[0];
+  // An agent's: WSL, which only a Shell or a Custom command opens (a Custom form may have chosen it), gives way to the first other.
+  const agentShells = shellsFor("claude", shells);
+  const agentShell = (shell: ShellKind) => (shell === "wsl" ? (agentShells[0] ?? "default") : shell);
+  const available = (id: AgentId) => isAvailable(agents, id);
   // Before the first detection nothing is known to be missing.
   const missing = (id: AgentId) => agents.some((a) => a.id === id && !a.available) && id in AGENT_INSTALLS;
 
-  // The ring's and the palette's "Other agent…": only the agents. Kept until the menu closes (not part of the view),
-  // so that Back from Custom, Ollama, an Install or the Options returns to them; the ＋ always opens the whole menu.
-  const [only, setOnly] = useState<"agents" | null>(null);
   const requestedView = useRef<View | null>(null);
   const agentRows = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   // The control that opened a sub-view (a row, an Install, Options): its Back gives the keyboard back to it.
   const opener = useRef<string | null>(null);
+  // The menu closed on a launch: the new terminal takes the keyboard, the trigger must not take it back once the menu is gone.
+  const launched = useRef(false);
   const [placeAt, setPlaceAt] = useState<Point | null>(null);
   // Opened by a request (the palette, a shortcut, the radial menu), not by its trigger: it shows at once.
   const [instant, setInstant] = useState(false);
@@ -97,7 +108,6 @@ export function AgentMenu({
   useLayoutEffect(() => {
     if (!open) {
       setPlaceAt(null);
-      setOnly(null);
       opener.current = null;
       return;
     }
@@ -136,7 +146,6 @@ export function AgentMenu({
       if (open) setView(request.view);
       else requestedView.current = request.view;
       setPlaceAt(request.at ?? null);
-      setOnly(request.only ?? null);
       setInstant(true);
       setOpen(true);
       return true;
@@ -159,14 +168,28 @@ export function AgentMenu({
     setOpen(false);
     settleFolder(launch.cwd);
     // Only a Custom terminal runs its command: another agent would just carry it.
-    const kept = agent === "custom" ? launch : { ...launch, command: "" };
-    // "Other agent…" of the radial menu: launched where the right click was.
-    if (placeAt) void launchAgent(agent, kept, placeAt).catch((error: unknown) => toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext }));
-    else uiStore.getState().setPlacing({ agent, options: kept });
+    const kept = agent === "custom" ? launch : { ...launch, command: "", shell: agent === "shell" ? launch.shell : agentShell(launch.shell) };
+    // Opened by the radial menu's press (a launch, an install): launched where the right click was, and it takes the keyboard.
+    if (placeAt) {
+      launched.current = true;
+      void launchAgent(agent, kept, placeAt)
+        .then(arriveLaunched)
+        .catch((error: unknown) => toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext }));
+    } else uiStore.getState().setPlacing({ agent, options: kept });
+  };
+
+  const pickShell = (shell: ShellKind) => {
+    setLastShell(shell);
+    place("shell", { ...current, shell });
   };
 
   const pick = (agent: AgentId) => {
     if (agent === "ollama") showView("ollama", `[data-agent-pick="ollama"]`);
+    // Several shells: which one is asked. One, or none known yet: it opens at once.
+    else if (agent === "shell") {
+      if (shellChoices.length > 1) showView("shell", `[data-agent-pick="shell"]`);
+      else place("shell", { ...current, shell: shellChoices[0] ?? current.shell });
+    }
     // The command is what a Custom terminal is: it is shown, the last one filled in, before anything runs.
     else if (agent === "custom") showView("options", `[data-agent-pick="custom"]`);
     else place(agent, current);
@@ -193,28 +216,34 @@ export function AgentMenu({
     const usable = available(id);
     return (
       <div key={id} className="relative">
-        {/* Its title says why it is greyed: the row keeps the pointer while disabled. */}
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={!usable}
-          data-agent-pick={id}
-          title={usable ? undefined : t.agentMenu.notFound(meta.binary)}
-          onClick={() => pick(id)}
-          className={cn(ROW, "disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent")}
-        >
-          <span
-            className="grid size-7 place-items-center rounded-md"
-            style={{ backgroundColor: `color-mix(in srgb, ${meta.tint} 18%, transparent)`, color: agentInk(meta.tint) }}
+        {/* The app's hint says why it is greyed, on a wrapper: the disabled row takes no pointer, the wrapper does (and its cursor). Greyed by its ink (text-3, 4.5:1), only the brand tile fades: opacity-50 on the words read 2.4:1. */}
+        <GreyedHint label={usable ? null : t.agentMenu.notFound(meta.binary)} side="right" className="cursor-not-allowed">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={!usable}
+            data-agent-pick={id}
+            onClick={() => pick(id)}
+            className={cn(ROW, "disabled:opacity-100")}
           >
-            <meta.Icon className="size-4" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-(length:--text-ui) font-medium text-dp-text">{meta.label}</span>
-            <span className="block text-xs text-dp-text-2">{meta.vendor}</span>
-          </span>
-          {id === fallback && <Check className="size-3.5 text-dp-accent-ink" />}
-        </Button>
+            <span
+              className="grid size-7 place-items-center rounded-md group-disabled/button:opacity-50"
+              style={{ backgroundColor: `color-mix(in srgb, ${meta.tint} 18%, transparent)`, color: agentInk(meta.tint) }}
+            >
+              <meta.Icon className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-(length:--text-ui) font-medium text-dp-text group-disabled/button:text-dp-text-3">{meta.label}</span>
+              <span className="block text-xs text-dp-text-2 group-disabled/button:text-dp-text-3">{meta.vendor}</span>
+              {DELETES_NOT_BLOCKED.has(id) && (
+                <span data-deletes-not-blocked={id} className="block text-xs text-dp-text-2 group-disabled/button:text-dp-text-3">
+                  {t.agentMenu.deletesNotBlocked}
+                </span>
+              )}
+            </span>
+            {id === fallback && <Check className="size-3.5 text-dp-accent-ink" />}
+          </Button>
+        </GreyedHint>
         {/* Beside the row and not inside it: the row is disabled, this button is not. */}
         {missing(id) && (
           <Button
@@ -236,11 +265,8 @@ export function AgentMenu({
     <Popover
       open={open}
       onOpenChange={(next) => {
-        // Its trigger opened it: it grows from it, as a popover does, and it shows all it adds.
-        if (next) {
-          setInstant(false);
-          setOnly(null);
-        }
+        // Its trigger opened it: it grows from it, as a popover does.
+        if (next) setInstant(false);
         setOpen(next);
       }}
     >
@@ -250,7 +276,8 @@ export function AgentMenu({
         side={side}
         align="start"
         data-instant={instant ? "" : undefined}
-        className="w-72 p-2"
+        // A column: capped at the room under the title bar, its rows scroll and the folder bar and the Options footer stay.
+        className="flex w-72 flex-col p-2"
         onOpenAutoFocus={(event) => {
           // The launch folder's Change… comes first, but the first thing to reach is an agent: Enter launches it, not the picker.
           const first = agentRows.current?.querySelector<HTMLButtonElement>("button:not(:disabled)");
@@ -258,77 +285,96 @@ export function AgentMenu({
           event.preventDefault();
           first.focus();
         }}
+        onCloseAutoFocus={(event) => {
+          if (!launched.current) return;
+          launched.current = false;
+          event.preventDefault();
+        }}
       >
         {view === "agents" && (
           <>
             <LaunchFolderBar />
             <Separator className="my-1.5" />
-            <div ref={agentRows} className="flex flex-col">
-              <Section name="agents" title={only ? t.agentMenu.title : t.agentMenu.sections.agents}>
+            {/* 2 px of room for the rows' focus ring, which the scroll would clip. */}
+            <div ref={agentRows} data-agent-rows className="-m-0.5 flex min-h-0 flex-col overflow-y-auto p-0.5">
+              <Section name="agents" title={t.agentMenu.sections.agents}>
                 {AGENT_ORDER.filter((id) => id !== "shell").map(agentRow)}
               </Section>
-              {!only && (
-                <>
-                  <Separator className="my-1" />
-                  <Section name="terminals" title={t.agentMenu.sections.terminals}>
-                    {/* New console starts the default agent. */}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        setOpen(false);
-                        newConsole(placeAt ?? undefined);
-                      }}
-                      className={ROW}
-                    >
-                      <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
-                        <SquareTerminal className="size-4" />
-                      </span>
-                      <span className="min-w-0 flex-1 text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.newConsole}</span>
-                    </Button>
-                    {agentRow("shell")}
-                  </Section>
-                  <Separator className="my-1" />
-                  <Section name="boards" title={t.agentMenu.sections.boards}>
-                    {/* Placed the same way as an agent. */}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        setOpen(false);
-                        if (placeAt) placeFleet(placeAt);
-                        else uiStore.getState().setPlacing({ fleet: true });
-                      }}
-                      className={ROW}
-                    >
-                      <span className="grid size-7 place-items-center rounded-md bg-dp-accent-soft text-dp-accent-ink">
-                        <Network className="size-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.fleet}</span>
-                        <span className="block text-xs text-dp-text-2">{t.agentMenu.fleetHint}</span>
-                      </span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        setOpen(false);
-                        placeKanban(placeAt ?? undefined);
-                      }}
-                      className={ROW}
-                    >
-                      <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
-                        <Kanban className="size-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.kanban}</span>
-                        <span className="block text-xs text-dp-text-2">{t.agentMenu.kanbanHint}</span>
-                      </span>
-                    </Button>
-                  </Section>
-                </>
-              )}
+              <Separator className="my-1" />
+              <Section name="terminals" title={t.agentMenu.sections.terminals}>
+                {/* One row: the shell is chosen in the view it opens, among the ones this machine has. */}
+                <Button type="button" variant="ghost" data-agent-pick="shell" onClick={() => pick("shell")} className={ROW}>
+                  <ShellIcon shell="default" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-(length:--text-ui) font-medium text-dp-text">{AGENTS.shell.label}</span>
+                    <span className="block truncate text-xs text-dp-text-2">
+                      {shellChoices.length ? t.agentMenu.shellChoices(shellChoices.map((shell) => SHELL_LABELS[shell])) : t.agentMenu.plainShell}
+                    </span>
+                  </span>
+                  {shellChoices.length > 1 && <ChevronRight className="size-3.5 text-dp-text-2" />}
+                </Button>
+              </Section>
+              <Separator className="my-1" />
+              <Section name="boards" title={t.agentMenu.sections.boards}>
+                {/* Placed the same way as an agent. */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setOpen(false);
+                    if (placeAt) placeFleet(placeAt);
+                    else uiStore.getState().setPlacing({ fleet: true });
+                  }}
+                  className={ROW}
+                >
+                  <span className="grid size-7 place-items-center rounded-md bg-dp-accent-soft text-dp-accent-ink">
+                    <Network className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.fleet}</span>
+                    <span className="block text-xs text-dp-text-2">{t.agentMenu.fleetHint}</span>
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setOpen(false);
+                    placeKanban(placeAt ?? undefined);
+                  }}
+                  className={ROW}
+                >
+                  <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
+                    <Kanban className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.kanban}</span>
+                    <span className="block text-xs text-dp-text-2">{t.agentMenu.kanbanHint}</span>
+                  </span>
+                </Button>
+              </Section>
+              <Separator className="my-1" />
+              <Section name="files" title={t.agentMenu.sections.files}>
+                {/* The system's file dialog asks which, from the project's folder; the file node shows it rendered. */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  data-markdown-pick
+                  onClick={() => {
+                    setOpen(false);
+                    void placeMarkdown(placeAt ?? undefined);
+                  }}
+                  className={ROW}
+                >
+                  <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
+                    <FileText className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.markdown}</span>
+                    <span className="block text-xs text-dp-text-2">{t.agentMenu.markdownHint}</span>
+                  </span>
+                </Button>
+              </Section>
             </div>
             <div className="mt-1 flex items-center justify-between border-t border-dp-line px-2 pt-2 text-xs text-dp-text-2">
               <span>{placeAt ? t.agentMenu.placedWhereClicked : t.agentMenu.thenClickCanvas}</span>
@@ -350,7 +396,7 @@ export function AgentMenu({
           <form onSubmit={launchCustom}>
             <LaunchOptionsForm
               value={current}
-              shells={shells}
+              shells={shellChoices}
               onChange={changeOptions}
               showCommand
               title={t.options.customTitle}
@@ -366,13 +412,22 @@ export function AgentMenu({
         )}
         {view === "launch" && (
           <LaunchOptionsForm
-            value={current}
-            shells={shells}
+            value={{ ...current, shell: agentShell(current.shell) }}
+            shells={agentShells}
             onChange={changeOptions}
             showCommand={false}
             onBack={leaveForm}
             className="p-1"
             footer={<p className="text-xs text-dp-text-2">{t.agentMenu.optionsHint}</p>}
+          />
+        )}
+        {view === "shell" && (
+          <ShellPicker
+            shells={shellChoices}
+            chosen={chosenShell ?? shellChoices[0]}
+            hint={placeAt ? t.agentMenu.placedWhereClicked : t.agentMenu.thenClickCanvas}
+            onBack={() => setView("agents")}
+            onPick={pickShell}
           />
         )}
         {view === "ollama" && (

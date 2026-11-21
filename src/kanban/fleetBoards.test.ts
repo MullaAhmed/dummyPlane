@@ -6,7 +6,7 @@ import type { Member, QueuedTask, SubTask } from "@/mission/mission";
 import type { KanbanPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { moveCardWithGithub } from "./github";
-import { addTaskCards, finishMissionCard, flagMissionCard, linkedBoards, moveMissionCard, planWithFleet, reassignMissionCard, startMissionCards } from "./fleetBoards";
+import { addTaskCards, cardDone, finishMissionCard, flagMissionCard, linkedBoards, moveMissionCard, planWithFleet, reassignMissionCard, reportedMissionCard, startMissionCards } from "./fleetBoards";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
@@ -152,5 +152,52 @@ describe("the cards of a mission its Manager runs", () => {
   it("leaves tasks without cards when the mission has no board", () => {
     const tasks = [{ title: "X", brief: "b", budgetMin: 5 }];
     expect(addTaskCards("chef", tasks)).toEqual(tasks);
+  });
+});
+
+// 12 Nov, dummyPlane: four cards stood in Done right after their agents' reports, the branches unmerged.
+describe("the card of an agent that reported done, until its branch is merged", () => {
+  const plan: SubTask[] = [{ title: "Search", brief: "b", agent: "nouveau", budgetMin: 5, card: "s1" }];
+  const board2 = () => (nodesStore.getState().nodes.k3 as { payload: KanbanPayload }).payload;
+  const mission = (extra: object = {}) => ({ state: "en_cours" as const, maxAgents: 4, members: [member("Hawkgirl", "Search")], worktree: "C:/w/mission", ...extra });
+  const inProgress = () => nodesStore.getState().update("k3", { columns: board2().columns.map((c) => ({ ...c, cardIds: c.id === "doing" ? ["s1"] : [] })) });
+
+  beforeAll(async () => {
+    await nodesStore.getState().create("merger", { workspaceId: "w1", kind: "fleet", payload: { name: "Merger", mission: mission() } });
+    await nodesStore.getState().create("k3", {
+      workspaceId: "w1",
+      kind: "kanban",
+      payload: {
+        columns: [
+          { id: "todo", title: "To do", cardIds: [] },
+          { id: "doing", title: "In progress", cardIds: ["s1"] },
+          { id: "done", title: "Done", cardIds: [] },
+        ],
+        cards: { s1: { id: "s1", title: "Search", notes: "", priority: "none", agent: "Hawkgirl", agentStatus: "blocked" } },
+        orchestrator: { nodeId: "merger", columnId: "todo" },
+      },
+    });
+  });
+
+  it("waits in a column that says so, its alert cleared; the merge takes it to Done", async () => {
+    await reportedMissionCard("merger", plan, "Search");
+    expect(board2().columns.map((c) => c.title)).toEqual(["To do", "In progress", "Reported, not merged", "Done"]);
+    expect(board2().columns[2].cardIds).toEqual(["s1"]);
+    expect(board2().cards.s1.agentStatus).toBeUndefined();
+    expect(cardDone("merger", "s1")).toBe(false);
+    await finishMissionCard("merger", plan, "Search");
+    expect(board2().columns[3].cardIds).toEqual(["s1"]);
+    expect(cardDone("merger", "s1")).toBe(true);
+  });
+
+  it("goes to Done at once when its work is already merged, or the mission has no branch to merge into", async () => {
+    inProgress();
+    nodesStore.getState().update("merger", { mission: mission({ members: [{ ...member("Hawkgirl", "Search"), merged: true }] }) });
+    await reportedMissionCard("merger", plan, "Search");
+    expect(board2().columns.find((c) => c.id === "done")?.cardIds).toEqual(["s1"]);
+    inProgress();
+    nodesStore.getState().update("merger", { mission: mission({ worktree: undefined }) });
+    await reportedMissionCard("merger", plan, "Search");
+    expect(board2().columns.find((c) => c.id === "done")?.cardIds).toEqual(["s1"]);
   });
 });

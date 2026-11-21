@@ -14,7 +14,7 @@ import { pausedText, resumedText, sendCommand, skippedText, unsuitedText, waitin
 import { AGENTS } from "./catalog";
 import { CommandInput } from "./CommandInput";
 import { PANEL_FILTERS, panelSections } from "./agentsView";
-import { agentsText, countsText, groupsText, waitingText as groupWaitingText } from "./groupSummary";
+import { agentsText, countsText, groupsText } from "./groupSummary";
 import { PANTHEONS } from "./names";
 import { remoteLabel } from "./RemoteButton";
 import { ROLES } from "./roles";
@@ -41,8 +41,8 @@ describe("catalogs in English", () => {
     expect(PANTHEONS.map((p) => p.label)).toEqual(["DC", "Marvel", "Throne of Glass", "Star Wars", "Lord of the Rings"]);
     // The characters keep their names.
     expect(PANTHEONS.find((p) => p.id === "marvel")!.names[0]).toBe("Thor");
-    expect(PANEL_FILTERS.map((f) => f.label)).toEqual(["All", "Active", "Waiting", "Working", "Done"]);
-    expect(panelSections([{ id: "a", name: "Batman", agent: "claude", state: "idle", live: true }], [], "all")[0].name).toBe("No group");
+    expect(PANEL_FILTERS.map((f) => f.label)).toEqual(["All", "Waiting", "Working", "Ready"]);
+    expect(panelSections([{ id: "a", name: "Batman", agent: "claude", state: "idle" }], [], "all")[0].name).toBe("No group");
   });
 
   it("uses the English labels", () => {
@@ -57,10 +57,9 @@ describe("catalogs in English", () => {
   });
 
   it("words the group counters and the plurals", () => {
-    expect(countsText(4, 2)).toBe("4 · 2 working");
-    expect(countsText(4, 0)).toBe("4 · idle");
-    expect(groupWaitingText(1)).toBe("· 1 waiting");
-    expect(groupWaitingText(0)).toBeNull();
+    expect(countsText({ members: 4, waiting: 0, working: 2, ready: 2 })).toBe("4 · 2 working");
+    expect(countsText({ members: 4, waiting: 0, working: 0, ready: 4 })).toBe("4 · ready");
+    expect(countsText({ members: 4, waiting: 1, working: 2, ready: 1 })).toBe("4 · 1 waiting · 2 working");
     expect(agentsText(0)).toBe("0 agents");
     expect(agentsText(1)).toBe("1 agent");
     expect(groupsText(2)).toBe("2 groups");
@@ -140,7 +139,7 @@ describe("components in English", () => {
       expect(byLabel(label), label).not.toBeNull();
     }
     const filters = [...host.querySelectorAll<HTMLButtonElement>("[data-filter]")];
-    expect(filters.map((f) => f.textContent?.replace(/\d+$/, ""))).toEqual(["All", "Active", "Waiting", "Working", "Done"]);
+    expect(filters.map((f) => f.textContent?.replace(/\d+$/, ""))).toEqual(["All", "Waiting", "Working", "Ready"]);
     await act(async () => agentsPanelStore.setState({ filter: "working" }));
     expect(host.textContent).toContain("No agent in this filter");
     // Hovering buttons of the row.
@@ -155,8 +154,9 @@ describe("components in English", () => {
     );
     await act(async () => host.querySelector("button")!.click());
     const text = document.body.textContent ?? "";
-    for (const heading of ["Agents", "Terminals", "Fleet and boards"]) expect(text).toContain(heading);
-    expect(text).toContain("New console");
+    for (const heading of ["Agents", "Terminals", "Fleet and boards", "Files"]) expect(text).toContain(heading);
+    expect(text).not.toContain("New console");
+    expect(text).toContain("Shell");
     expect(text).toContain("Fleet");
     expect(text).toContain("commands groups and agents");
     expect(text).toContain("then click on the canvas to place it");

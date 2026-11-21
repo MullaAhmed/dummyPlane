@@ -7,6 +7,7 @@ import { goToAgent } from "@/commands/goToRun";
 import { paletteStore } from "@/commands/paletteState";
 import { requestUi } from "@/commands/uiRequests";
 import { agentActivityStore } from "@/store/agentActivity";
+import { fleetDecisionsStore } from "@/store/fleetDecisions";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -493,6 +494,24 @@ describe("when it does not go", () => {
     expect(goToAgent).not.toHaveBeenCalled();
     projectsStore.setState({ view: "project" });
     pass(RETRY_MS);
+    expect(gone()).toEqual(["a"]);
+  });
+});
+
+describe("a Fleet that waits on the user's decision", () => {
+  afterEach(() => fleetDecisionsStore.setState({ decisions: {} }));
+
+  it("is not gone to, and never keeps the user from an agent's question, even with the keyboard in its field", () => {
+    // Chef's plan waits for the go-ahead, as long as the user likes: the notice and the counts show it.
+    fleetDecisionsStore.setState({ decisions: { chef: { kind: "plan", since: 1 } } });
+    const node = document.createElement("div");
+    node.setAttribute("data-fleet", "chef");
+    document.body.append(node);
+    node.append(document.createElement("textarea"));
+    node.querySelector("textarea")!.focus();
+    pass(10_000);
+    expect(goToAgent).not.toHaveBeenCalled();
+    wait("a");
     expect(gone()).toEqual(["a"]);
   });
 });

@@ -4,37 +4,50 @@ import { wakeable, wakeFinished, wakingUp } from "@/agents/finishedStop";
 import { setRemoteControl } from "@/agents/remoteControl";
 import { messages } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
+import { hasUnsentInput } from "@/nodes/terminal/draft";
 import { missionFolder } from "@/mission/folder";
-import { deliveryPending, endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
+import { closeTerminals, deliveryPending, endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
+import { missionMessages } from "@/mission/messages";
 import { levelsRequired, subTaskModel, teamAgent } from "@/mission/teamModel";
-import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, reassignable, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
-import { activeCount, relaunchTakesSeat } from "@/mission/active";
+import { BUDGET_WARN_AT, budgetOf, conflictPending, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, reassignable, remainingGlobal, sameName, spentMin, subTasksNamedBy, type Member, type Mission, type QueuedTask, type SubTask } from "@/mission/mission";
+import type { StepState } from "@/nodes/steps";
+import { activeCount, relaunchTakesSeat, seatsOf } from "@/mission/active";
 import { stopMission } from "@/mission/stop";
 import { duplicateWork } from "@/mission/activeWork";
 import { cleanUpFinished } from "@/mission/cleanup";
-import { giveNext, pumpQueue } from "@/mission/queue";
-import { boardView, todoColumnOf } from "@/kanban/missionLink";
+import { askLeftovers } from "@/mission/leftovers";
+import { askToLand } from "@/mission/land";
+import { changesOf, inFlightTitles, proposedAmendment, titlesOf } from "@/mission/amendment";
+import { resolvedWaits, startedTitles, waitState } from "@/mission/waits";
+import { giveNext, pumpQueue, settleQueue } from "@/mission/queue";
+import { todoColumnOf } from "@/kanban/missionLink";
 import { moveCard as movedCard } from "@/kanban/board";
-import { fleetNameOf, managerNameOf } from "@/mission/manager";
+import { fleetNameOf, managerNameOf, reopenManager } from "@/mission/manager";
+import { restoreReopened } from "@/mission/restore";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 import { levelModel, modelLabel, type Level } from "@/mission/router";
 import { missionRouterOn } from "@/mission/routerState";
 import { readTickets } from "@/mission/tickets";
 import { addTaskCards, linkedBoards, missionBoard, moveMissionCard } from "@/kanban/fleetBoards";
-import { agentGroup, agentState, linkedTeamAgents, linkedGroups, managedFleet, missionOf, canvasKnown, setMission, updateMember } from "@/mission/store";
+import { isClosedNode } from "@/agents/closedNode";
+import { busyNow, keptOpen } from "@/mission/keptOpen";
+import { agentGroup, agentState, linkedTeamAgents, linkedGroups, managedFleet, missionOf, canvasKnown, isFleetClosed, setMission, spawnedUnder, updateMember } from "@/mission/store";
 import { notify } from "@/mission/events";
 import { KANBAN_PRIORITIES, type KanbanPriority } from "@/nodes/types";
 import { sceneAccess } from "@/agents/sceneAccess";
 import { relaunchMode } from "@/nodes/terminal/launch";
 import { relaunchTerminal, terminalText } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
-import { nodeNameOf, nodesStore, terminalOf } from "@/store/nodes";
+import { isManagerNode, nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRestarting, isRunning, statusOf } from "@/store/terminalStatus";
 import { splitGenerated } from "@/openui/detect";
 import { cutWhole } from "@/lib/cut";
-import { refused, said, type ToolResult } from "./agentTools";
+import { recordMemberReport, refused, said, type ToolResult } from "./agentTools";
 import { agentMessages } from "./messages";
-import { outAgent, outAgentState, outLevel, outMission, outReport, outStep } from "./protocol";
+import { boardsAnswer } from "./boardAnswer";
+import { DETAIL_CHARS, fitted, lined, LISTED_CHARS, shortened, shortenedKeepingLines } from "./compact";
+import { outAgent, outLevel, outMission, outReport, outStep } from "./protocol";
+import { stateMinutes, stateWord } from "./teamState";
 
 const NO_ARGS = { type: "object", properties: {} } as const;
 const t = () => messages(agentMessages);
@@ -43,7 +56,7 @@ const t = () => messages(agentMessages);
 function missionToolSpecs(manager: boolean) {
   const d = t().tools;
   return [
-    { name: "mission", description: d.mission, inputSchema: NO_ARGS },
+    { name: "mission", description: d.mission, inputSchema: { type: "object", properties: { subtask: { type: "string", description: d.missionSubtask } } } },
     {
       name: "propose_plan",
       description: d.proposePlan,
@@ -54,7 +67,6 @@ function missionToolSpecs(manager: boolean) {
           task: { type: "string", description: d.planTask },
           subtasks: {
             type: "array",
-            minItems: 1,
             items: {
               type: "object",
               properties: {
@@ -65,12 +77,15 @@ function missionToolSpecs(manager: boolean) {
                 budget_min: { type: "integer", minimum: 1 },
                 level: { type: "string", enum: ["low", "medium", "high", "extreme"], description: d.planLevel },
                 card: { type: "string", description: d.planCard },
+                waits_for: { type: "array", items: { type: "string" }, description: d.planWaitsFor },
               },
               required: ["title", "brief", "agent", "budget_min"],
             },
           },
+          drop: { type: "array", items: { type: "string" }, description: d.planDrop },
         },
-        required: ["name", "task", "subtasks"],
+        // The first plan needs a name and sub-tasks, an amendment may only drop: the call checks them.
+        required: ["task"],
       },
     },
     {
@@ -91,6 +106,7 @@ function missionToolSpecs(manager: boolean) {
                 level: { type: "string", enum: ["low", "medium", "high", "extreme"], description: d.queueLevel },
                 group: { type: "string", description: d.taskGroup },
                 card: { type: "string", description: d.taskCard },
+                waits_for: { type: "array", items: { type: "string" }, description: d.taskWaitsFor },
               },
               required: ["title", "brief", "budget_min"],
             },
@@ -99,7 +115,7 @@ function missionToolSpecs(manager: boolean) {
         required: ["tasks"],
       },
     },
-    { name: "queue", description: d.queue, inputSchema: NO_ARGS },
+    { name: "queue", description: d.queue, inputSchema: { type: "object", properties: { task: { type: "string", description: d.queueTask } } } },
     {
       name: "prioritize",
       description: d.prioritize,
@@ -115,7 +131,7 @@ function missionToolSpecs(manager: boolean) {
     },
     { name: "next_task", description: d.nextTask, inputSchema: { type: "object", properties: { agent: { type: "string" } }, required: ["agent"] } },
     { name: "tickets", description: d.tickets, inputSchema: NO_ARGS },
-    { name: "board", description: manager ? d.managerBoard : d.board, inputSchema: NO_ARGS },
+    { name: "board", description: manager ? d.managerBoard : d.board, inputSchema: { type: "object", properties: { card: { type: "string", description: d.boardCard } } } },
     {
       name: "move_card",
       description: d.moveCard,
@@ -125,7 +141,7 @@ function missionToolSpecs(manager: boolean) {
         required: ["card", "column"],
       },
     },
-    { name: "team", description: d.team, inputSchema: NO_ARGS },
+    { name: "team", description: d.team, inputSchema: { type: "object", properties: { agent: { type: "string", description: d.teamAgent } } } },
     {
       name: "read_output",
       description: d.readOutput,
@@ -142,21 +158,37 @@ function missionToolSpecs(manager: boolean) {
       inputSchema: { type: "object", properties: { agent: { type: "string" }, minutes: { type: "integer", minimum: 1 } }, required: ["agent", "minutes"] },
     },
     { name: "interrupt", description: d.interrupt, inputSchema: { type: "object", properties: { agent: { type: "string" } }, required: ["agent"] } },
-    { name: "relaunch", description: d.relaunch, inputSchema: { type: "object", properties: { agent: { type: "string" } }, required: ["agent"] } },
+    // The Fleet's brings back its Manager, by itself: agent only for a mission run the old way.
+    manager
+      ? { name: "relaunch", description: d.relaunch, inputSchema: { type: "object", properties: { agent: { type: "string" } }, required: ["agent"] } }
+      : { name: "relaunch", description: d.fleetRelaunch, inputSchema: { type: "object", properties: { agent: { type: "string" } } } },
     {
       name: "reassign",
       description: d.reassign,
-      inputSchema: { type: "object", properties: { subtask: { type: "string" }, agent: { type: "string" } }, required: ["subtask", "agent"] },
+      inputSchema: {
+        type: "object",
+        properties: { subtask: { type: "string", description: d.reassignSubtask }, agent: { type: "string", description: d.reassignAgent } },
+        required: ["subtask", "agent"],
+      },
     },
-    { name: "merge", description: d.merge, inputSchema: NO_ARGS },
+    {
+      name: "merge",
+      description: d.merge,
+      inputSchema: { type: "object", properties: { agent: { type: "string", description: d.mergeAgent }, summary: { type: "string", description: d.mergeSummary } } },
+    },
     {
       name: "finish",
       description: manager ? d.managerFinish : d.finish,
       inputSchema: { type: "object", properties: { summary: { type: "string", description: d.finishSummary }, check: { type: "array", items: { type: "string" }, description: d.finishCheck } }, required: ["summary"] },
     },
     { name: "need_user", description: d.needUser, inputSchema: { type: "object", properties: { reason: { type: "string", description: d.needUserReason } }, required: ["reason"] } },
+    { name: "message_manager", description: d.messageManager, inputSchema: { type: "object", properties: { text: { type: "string", description: d.messageText } }, required: ["text"] } },
+    { name: "message_fleet", description: d.messageFleet, inputSchema: { type: "object", properties: { text: { type: "string", description: d.messageText } }, required: ["text"] } },
     { name: "stop_mission", description: d.stopMission, inputSchema: { type: "object", properties: { reason: { type: "string", description: d.stopReason } }, required: ["reason"] } },
+    { name: "land", description: d.land, inputSchema: NO_ARGS },
+    { name: "close_agent", description: d.closeAgent, inputSchema: { type: "object", properties: { agent: { type: "string" } }, required: ["agent"] } },
     { name: "clean_up_mission", description: d.cleanUpMission, inputSchema: NO_ARGS },
+    { name: "clean_up_leftovers", description: d.cleanUpLeftovers, inputSchema: NO_ARGS },
     {
       name: "remote_control",
       description: d.remoteControl,
@@ -169,12 +201,15 @@ function missionToolSpecs(manager: boolean) {
   ];
 }
 
-/** The Fleet's tools while it plans and babysits its board, by English name. */
-export const FLEET_TOOLS: readonly string[] = ["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "clean_up_mission", "remote_control"];
+/**
+ * The Fleet's tools while it plans and babysits its board, by English name. message_manager is listed whatever its
+ * mission's state: tools/list is read once, when the Fleet's session starts, long before a go-ahead makes its Manager.
+ */
+export const FLEET_TOOLS: readonly string[] = ["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "message_manager", "relaunch", "stop_mission", "land", "clean_up_mission", "clean_up_leftovers", "remote_control"];
 /** The team's tools, the Fleet's only for a mission launched before Managers existed: it runs it to its end the old way. */
-export const LEGACY_TOOLS: readonly string[] = ["next_task", "read_output", "write", "extend", "interrupt", "relaunch", "reassign", "merge", "finish"];
-/** A mission's Manager's tools: it runs the board's cards with the team. */
-export const MANAGER_TOOLS: readonly string[] = ["mission", "add_tasks", "queue", "next_task", "board", "move_card", "team", "read_output", "write", "extend", "interrupt", "relaunch", "reassign", "merge", "finish", "need_user"];
+export const LEGACY_TOOLS: readonly string[] = ["next_task", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish"];
+/** A mission's Manager's tools: it runs the board's cards with the team, and answers its Fleet with message_fleet. */
+export const MANAGER_TOOLS: readonly string[] = ["mission", "add_tasks", "queue", "next_task", "board", "move_card", "team", "read_output", "write", "extend", "interrupt", "relaunch", "reassign", "merge", "land", "close_agent", "finish", "need_user", "message_fleet"];
 
 /** Whether a Fleet's mission runs the old way: under way, with no Manager. Only then does the Fleet list the team's tools. */
 export const runsTheOldWay = (mission: Mission | undefined) => (mission?.state === "en_cours" || mission?.state === "lancement") && !mission.manager;
@@ -216,25 +251,31 @@ export const FLEET_ONLY = new Set([
   "remote_control",
   "prioritize",
   "stop_mission",
+  "land",
   "clean_up_mission",
+  "clean_up_leftovers",
+  "close_agent",
   "move_card",
   "need_user",
+  "message_manager",
+  "message_fleet",
 ]);
 
-/** Internal names of the Manager's own tools. */
-export const MANAGER_ONLY = new Set(["move_card", "need_user"]);
+/** Internal names of the Manager's own tools: a Fleet, or an agent, that calls one is told whose it is. */
+export const MANAGER_ONLY = new Set(["move_card", "need_user", "message_fleet", "close_agent"]);
 /** Internal names of the team's tools the Fleet keeps for a mission run the old way. */
 const LEGACY_INTERNAL = new Set(["next_task", "lire_sortie", "ecrire", "prolonger", "interrompre", "relaunch", "reattribuer", "fusionner", "terminer"]);
-/** Internal names of the Manager's tools. */
-const MANAGER_INTERNAL = new Set(["mission", "add_tasks", "queue", "next_task", "board", "move_card", "equipe", "lire_sortie", "ecrire", "prolonger", "interrompre", "relaunch", "reattribuer", "fusionner", "terminer", "need_user"]);
+/** Internal names of the Manager's tools; message_manager is not one of them, the Fleet's alone (`FLEET_ONLY`). */
+const MANAGER_INTERNAL = new Set(["mission", "add_tasks", "queue", "next_task", "board", "move_card", "equipe", "lire_sortie", "ecrire", "prolonger", "interrompre", "relaunch", "reattribuer", "fusionner", "land", "close_agent", "terminer", "need_user", "message_fleet"]);
 
 const json = (value: unknown) => said(JSON.stringify(value, null, 2));
 const formed = (mission: Mission) => mission.state === "en_cours" || mission.state === "terminee";
 
 function memberNamed(mission: Mission, raw: unknown): Member | string {
-  if (!formed(mission)) return t().fleet.notFormed;
+  if (!formed(mission)) return t().fleet.notFormed(mission.state);
   const name = typeof raw === "string" ? raw : "";
-  return mission.members.find((m) => sameName(m.name, name)) ?? t().fleet.notMember(name);
+  // The refusal names the team, so that the next call can name an agent right.
+  return mission.members.find((m) => sameName(m.name, name)) ?? t().fleet.notMember(name, mission.members.map((m) => m.name));
 }
 
 /** The model a sub-task's agent has, once one holds it; before, the one the go-ahead will give it, a linked agent's included (`subTaskModel`). */
@@ -248,12 +289,50 @@ function modelOfSubTask(fleetId: string, mission: Mission, subtask: { title: str
 /** The mission as a plan or the queue reads its tasks: `router` on where they need a level (`levelsRequired`). */
 const asPlanned = (fleetId: string, mission: Mission): Mission => ({ ...mission, router: levelsRequired(fleetId, mission) });
 
-function describeMission(fleetId: string, mission: Mission): ToolResult {
+/** A sub-task of the plan, as `mission` lists it: `brief` is the text it is given, whole or cut (`describeMission`). */
+function planEntry(fleetId: string, mission: Mission, s: SubTask, brief: string) {
+  return {
+    title: s.title,
+    brief,
+    agent: outAgent(s.agent),
+    group: s.group?.name ?? null,
+    budget_min: s.budgetMin,
+    level: s.level ? outLevel(s.level) : null,
+    // Once an agent holds the sub-task, its own model counts: reassign may have given it to one that keeps its own.
+    model: modelOfSubTask(fleetId, mission, s),
+    card: s.card ?? null,
+  };
+}
+
+/** The sub-task `raw` names: its title, else the start of it when that fits one only. */
+function namedTask<T extends { title: string }>(tasks: readonly T[], raw: string): T | undefined {
+  const wanted = raw.trim();
+  const exact = tasks.find((task) => sameName(task.title, wanted));
+  if (exact) return exact;
+  const starts = tasks.filter((task) => wanted !== "" && task.title.toLowerCase().startsWith(wanted.toLowerCase()));
+  return starts.length === 1 ? starts[0] : undefined;
+}
+
+/**
+ * `mission`. Whatever the plan's size the answer stays short (`./compact.ts`): the briefs are cut, and `subtask` reads
+ * one sub-task whole.
+ */
+function describeMission(fleetId: string, mission: Mission, args: Record<string, unknown> = {}): ToolResult {
+  const f = t().answers;
+  const asked = typeof args.subtask === "string" ? args.subtask.trim() : "";
+  if (asked) {
+    if (!mission.plan) return refused(f.noPlan);
+    const found = namedTask(mission.plan, asked);
+    if (!found) return refused(f.noSubtask(asked, mission.plan.map((s) => s.title)));
+    return said(lined(planEntry(fleetId, mission, found, shortenedKeepingLines(found.brief, DETAIL_CHARS, f.rest))));
+  }
   const team = new Set(mission.members.map((m) => m.nodeId));
-  return json({
+  const plan = mission.plan?.map((s) => planEntry(fleetId, mission, s, shortened(s.brief, LISTED_CHARS, f.how.mission(s.title)))) ?? null;
+  const amendment = describedAmendment(mission);
+  return said(fitted(plan?.length ?? 0, (shown) => lined({
     state: outMission(mission.state),
     name: mission.name ?? null,
-    task: mission.task ?? null,
+    task: mission.task === undefined ? null : shortened(mission.task, TASK_CHARS, f.rest),
     runs: mission.manager ? "manager" : "fleet",
     manager: mission.manager ? managerNameOf(fleetId) : null,
     board: mission.board ?? null,
@@ -263,36 +342,37 @@ function describeMission(fleetId: string, mission: Mission): ToolResult {
     // Its switch when set, else the global setting: on, each sub-task's level picks its agent's model.
     router: missionRouterOn(mission),
     branch: mission.branch ?? null,
-    plan:
-      mission.plan?.map((s) => ({
-        title: s.title,
-        brief: s.brief,
-        agent: outAgent(s.agent),
-        group: s.group?.name ?? null,
-        budget_min: s.budgetMin,
-        level: s.level ? outLevel(s.level) : null,
-        // Once an agent holds the sub-task, its own model counts: reassign may have given it to one that keeps its own.
-        model: modelOfSubTask(fleetId, mission, s),
-        card: s.card ?? null,
-      })) ?? null,
+    plan: plan && plan.slice(0, shown),
+    ...(plan && shown < plan.length ? { plan_left_out: f.left.subtasks(plan.length - shown) } : {}),
     linked_agents: canvasKnown(fleetId)
       ? linkedTeamAgents(fleetId)
           .filter((a) => !team.has(a.nodeId))
           // `router`: its own switch, set: true routes it with the mission's off, false keeps its own model with the mission's on.
           .map((a) => {
             const own = terminalOf(nodesStore.getState().nodes[a.nodeId])?.router;
-            return { name: a.name, state: outAgentState(agentState(a.nodeId)), ...agentGroup(a.nodeId), ...(own === undefined ? {} : { router: own }) };
+            return { name: a.name, state: stateWord(a.nodeId), ...agentGroup(a.nodeId), ...(own === undefined ? {} : { router: own }) };
           })
       : null,
     linked_groups: canvasKnown(fleetId) ? linkedGroups(fleetId).map(({ name, speciality }) => ({ name, speciality })) : null,
     linked_agents_note: canvasKnown(fleetId) ? null : t().fleet.hiddenAgents,
     queue_waiting: mission.queue?.length ?? 0,
+    amendment,
     left_min: remainingGlobal(mission, Date.now()) ?? null,
     overnight: mission.overnight === true,
     auto_launch: mission.autoLaunch === true,
     elapsed_min: mission.state === "en_cours" && mission.startedAt !== undefined ? Math.floor((Date.now() - mission.startedAt) / 60_000) : null,
-    error: mission.error ?? null,
-  });
+    error: mission.error === undefined ? null : shortened(mission.error, TASK_CHARS, f.rest),
+  })));
+}
+
+/** The user's task, an amendment's and an error in `mission`: a few paragraphs at most, whatever was written. */
+const TASK_CHARS = 1_500;
+
+/** The amendment the user has yet to answer, as the Fleet reads it: what it asked, and the titles it adds, edits and drops. */
+function describedAmendment(mission: Mission) {
+  if (!mission.amendment) return null;
+  const { added, edited, dropped } = titlesOf(changesOf(mission.queue ?? [], mission.amendment));
+  return { task: shortened(mission.amendment.task, TASK_CHARS, t().answers.rest), add: added, edit: edited, drop: dropped };
 }
 
 /** The tasks of a plan or a queue that an agent already works on (`@/mission/duplicateTask`), numbered as the agent gave them. */
@@ -304,15 +384,38 @@ function alreadyOnIt(fleetId: string, tasks: readonly { title: string; brief: st
   });
 }
 
+/**
+ * `propose_plan` on a running mission: an amendment to its waiting tasks, which the user approves in the panel as they
+ * did the first plan (`@/mission/amendment`). Nothing changes before; a later call replaces the pending one.
+ */
+function proposeAmendment(fleetId: string, mission: Mission, args: Record<string, unknown>): ToolResult {
+  const named = Array.isArray(args.sous_taches) && args.sous_taches.some((s) => Boolean((s as Record<string, unknown> | null)?.groupe));
+  if (named && !canvasKnown(fleetId)) return refused(t().fleet.hiddenWorkspace);
+  const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
+  const result = proposedAmendment(args, asPlanned(fleetId, mission), inFlightTitles(fleetId, mission), linkedGroups(fleetId), cards);
+  if (typeof result === "string") return refused(result);
+  const { amendment, changes } = result;
+  // A task an agent is at work on is not queued again, as for add_tasks: only the tasks the amendment adds.
+  const already = alreadyOnIt(fleetId, changes.added, [fleetId, mission.manager]);
+  if (already.length > 0) return refused(t().fleet.duplicatePlan(already));
+  const replaced = mission.amendment !== undefined;
+  setMission(fleetId, { amendment });
+  const proposed = t().fleet.amendmentProposed(changes.added.length, changes.edited.length, changes.dropped.length);
+  return said(replaced ? `${t().fleet.amendmentPending} ${proposed}` : proposed);
+}
+
 async function proposePlan(fleetId: string, asked: Mission, args: Record<string, unknown>): Promise<ToolResult> {
-  if (asked.state === "lancement" || asked.state === "en_cours") return refused(t().fleet.running);
+  if (asked.state === "lancement") return refused(t().fleet.running);
+  if (asked.state === "en_cours") return proposeAmendment(fleetId, asked, args);
   let mission = asked;
   // What the Fleet's cleanup told it, to say with whatever follows: the mission it drafts on is a new one.
   let cleaned = "";
   if (asked.state === "terminee") {
-    // The panel's "Clean up the mission", done here unless something is unsaved: then the old refusal stands, and the user decides.
-    const cleanup = await cleanUpFinished(fleetId);
-    if (!cleanup.cleaned) return refused(`${t().fleet.finished} ${cleanup.reason}`);
+    // The panel's "Clean up the mission", done here unless the mission's work is not over: then the old refusal stands, and the user decides.
+    const cleanup = await cleanUpFinished(fleetId, t().fleet.planAgain);
+    if (cleanup.cleaned === false) return refused(`${t().fleet.finished} ${cleanup.reason}`);
+    // Still under way when a tool must answer: the plan waits for a blank mission, sent again once the result comes.
+    if (cleanup.cleaned === "later") return refused(`${cleanup.text} ${t().fleet.planAfterCleanup}`);
     cleaned = cleanup.text;
     // Read again: the mission was reset, its settings (Max agents, the router) kept.
     mission = missionOf(nodesStore.getState().nodes[fleetId]) ?? mission;
@@ -323,8 +426,14 @@ async function proposePlan(fleetId: string, asked: Mission, args: Record<string,
   if (named && !canvasKnown(fleetId)) return failed(t().fleet.hiddenWorkspace);
   const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
   const linked = linkedTeamAgents(fleetId);
-  const result = proposedPlan(args, asPlanned(fleetId, mission), linked.map((a) => a.name), linkedGroups(fleetId), cards);
-  if (typeof result === "string") return failed(result);
+  const drafted = proposedPlan(args, asPlanned(fleetId, mission), linked.map((a) => a.name), linkedGroups(fleetId), cards);
+  if (typeof drafted === "string") return failed(drafted);
+  // The tasks a sub-task waits for are tasks of this plan, or of the queue: the plan replaces the pending one.
+  const waits = resolvedWaits(drafted.plan, mission.queue ?? [], [], (mission.plan ?? []).map((s) => s.title));
+  if (typeof waits === "string") return failed(waits);
+  // Waiting sub-tasks start from the queue: at the go-ahead some sub-task has to start, or the team would be empty.
+  if (waits.every((s) => s.waitsFor?.length)) return failed(t().plan.waitsAll);
+  const result = { ...drafted, plan: waits };
   // The linked agents the plan names take their sub-task: whatever they hold is theirs to give up.
   const taking = linked.filter((a) => result.plan.some((s) => sameName(s.agent, a.name))).map((a) => a.nodeId);
   const already = alreadyOnIt(fleetId, result.plan, [fleetId, mission.manager, ...taking]);
@@ -339,10 +448,25 @@ async function proposePlan(fleetId: string, asked: Mission, args: Record<string,
   return said(cleaned ? `${cleaned} ${proposed}` : proposed);
 }
 
-/** `clean_up_mission` (the Fleet): the panel's cleanup of a finished mission, unless something is unsaved. */
+/** `land` (the Fleet, the Manager): asks the user, who alone lands the mission with a click (`@/mission/land`). */
+async function land(fleetId: string, callerId: string): Promise<ToolResult> {
+  const asked = await askToLand(fleetId, callerId);
+  return asked.refused ? refused(asked.text) : said(asked.text);
+}
+
+/**
+ * `clean_up_mission` (the Fleet): the panel's cleanup of a finished mission, which never loses work (`cleanUpFinished`).
+ * It answers in time however long git takes: a cleanup still running is told under way, its result typed later.
+ */
 async function cleanUpMission(fleetId: string): Promise<ToolResult> {
   const result = await cleanUpFinished(fleetId);
-  return result.cleaned ? said(result.text) : refused(result.reason);
+  return result.cleaned === false ? refused(result.reason) : said(result.text);
+}
+
+/** `clean_up_leftovers` (the Fleet): asks the user, whose click alone cleans the leftovers up (`@/mission/leftovers`). */
+async function cleanUpLeftovers(fleetId: string): Promise<ToolResult> {
+  const asked = await askLeftovers(fleetId, fleetId);
+  return asked.refused ? refused(asked.text) : said(asked.text);
 }
 
 /**
@@ -386,7 +510,10 @@ export function enqueueTasks(fleetId: string, mission: Mission, args: Record<str
   const grouped = Array.isArray(args.tasks) && args.tasks.some((s) => Boolean((s as Record<string, unknown> | null)?.groupe));
   if (grouped && !canvasKnown(fleetId)) return t().fleet.hiddenWorkspace;
   const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
-  const proposed = proposedTasks(args, asPlanned(fleetId, mission), linkedGroups(fleetId), cards);
+  const asked = proposedTasks(args, asPlanned(fleetId, mission), linkedGroups(fleetId), cards);
+  if (typeof asked === "string") return asked;
+  // What a task waits for: a task of the queue, of the plan (still pending, or running), or one started.
+  const proposed = resolvedWaits(asked, mission.queue ?? [], [...startedTitles(mission), ...(mission.plan ?? []).map((s) => s.title)]);
   if (typeof proposed === "string") return proposed;
   // Before any card is written: a task another agent already works on is not queued again, from add_tasks or hand_off.
   const already = alreadyOnIt(fleetId, proposed, [fleetId, mission.manager]);
@@ -527,12 +654,156 @@ function needUser(fleetId: string, managerId: string, mission: Mission, args: Re
   return said(t().fleet.needUserSent(fleetNameOf(fleetId)));
 }
 
-function describeQueue(fleetId: string, mission: Mission): ToolResult {
-  return json({
-    waiting: (mission.queue ?? []).map((s) => ({ title: s.title, brief: s.brief, budget_min: s.budgetMin, level: s.level ? outLevel(s.level) : null, group: s.group?.name ?? null, card: s.card ?? null, ...(s.handedBy ? { handed_by: s.handedBy } : {}) })),
-    active_agents: activeCount(fleetId, mission),
-    max_agents: mission.maxAgents,
+/** Whether a line typed now reaches the session: its terminal runs, and its CLI has not gone back to its shell, where the line would run as a command. */
+const takesLine = (nodeId: string) => isRunning(nodeId) && !agentActivityStore.getState().activities[nodeId]?.left;
+/** A dialog waits for the user in that terminal: `notify` holds the line until it is answered, and the sender hears so. */
+const heldByDialog = (nodeId: string) => agentActivityStore.getState().activities[nodeId]?.activity === "waiting";
+
+/** The light runs along the wires the go-ahead drew, Fleet → board → Manager, as the Fleet's cards and the Manager's need_user do. */
+function throughBoard(fromId: string, toId: string, board: string | undefined) {
+  if (!board) return talk(fromId, toId);
+  talk(fromId, board);
+  talk(board, toId);
+}
+
+/**
+ * `message_manager` (the Fleet): one line typed into the terminal of the Manager running its mission, through the line
+ * queue the board's news takes (`notify`): what the user tells the Fleet for the team reaches it through the Manager,
+ * who answers with message_fleet. Listed to every Fleet (`FLEET_TOOLS`), so refused, saying why, whenever no Manager
+ * takes it. A Manager never reports, so dummyPlane never stops it to free memory: there is no session to wake up.
+ */
+function messageManager(fleetId: string, mission: Mission, args: Record<string, unknown>): ToolResult {
+  const f = t().fleet;
+  if (mission.state === "terminee") return refused(f.noManagerFinished);
+  if (mission.state === "redaction" || mission.state === "plan") return refused(f.noManagerYet);
+  // The go-ahead types the Manager its orders first: a line ahead of them would reach a Manager that knows nothing yet.
+  if (mission.state === "lancement") return refused(f.managerStarting);
+  const managerId = mission.manager;
+  if (!managerId) return refused(f.noManagerOldWay);
+  const manager = managerNameOf(fleetId);
+  if (!isManagerNode(managerId)) return refused(f.managerClosed(manager));
+  // Closing a terminal stops it, as relaunch reads it: only a stopped Manager may be gone, the refusal says which.
+  if (!takesLine(managerId)) return refused(closedByUser(managerId) ? f.managerClosed(manager) : f.managerStopped(manager));
+  const text = typeof args.text === "string" ? oneLine(args.text) : "";
+  if (!text) return refused(f.nothingToSend);
+  notify(managerId, t().lines.fromFleet(fleetNameOf(fleetId), text));
+  throughBoard(fleetId, managerId, mission.board);
+  return said(heldByDialog(managerId) ? f.managerHeld(manager) : f.managerMessaged(manager));
+}
+
+/**
+ * `message_fleet` (the Manager): one line typed into its Fleet's terminal, to answer what the Fleet sent or to tell it
+ * what it must know. The team's news is not for it (the Fleet hears the board's end), nor is the user (need_user).
+ */
+function messageFleetTool(fleetId: string, managerId: string, mission: Mission, args: Record<string, unknown>): ToolResult {
+  const f = t().fleet;
+  const fleet = fleetNameOf(fleetId);
+  // Deleted from the canvas, it waits for an undo: nobody would read the line.
+  if (isFleetClosed(fleetId)) return refused(f.fleetClosed(fleet));
+  if (!sessionOf(nodesStore.getState().nodes[fleetId]) || !takesLine(fleetId)) return refused(f.fleetStopped(fleet));
+  const text = typeof args.text === "string" ? oneLine(args.text) : "";
+  if (!text) return refused(f.nothingToSend);
+  notify(fleetId, t().lines.fromManager(nodeNameOf(nodesStore.getState().nodes[managerId]) || managerNameOf(fleetId), text));
+  throughBoard(managerId, fleetId, mission.board);
+  return said(heldByDialog(fleetId) ? f.fleetHeld(fleet) : f.fleetMessaged(fleet));
+}
+
+/**
+ * `merge`: the branches of the agents done, after recording as done the one it names (`agent`): an agent that finished
+ * without reporting, or whose "blocked" report left good work. Its work is recorded as its own report would be
+ * (`recordMemberReport`): its seat is free, its card follows. Not while it is at work: it reports itself, or is
+ * interrupted first.
+ */
+async function mergeTool(fleetId: string, caller: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
+  const f = t().fleet;
+  if (mission.state !== "en_cours") return refused(f.noMission);
+  let recorded = "";
+  let named: string | undefined;
+  if (typeof args.agent === "string" && args.agent.trim()) {
+    const member = memberNamed(mission, args.agent);
+    if (typeof member === "string") return refused(member);
+    if (member.handedTo) return refused(f.recordHanded(member.name, member.handedTo));
+    if (member.abandoned) return refused(f.recordAbandoned(member.name));
+    if (member.cleanedUp) return refused(f.recordGone(member.name));
+    // At work, waiting on a dialog or an answer: recorded now, or merged while it resolves its conflict, its work would be cut.
+    const busy = busyNow(member.nodeId);
+    named = member.nodeId;
+    if (member.report?.status === "termine") {
+      if (busy && conflictPending(member)) return refused(f.recordWorking(member.name));
+      recorded = `${f.recordDone(member.name)}
+`;
+    } else if (busy) return refused(f.recordWorking(member.name));
+    else {
+      const said_ = typeof args.summary === "string" ? oneLine(args.summary) : "";
+      recordMemberReport(fleetId, member, { summary: said_ || f.recordedSummary(nodeNameOf(nodesStore.getState().nodes[caller]) || "the Manager"), status: "termine", at: Date.now() });
+      recorded = `${f.recorded(member.name)}
+`;
+    }
+  }
+  const merged = await mergeMission(fleetId, named);
+  // A branch a conflict held back is in now: new agents for the queue start from it.
+  void pumpQueue(fleetId);
+  return said(recorded + merged);
+}
+
+/**
+ * `close_agent` (the Manager): closes the terminal of an agent of its team that has reported or stopped, with its own
+ * sub-agents that are done: they share its folder. Never one at work, waiting, held by a dialog, starting, moved on by
+ * the queue, whose sub-agents work or that the user is at (`keptOpen`), nor one whose sub-task is still to be typed.
+ * Its report, branch and worktree stay: the mission's cleanup saves what is uncommitted there, and reassign still
+ * hands its sub-task over. Never a linked agent: it is the user's, and goes back to their project at the mission's end.
+ */
+async function closeAgent(fleetId: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
+  const f = t().fleet;
+  if (mission.state !== "en_cours") return refused(f.noMission);
+  const member = memberNamed(mission, args.agent);
+  if (typeof member === "string") return refused(member);
+  if (member.linked) return refused(f.closeLinked(member.name));
+  // Closed by the user already: its record only waits for an undo.
+  if (!member.nodeId || !terminalOf(nodesStore.getState().nodes[member.nodeId]) || isClosedNode(member.nodeId)) return refused(f.closeGone(member.name));
+  const stopped = agentState(member.nodeId) === "arrêté";
+  if (!member.report && !stopped) return refused(f.closeNotDone(member.name));
+  if (member.brief !== undefined || deliveryPending(member.nodeId)) return refused(f.closeOpen(member.name, f.closeDelivering));
+  const why = keptOpen(member.nodeId);
+  if (why) return refused(f.closeOpen(member.name, messages(missionMessages).openWhy[why]));
+  const family = [member.nodeId, ...spawnedUnder(member.nodeId).filter((id) => !isClosedNode(id) && keptOpen(id) === null)];
+  await closeTerminals(fleetId, family);
+  return said(f.closed(member.name, family.length - 1));
+}
+
+function describeQueue(fleetId: string, args: Record<string, unknown> = {}): ToolResult {
+  const f = t().answers;
+  // What was done outside the queue is no longer waiting in it (`settleQueue`).
+  settleQueue(fleetId);
+  const mission = missionOf(nodesStore.getState().nodes[fleetId])!;
+  const entry = (s: QueuedTask, brief: string) => ({
+    title: s.title,
+    brief,
+    budget_min: s.budgetMin,
+    level: s.level ? outLevel(s.level) : null,
+    group: s.group?.name ?? null,
+    card: s.card ?? null,
+    ...(s.handedBy ? { handed_by: s.handedBy } : {}),
+    // What it waits for, and where each stands: it starts once each is done and merged.
+    ...(s.waitsFor?.length ? { waits_for: s.waitsFor.map((title) => ({ task: title, state: waitState(mission, title) })) } : {}),
   });
+  const queue = mission.queue ?? [];
+  const asked = typeof args.task === "string" ? args.task.trim() : "";
+  if (asked) {
+    const found = namedTask(queue, asked);
+    return found ? said(lined(entry(found, shortenedKeepingLines(found.brief, DETAIL_CHARS, f.rest)))) : refused(f.noTask(asked, queue.map((s) => s.title)));
+  }
+  const waiting = queue.map((s) => entry(s, shortened(s.brief, LISTED_CHARS, f.how.queue(s.title))));
+  return said(
+    fitted(waiting.length, (shown) =>
+      lined({
+        waiting: waiting.slice(0, shown),
+        ...(shown < waiting.length ? { waiting_left_out: f.left.tasks(waiting.length - shown) } : {}),
+        active_agents: activeCount(fleetId, mission),
+        max_agents: mission.maxAgents,
+      }),
+    ),
+  );
 }
 
 async function nextTask(fleetId: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
@@ -547,33 +818,34 @@ async function nextTask(fleetId: string, mission: Mission, args: Record<string, 
 const timeText = (spent: number | undefined, budget: number) => (spent === undefined ? `? / ${budget} min` : `${Math.floor(spent)} / ${budget} min`);
 
 /** `board` for the Manager: the mission's board. */
-function describeMissionBoard(fleetId: string): ToolResult {
+function describeMissionBoard(fleetId: string, args: Record<string, unknown> = {}): ToolResult {
   const found = missionBoard(fleetId);
-  if (!found) return describeBoards(fleetId);
-  return json({ note: t().fleet.boardNote, boards: [boardView(found.nodeId, found.board)] });
+  if (!found) return describeBoards(fleetId, false, args);
+  return boardsAnswer([found], { tool: "board", note: t().fleet.boardNote, card: args.card });
 }
 
 /** `board`: the Kanban boards handed to this fleet. */
-function describeBoards(fleetId: string, pointToWired = false): ToolResult {
+function describeBoards(fleetId: string, pointToWired = false, args: Record<string, unknown> = {}): ToolResult {
   const boards = linkedBoards(fleetId);
   // The Fleet is told where the boards wired to it are read; its Manager has no such tool.
   if (boards.length === 0) return said(t().fleet.noBoard + (pointToWired ? t().fleet.noBoardWired : ""));
-  return json({ note: t().fleet.boardNote, boards: boards.map(({ nodeId, board }) => boardView(nodeId, board)) });
+  return boardsAnswer(boards, { tool: "board", note: t().fleet.boardNote, card: args.card });
 }
 
-function describeTeam(fleetId: string, mission: Mission): ToolResult {
-  if (!formed(mission)) return refused(t().fleet.notFormed);
+function describeTeam(fleetId: string, mission: Mission, args: Record<string, unknown> = {}): ToolResult {
+  if (!formed(mission)) return refused(t().fleet.notFormed(mission.state));
   const nodes = nodesStore.getState().nodes;
   const now = Date.now();
   // Groups live on the scene: never read, they are unknown, which null would not say.
   const shown = canvasKnown(fleetId);
-  return json(
-    mission.members.map((m) => ({
+  // Every agent as the answer about one alone gives it: everything, its report whole.
+  const everyone = mission.members.map((m) => ({
       name: m.name,
       ...(shown ? agentGroup(m.nodeId) : {}),
       subtask: m.task,
-      // Restarting from its menu, its resume card or relaunch: not stopped, though its old process has gone.
-      state: outAgentState(agentState(m.nodeId), isRestarting(m.nodeId)),
+      // The canvas pill's own reading; restarting from its menu, its resume card or relaunch is not stopped, though its old process has gone.
+      state: stateWord(m.nodeId),
+      state_min: stateMinutes(m.nodeId, now),
       steps: terminalOf(nodes[m.nodeId])?.steps?.map((s) => `${s.title}: ${outStep(s.state)}`) ?? [],
       time: timeText(memberTime(mission, m, now), budgetOf(m)),
       overdue: m.overdue ?? 0,
@@ -584,22 +856,60 @@ function describeTeam(fleetId: string, mission: Mission): ToolResult {
       branch: m.branch,
       report: m.report ? { status: outReport(m.report.status), summary: m.report.summary } : null,
       merged: m.merged === true,
-    })),
-  );
+  }));
+  const whole = (m: Member) => everyone[mission.members.indexOf(m)];
+  const f = t().answers;
+  const asked = typeof args.agent === "string" ? args.agent.trim() : "";
+  if (asked) {
+    const member = memberNamed(mission, asked);
+    if (typeof member === "string") return refused(member);
+    const all = whole(member);
+    return said(lined({ ...all, report: all.report && { ...all.report, summary: shortenedKeepingLines(all.report.summary, DETAIL_CHARS, f.rest) } }));
+  }
+  // The list: the same entries, a line each, the steps as how far they got and the report cut short.
+  const listed = mission.members.map((m) => {
+    const { steps: _steps, finished: _finished, branch: _branch, overdue, handed_to, abandoned, model, report, ...rest } = whole(m);
+    return {
+      ...rest,
+      ...stepProgress(terminalOf(nodes[m.nodeId])?.steps),
+      ...(overdue ? { overdue } : {}),
+      ...(handed_to ? { handed_to } : {}),
+      ...(abandoned ? { abandoned } : {}),
+      ...(model ? { model } : {}),
+      report: report && { ...report, summary: shortened(report.summary, LISTED_CHARS, f.how.team(m.name)) },
+    };
+  });
+  return said(fitted(listed.length, (count) => lined([...listed.slice(0, count), ...(count < listed.length ? [{ left_out: f.left.agents(listed.length - count) }] : [])])));
+}
+
+/** How far an agent got through the steps it declared, in a word or two: "2/5, now: Tests"; nothing when it declared none. */
+function stepProgress(steps: readonly { title: string; state: StepState }[] | undefined) {
+  if (!steps || steps.length === 0) return {};
+  const done = steps.filter((s) => s.state === "fait").length;
+  const failed = steps.filter((s) => s.state === "echec").length;
+  const current = steps.find((s) => s.state === "en_cours");
+  return { progress: `${done}/${steps.length}${current ? `, now: ${current.title}` : ""}${failed ? `, ${failed} failed` : ""}` };
 }
 
 function readOutput(mission: Mission, args: Record<string, unknown>): ToolResult {
   const member = memberNamed(mission, args.agent);
   if (typeof member === "string") return refused(member);
   const lines = typeof args.lignes === "number" ? Math.min(200, Math.max(1, Math.floor(args.lignes))) : 50;
-  return said(terminalText(member.nodeId, lines) || t().fleet.emptyTerminal);
+  const text = terminalText(member.nodeId, lines);
+  if (text) return said(text);
+  // Not shown since dummyPlane started, its screen is blank: it is stopped, not dead (13 Nov, four such agents were replaced).
+  return said(agentState(member.nodeId) === "arrêté" && !isRestarting(member.nodeId) ? t().fleet.stoppedUnread(member.name) : t().fleet.emptyTerminal);
 }
 
 async function write(fleetId: string, caller: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
   const member = memberNamed(mission, args.agent);
   if (typeof member === "string") return refused(member);
   const text = typeof args.texte === "string" ? oneLine(args.texte) : "";
-  if (!text) return refused(t().fleet.nothingToWrite);
+  // Said with the arguments the call had: the text may be there under another name (internally `texte`, the French one).
+  if (!text) return refused(t().fleet.nothingToWrite(member.name, Object.keys(args).filter((key) => key !== "agent" && key !== "texte")));
+  // Its worktree is its successor's now (reassign to "new" once it stopped): woken, it would work there beside it.
+  const successor = member.handedTo ? mission.members.find((m) => sameName(m.name, member.handedTo ?? "") && m.worktree === member.worktree) : undefined;
+  if (successor) return refused(t().fleet.handedInPlace(member.name, successor.name));
   // A finished member dummyPlane stopped to free its memory, or starting again already: the text waits for its
   // session, typed earlier it would land in its shell (`@/agents/finishedStop`). Answered now: its session may take
   // longer to open than the call may last.
@@ -614,6 +924,8 @@ async function write(fleetId: string, caller: string, mission: Mission, args: Re
   // An agent that exited leaves its shell: the text would run there as a command.
   if (!isRunning(member.nodeId) || activity?.left) return refused(t().fleet.stopped(member.name));
   if (activity?.activity === "waiting") return refused(t().fleet.waiting(member.name));
+  // Typed now, the text would be spliced into the user's own, unsent, and sent with it (a notice waits as long as it takes: this answers now).
+  if (hasUnsentInput(member.nodeId)) return refused(t().fleet.typing(member.name));
   // dummyPlane still waits for its Claude to type its sub-task: a line now would cross it, or answer a question meant for the user.
   if (deliveryPending(member.nodeId)) return refused(t().fleet.notYetSent(member.name));
   await typeTo(fleetId, caller, member, text);
@@ -648,7 +960,8 @@ function prolong(fleetId: string, mission: Mission, args: Record<string, unknown
   if (left !== undefined && budget - spent > left) return refused(t().fleet.globalLeft(left));
   // Below its new budget it may be told again later; still past it, it is not told twice.
   const overdue = spent >= 2 * budget ? 2 : spent >= budget ? 1 : undefined;
-  updateMember(fleetId, member.nodeId, { extraMin, overdue });
+  // The warning at 80 % comes again below it, as the overruns do.
+  updateMember(fleetId, member.nodeId, { extraMin, overdue, nearTold: spent >= BUDGET_WARN_AT * budget ? member.nearTold : undefined });
   return said(t().fleet.extended(member.name, minutes, budget));
 }
 
@@ -698,7 +1011,7 @@ async function relaunch(fleetId: string, mission: Mission, args: Record<string, 
   const payload = terminalOf(nodesStore.getState().nodes[member.nodeId]);
   if (!payload) return refused(f.relaunchClosed(member.name));
   // Stopped once its sub-task was typed, it holds no seat (`@/mission/active`): the queue may have taken it, and Max agents caps the agents at work.
-  if (relaunchTakesSeat(mission, member) && activeCount(fleetId, mission) >= mission.maxAgents) return refused(f.relaunchTeamFull(member.name, mission.maxAgents));
+  if (relaunchTakesSeat(mission, member) && activeCount(fleetId, mission) >= mission.maxAgents) return refused(f.relaunchTeamFull(member.name, seatsOf(fleetId, mission)));
   // Counted at work, once, from here until its new process runs (`relaunchSession` marks it restarting at once).
   let failure: string | undefined;
   try {
@@ -715,13 +1028,52 @@ async function relaunch(fleetId: string, mission: Mission, args: Record<string, 
   return said(now?.sentAt === undefined && now?.brief ? f.relaunchedBrief(member.name) : f.relaunched(member.name));
 }
 
+/**
+ * `relaunch` from the Fleet of a mission its Manager runs: the Manager, closed (its node re-opened, even after a
+ * restart: `reopenManager`) or stopped, starts again on its own conversation while the mission runs; its team
+ * stopped meanwhile follows, and the Manager hears where things stand (`restoreReopened`), after the answer: a
+ * team's starts take longer than a tool call may last. The Fleet tells the user, who may have closed it on purpose.
+ */
+async function relaunchManager(fleetId: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
+  const f = t().fleet;
+  const managerId = mission.manager;
+  const name = managerNameOf(fleetId);
+  if (!managerId || mission.state !== "en_cours") return refused(f.reopenNoMission(name));
+  // Its team is the Manager's to relaunch: the Fleet brings back the Manager only.
+  if (typeof args.agent === "string" && args.agent.trim() !== "" && !sameName(args.agent, name)) return refused(f.reopenOnlyManager(name));
+  if (isRestarting(managerId)) return refused(f.reopenUnderWay(name));
+  const gone = !isManagerNode(managerId) || closedByUser(managerId);
+  if (!gone && agentState(managerId) !== "arrêté") return refused(f.reopenRunning(name));
+  let failure: string | null = null;
+  if (gone) failure = await reopenManager(fleetId);
+  else {
+    const payload = terminalOf(nodesStore.getState().nodes[managerId]);
+    try {
+      if (payload) await relaunchTerminal(managerId, payload, relaunchMode(payload));
+    } catch (error) {
+      failure = error instanceof Error ? error.message : String(error);
+    }
+    const status = statusOf(managerId);
+    if (failure === null && status.state === "error") failure = status.message;
+  }
+  if (failure !== null) return refused(f.reopenFailed(name, failure));
+  restoreReopened(fleetId, fleetNameOf(fleetId));
+  return said(gone ? f.managerReopened(name) : f.managerRelaunched(name));
+}
+
 async function reassign(fleetId: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
   if (mission.state !== "en_cours") return refused(t().fleet.noMission);
   const title = typeof args.sous_tache === "string" ? args.sous_tache : "";
   // The holder reassign takes first: a title an abandoned task shares is not that one.
-  const from = reassignable(mission).find((m) => sameName(m.task, title)) ?? mission.members.find((m) => !m.handedTo && sameName(m.task, title));
-  // The titles reassign takes, so that a call that passed something else (a whole brief) can be made again right.
-  if (!from) return refused(t().fleet.noSubtask(echoed(title), reassignable(mission).map((m) => m.task)));
+  let from = reassignable(mission).find((m) => sameName(m.task, title)) ?? mission.members.find((m) => !m.handedTo && sameName(m.task, title));
+  if (!from) {
+    // Not its title as team gives it, but what an agent naturally passes: the holder's name, its card's id, the start of its title.
+    const near = subTasksNamedBy(mission, title);
+    if (near.length > 1) return refused(t().fleet.ambiguousSubtask(echoed(title), near.map((m) => ({ title: m.task, holder: m.name }))));
+    from = near[0];
+  }
+  // The titles reassign takes, with who holds each, so that a call that passed something else (a whole brief) can be made again right.
+  if (!from) return refused(t().fleet.noSubtask(echoed(title), reassignable(mission).map((m) => ({ title: m.task, holder: m.name }))));
   const result = await reassignTask(fleetId, from.nodeId, typeof args.agent === "string" ? args.agent : "");
   return typeof result === "string" ? refused(result) : said(t().fleet.handedTo(from.task, result.name));
 }
@@ -799,23 +1151,24 @@ async function remote(fleetId: string, mission: Mission, args: Record<string, un
 export async function fleetTool(fleetId: string, name: string, args: Record<string, unknown>): Promise<ToolResult> {
   const mission = missionOf(nodesStore.getState().nodes[fleetId]);
   if (!mission) return refused(t().fleet.gone);
-  if (LEGACY_INTERNAL.has(name) && mission.manager) return refused(t().router.managerRuns(managerNameOf(fleetId)));
+  // relaunch is the Fleet's too: it brings back its Manager (`relaunchManager`).
+  if (LEGACY_INTERNAL.has(name) && name !== "relaunch" && mission.manager) return refused(t().router.managerRuns(managerNameOf(fleetId)));
   if (MANAGER_ONLY.has(name)) return refused(t().router.managerOnly);
   switch (name) {
     case "mission":
-      return describeMission(fleetId, mission);
+      return describeMission(fleetId, mission, args);
     case "proposer_plan":
       return proposePlan(fleetId, mission, args);
     case "add_tasks":
       return addTasks(fleetId, mission, args);
     case "queue":
-      return describeQueue(fleetId, mission);
+      return describeQueue(fleetId, args);
     case "next_task":
       return nextTask(fleetId, mission, args);
     case "tickets":
       return tickets(fleetId, mission);
     case "equipe":
-      return describeTeam(fleetId, mission);
+      return describeTeam(fleetId, mission, args);
     case "lire_sortie":
       return readOutput(mission, args);
     case "ecrire":
@@ -825,28 +1178,30 @@ export async function fleetTool(fleetId: string, name: string, args: Record<stri
     case "interrompre":
       return mission.state === "en_cours" ? interrupt(mission, args) : refused(t().fleet.noMission);
     case "relaunch":
-      return relaunch(fleetId, mission, args);
+      // Only a mission under way without a Manager is the Fleet's to run: any other, its Manager's relaunch, or plan again.
+      return runsTheOldWay(mission) ? relaunch(fleetId, mission, args) : relaunchManager(fleetId, mission, args);
     case "reattribuer":
       return reassign(fleetId, mission, args);
-    case "fusionner": {
-      if (mission.state !== "en_cours") return refused(t().fleet.noMission);
-      const merged = await mergeMission(fleetId);
-      // A branch a conflict held back is in now: new agents for the queue start from it.
-      void pumpQueue(fleetId);
-      return said(merged);
-    }
+    case "fusionner":
+      return mergeTool(fleetId, fleetId, mission, args);
     case "terminer":
       return finish(fleetId, mission, args);
+    case "land":
+      return land(fleetId, fleetId);
     case "remote_control":
       return remote(fleetId, mission, args);
     case "board":
-      return describeBoards(fleetId, true);
+      return describeBoards(fleetId, true, args);
     case "prioritize":
       return prioritize(fleetId, mission, args);
     case "stop_mission":
       return stopMissionTool(fleetId, mission, args);
     case "clean_up_mission":
       return cleanUpMission(fleetId);
+    case "clean_up_leftovers":
+      return cleanUpLeftovers(fleetId);
+    case "message_manager":
+      return messageManager(fleetId, mission, args);
     default:
       return refused(t().router.unknown(name));
   }
@@ -862,19 +1217,19 @@ export async function managerTool(managerId: string, name: string, args: Record<
   if (!MANAGER_INTERNAL.has(name)) return refused(FLEET_ONLY.has(name) ? t().router.fleetOnly : t().router.notForManager);
   switch (name) {
     case "mission":
-      return describeMission(fleetId, mission);
+      return describeMission(fleetId, mission, args);
     case "add_tasks":
       return addTasks(fleetId, mission, args, managerId);
     case "queue":
-      return describeQueue(fleetId, mission);
+      return describeQueue(fleetId, args);
     case "next_task":
       return nextTask(fleetId, mission, args);
     case "board":
-      return describeMissionBoard(fleetId);
+      return describeMissionBoard(fleetId, args);
     case "move_card":
       return moveCardTool(fleetId, args);
     case "equipe":
-      return describeTeam(fleetId, mission);
+      return describeTeam(fleetId, mission, args);
     case "lire_sortie":
       return readOutput(mission, args);
     case "ecrire":
@@ -887,16 +1242,18 @@ export async function managerTool(managerId: string, name: string, args: Record<
       return relaunch(fleetId, mission, args);
     case "reattribuer":
       return reassign(fleetId, mission, args);
-    case "fusionner": {
-      if (mission.state !== "en_cours") return refused(t().fleet.noMission);
-      const merged = await mergeMission(fleetId);
-      void pumpQueue(fleetId);
-      return said(merged);
-    }
+    case "fusionner":
+      return mergeTool(fleetId, managerId, mission, args);
+    case "land":
+      return land(fleetId, managerId);
+    case "close_agent":
+      return closeAgent(fleetId, mission, args);
     case "terminer":
       return managerFinish(fleetId, managerId, mission, args);
     case "need_user":
       return needUser(fleetId, managerId, mission, args);
+    case "message_fleet":
+      return messageFleetTool(fleetId, managerId, mission, args);
     default:
       return refused(t().router.unknown(name));
   }

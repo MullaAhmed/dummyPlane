@@ -22,7 +22,7 @@ import { modelRouterStore } from "@/app/modelRouterSetting";
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "immediately" } }));
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "line 1") }));
 vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
-vi.mock("@/mission/queue", () => ({ pumpQueue: vi.fn(() => Promise.resolve()), giveNext: vi.fn(), afterReport: vi.fn() }));
+vi.mock("@/mission/queue", () => ({ pumpQueue: vi.fn(() => Promise.resolve()), giveNext: vi.fn(), afterReport: vi.fn(), settleQueue: vi.fn() }));
 vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn(), deliveryPending: vi.fn(() => false) }));
 
 const call = (nodeId: string, name: string, args: Record<string, unknown> = {}) =>
@@ -86,13 +86,23 @@ afterEach(() => wireActivityStore.setState({ pulses: {} }));
 describe("hand_off in the router's lists", () => {
   it("is listed to an agent wired to a Fleet, on top of the tools any agent has", async () => {
     const wired = await toolNames("batgirl");
-    expect(wired.filter((name) => name !== "hand_off")).toEqual(await toolNames("cyborg"));
+    expect(wired.filter((name) => name !== "hand_off")).toEqual((await toolNames("cyborg")).filter((name) => name !== "hand_off"));
     expect(wired).toContain("hand_off");
     expect(wired.filter((name) => name === "hand_off")).toHaveLength(1);
   });
 
-  it("is not listed to an agent no Fleet commands, to a Fleet, nor to a Manager", async () => {
-    expect(await toolNames("cyborg")).not.toContain("hand_off");
+  // tools/list is read once per session: a tool listed only to an agent already linked stayed missing for one the user linked later.
+  it("is listed to an agent no Fleet commands yet, which a link made after its session started then uses", async () => {
+    expect(await toolNames("cyborg")).toContain("hand_off");
+    const refused = await call("cyborg", "hand_off", { title: "One", brief: "b" });
+    expect(refused.isError).toBe(true);
+    expect(textOf(refused)).toContain("No Fleet is linked to you");
+    expect(textOf(refused)).toContain("+ Link");
+    scene = withWire(nodes, "chef", "cyborg");
+    expect(textOf(await call("cyborg", "hand_off", { title: "One", brief: "b" }))).toContain("Queued");
+  });
+
+  it("is not listed to a Fleet, nor to a Manager", async () => {
     expect(await toolNames("chef")).not.toContain("hand_off");
     expect(await toolNames("boss")).not.toContain("hand_off");
   });
@@ -107,11 +117,13 @@ describe("hand_off in the router's lists", () => {
     expect(await toolNames("robin")).toContain("hand_off");
   });
 
-  it("is not listed without a wire, and drops with it", async () => {
+  it("stays listed without a wire, and refuses once the wire is gone", async () => {
     scene = nodes;
-    expect(await toolNames("batgirl")).not.toContain("hand_off");
+    expect(await toolNames("batgirl")).toContain("hand_off");
+    expect(textOf(await call("batgirl", "hand_off", { title: "One", brief: "b" }))).toContain("No Fleet is linked to you");
     scene = withWire(nodes, "chef", "batgirl").map((e) => (e.type === "arrow" ? ({ ...e, isDeleted: true } as ExcalidrawElement) : e));
-    expect(await toolNames("batgirl")).not.toContain("hand_off");
+    expect(await toolNames("batgirl")).toContain("hand_off");
+    expect(textOf(await call("batgirl", "hand_off", { title: "One", brief: "b" }))).toContain("No Fleet is linked to you");
   });
 
   it("describes its arguments in English, a title and a brief required", async () => {
@@ -158,13 +170,12 @@ describe("hand_off for the agents of a group the Fleet is wired to", () => {
     expect(await toolNames("cyborg")).toContain("hand_off");
   });
 
-  it("leaves the sub-agent of a plain linked agent the tool, but not the Fleet's own sub-agent: it reports to its Fleet", async () => {
+  it("lets the sub-agent of a plain linked agent hand off, but refuses the Fleet's own sub-agent: it reports to its Fleet", async () => {
     scene = wiredGroup("robin", "cyborg");
     spawnedBy("cyborg", "robin");
-    expect(await toolNames("cyborg")).toContain("hand_off");
+    expect(textOf(await call("cyborg", "hand_off", { title: "One", brief: "b" }))).toContain("Queued");
     spawnedBy("cyborg", "chef");
-    expect(await toolNames("cyborg")).not.toContain("hand_off");
-    expect(textOf(await call("cyborg", "hand_off", { title: "One", brief: "b" }))).toContain("No Fleet is linked to you");
+    expect(textOf(await call("cyborg", "hand_off", { title: "Two", brief: "b" }))).toContain("No Fleet is linked to you");
   });
 });
 

@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
+import { STEP_LOOK } from "@/components/marks";
 import { NEW_MISSION } from "@/mission/mission";
 import { nodesStore } from "@/store/nodes";
 import { subagentsStore, useSubagents } from "@/store/subagents";
@@ -58,8 +59,29 @@ it("draws each terminal's steps under it, following the view, with its running s
   expect(host.querySelector(".pointer-events-auto")).toBeNull();
   expect(friezes[0].textContent).toContain("Plan");
   expect(friezes[0].textContent).toContain("×3");
+  // Each step a segment named with its state, never a dot: the round dot is the agent's mark.
+  const marks = [...friezes[0].querySelectorAll<HTMLElement>("[data-step]")];
+  expect(marks.map((mark) => [mark.getAttribute("role"), mark.getAttribute("aria-label")])).toEqual([
+    ["img", "Plan, done"],
+    ["img", "Code, in progress"],
+  ]);
+  expect(marks.map((mark) => mark.style.color)).toEqual(["var(--dp-ok)", "var(--dp-accent)"]);
+  expect(friezes[0].querySelector(".rounded-full")).toBeNull();
   await act(async () => root.unmount());
   host.remove();
+});
+
+it("tells the steps apart by their shape, not their colour alone: four segments, none of them a dot", () => {
+  const looks = Object.values(STEP_LOOK);
+  expect(new Set(looks).size).toBe(4);
+  for (const look of looks) {
+    expect(look).toContain("w-3");
+    expect(look).not.toMatch(/rounded-full|size-|bg-dp-|border-dp-/);
+  }
+  // Done thin and solid; under way thicker; to come dashed; failed ends on a stop.
+  expect([STEP_LOOK.fait, STEP_LOOK.en_cours]).toEqual(["h-0.5 w-3 bg-current", "h-1 w-3 bg-current"]);
+  expect(STEP_LOOK.a_venir).toContain("border-dashed");
+  expect(STEP_LOOK.echec).toContain("after:h-2");
 });
 
 describe("the frieze and the bar of an agent that reported", () => {

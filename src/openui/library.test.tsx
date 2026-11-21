@@ -5,8 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GeneratedText } from "./GeneratedText";
 import { COMPONENT_NAMES, splitGenerated } from "./detect";
-import { LIBRARY_COMPONENT_NAMES, outputGuide } from "./library";
+import { LIBRARY_COMPONENT_NAMES, OUTPUT_SKILL, outputGuide } from "./library";
 import { checkOpenUI, readOpenUI } from "./parse";
+import { shownLabels, standsUp, ticksOf } from "./charts";
+import { SECTION_GAP, trendOf } from "./parts";
+import { TONE_FILL, TONE_SOFT } from "./tones";
 import { highlight } from "./highlight";
 import { httpUrl } from "./actions";
 
@@ -108,19 +111,24 @@ describe("the library draws each component in the app's own style", () => {
     expect(pre.querySelectorAll("span[style]").length).toBeGreaterThan(0);
   });
 
-  it("draws Progress as a bar, Divider as a rule, and both charts in SVG", async () => {
+  it("draws Progress as a bar, Divider as a rule, bars in the accent's ink and lines in SVG", async () => {
     const host = await show(
       program('a = Stack([Progress(30, 60, "Tests"), Divider(), BarChart(["a", "b"], [2, 4], "Bars"), LineChart(["Mon", "Tue", "Wed"], [{name: "p95", values: [3, 1, 2]}, {name: "p50", values: [1, 1, 1]}], "Lines")])'),
     );
     const bar = host.querySelector("[role=progressbar]")!;
     expect(bar.getAttribute("aria-valuenow")).toBe("30");
     expect(host.textContent).toContain("50%");
+    // Out of a max other than 100, the figures show beside the share.
+    expect(host.textContent).toContain("30 / 60");
     expect(host.querySelector("hr")).not.toBeNull();
-    expect(host.querySelectorAll("svg rect")).toHaveLength(2);
+    const bars = [...host.querySelectorAll("[data-bar]")];
+    expect(bars).toHaveLength(2);
+    expect(bars[0].className).toContain("bg-dp-accent-ink");
     expect(host.querySelectorAll("svg polyline")).toHaveLength(2);
     expect([...host.querySelectorAll("figcaption")].map((f) => f.textContent)).toEqual(["Bars", "Lines"]);
-    // The legend names each series beside its swatch.
-    expect(host.querySelector("ul")?.textContent).toBe("p95p50");
+    // The legend names each series beside its line key, with its value at the last label.
+    expect([...host.querySelectorAll("[data-series]")].map((s) => s.textContent)).toEqual(["p95", "p50"]);
+    expect([...host.querySelectorAll("li")].map((li) => li.textContent)).toEqual(["p952", "p501"]);
   });
 });
 
@@ -239,6 +247,119 @@ describe("what makes an output better than the same words in a terminal", () => 
   });
 });
 
+describe("the design rules, drawn (src/openui/skill/SKILL.md)", () => {
+  it("spaces the output's sections further apart than a group's lines, and a panel's small print as a group", async () => {
+    const host = await show('root = Stack([Text("a"), Card("c", [Stack([Text("b"), Text("c")])])])');
+    const [root, inner] = [...host.querySelectorAll("[data-openui] div.flex-col")].filter((div) => div.className.includes("gap-"));
+    expect(root.className).toContain(SECTION_GAP);
+    expect(inner.className).toContain("gap-3");
+    // A gap the agent gave wins, at the root too.
+    const given = await show('root = Stack([Text("a"), Text("b")], "sm")');
+    expect(given.querySelector("[data-openui] .gap-2")?.textContent).toBe("ab");
+    const compact = await show('root = Stack([Text("a"), Text("b")])', { compact: true });
+    expect(compact.querySelector(`[data-openui] .${SECTION_GAP}`)).toBeNull();
+  });
+
+  it("draws a Row of Stats as one strip of figures, a cell each", async () => {
+    const host = await show(program('a = Row([Stat("Passed", 409, "+12 since main"), Stat("Failed", 3, "+3", "danger"), Stat("Skipped", 4)])'));
+    const strip = host.querySelector("[data-stats]")!;
+    expect(strip.className).toContain("border-dp-line");
+    expect(strip.firstElementChild?.children).toHaveLength(3);
+    // One Stat alone is a figure, not a strip.
+    const lone = await show(program('a = Row([Stat("Passed", 409), Text("beside")])'));
+    expect(lone.querySelector("[data-stats]")).toBeNull();
+  });
+
+  it("keeps Buttons, Links and Badges at their own width in a Row, and gives anything else an equal share", async () => {
+    const host = await show(program('a = Row([Progress(81, 100, "Cache hits"), Button("Roll out", "Roll it out"), Link("Docs", "https://example.com"), Badge("On", "success")])'));
+    const cells = [...(host.querySelector("[role=progressbar]")!.closest(".flex-wrap")!.children as HTMLCollectionOf<HTMLElement>)];
+    expect(cells.map((cell) => cell.className.includes("flex-none"))).toEqual([false, true, true, true]);
+    expect(cells[0].className).toContain("flex-1");
+    // A share fills its cell: Cards side by side stand as tall as each other.
+    expect(cells[0].className).toContain("*:grow");
+  });
+
+  it("draws an arrow from a delta's sign: up for +, down for a minus, an en dash or a hyphen, none without a figure", async () => {
+    expect(["+12 since main", "−22 ms", "– 3", "-0.4 pt", "no change", "+", ""].map(trendOf)).toEqual(["up", "down", "down", "down", null, null, null]);
+    const host = await show(program('a = Row([Stat("p95", "98 ms", "−22 ms vs Monday", "success"), Stat("Errors", "0.4%", "+0.1 pt", "warning"), Stat("Hits", "81%", "steady")])'));
+    expect([...host.querySelectorAll("[data-trend]")].map((arrow) => arrow.getAttribute("data-trend"))).toEqual(["down", "up"]);
+    // A lone figure keeps the font's own digits.
+    const figure = [...host.querySelectorAll("span")].find((s) => s.textContent === "98 ms")!;
+    expect(figure.className).not.toContain("tabular-nums");
+  });
+
+  it("lines a Table's outer columns up with the output's edges, and says so when it has no rows", async () => {
+    const host = await show(program('a = Table(["Name", "Note", "Value"], [])'));
+    const heads = [...host.querySelectorAll("th")];
+    expect(heads.map((th) => [th.className.includes("pl-0"), th.className.includes("pr-0")])).toEqual([[true, false], [false, false], [false, true]]);
+    expect(host.textContent).toContain("No rows");
+    const cells = [...(await show(program('a = Table(["Name", "Count"], [["a", 3]])'))).querySelectorAll("td")];
+    expect(cells.map((td) => td.className.includes("pl-0") || td.className.includes("pr-0"))).toEqual([true, true]);
+    const full = await show(program('a = Table(["Name"], [["x"]])'));
+    expect(full.textContent).not.toContain("No rows");
+  });
+
+  it("counts a Tab on a chip, in the neutral tone's ink and tint", async () => {
+    const host = await show(program('a = Tabs([Tab("Failing", [Text("x")], 3)])'));
+    const chip = [...host.querySelectorAll("[role=tab] span")].find((s) => s.textContent === "3")!;
+    expect(chip.className).toContain(TONE_SOFT.neutral);
+  });
+
+  it("fills a toned Progress in its tone's ink, an untoned one in the accent", async () => {
+    const host = await show(program('a = Stack([Progress(92, 100, "Quota", "danger"), Progress(40)])'));
+    const [toned, plain] = [...host.querySelectorAll("[role=progressbar] > div")];
+    expect(toned.className).toContain(TONE_FILL.danger);
+    expect(plain.className).toContain("bg-dp-accent");
+    expect(host.textContent).not.toContain("/ 100");
+  });
+
+  it("stands short-labelled bars up as columns, each value on its bar, and lays long-labelled ones down as rows", async () => {
+    expect(standsUp(["Mon", "Tue", "v1.2"])).toBe(true);
+    expect(standsUp(["packages/canvas", "a"])).toBe(false);
+    expect(standsUp(Array.from({ length: 13 }, (_, i) => `${i}`))).toBe(false);
+    const columns = await show(program('a = BarChart(["Mon", "Tue", "Wed"], [12, -3, 24], "Builds")'));
+    const chart = columns.querySelector("[role=img]")!;
+    expect(chart.getAttribute("aria-label")).toBe("Mon: 12, Tue: -3, Wed: 24");
+    expect(chart.querySelectorAll("[data-bar]")).toHaveLength(3);
+    // A positive bar is rounded at its top, a negative one at its bottom: never at the baseline.
+    expect([...chart.querySelectorAll("[data-bar]")].map((bar) => (bar.className.includes("rounded-t-sm") ? "top" : "bottom"))).toEqual(["top", "bottom", "top"]);
+    expect(chart.textContent).toContain("24");
+    const rows = await show(program('a = BarChart(["packages/canvas", "packages/terminal", "packages/openui"], [412, 318, 96], "Size, kB")'));
+    const bars = [...rows.querySelectorAll<HTMLElement>("[data-bar]")];
+    expect(bars.map((bar) => bar.style.width)).toEqual(["100%", `${(318 / 412) * 100}%`, `${(96 / 412) * 100}%`]);
+    expect(rows.textContent).toContain("packages/terminal");
+  });
+
+  it("puts a line chart on round ticks, and labels its axis without crowding", () => {
+    expect(ticksOf(32, 121)).toEqual([0, 50, 100, 150]);
+    expect(ticksOf(0.1, 0.35)).toEqual([0.1, 0.2, 0.3, 0.4]);
+    // One value all along: a step either side of it.
+    expect(ticksOf(5, 5)).toEqual([4.5, 5, 5.5]);
+    expect(ticksOf(-12, 40)).toEqual([-20, 0, 20, 40]);
+    expect(shownLabels(5)).toEqual([0, 1, 2, 3, 4]);
+    expect(shownLabels(30)).toEqual([0, 7, 15, 22, 29]);
+  });
+
+  it("reads a line chart's values at the label under the pointer, or the one the arrows reach, and keeps the arrows from the canvas", async () => {
+    const host = await show(program('a = LineChart(["Mon", "Tue", "Wed"], [{name: "p95", values: [120, 104, 98]}], "Latency")'));
+    const plot = host.querySelector<HTMLElement>("[role=group]")!;
+    const legend = () => plot.closest("figure")!.querySelector("[aria-live]")!.textContent;
+    expect(legend()).toBe("Wedp9598");
+    plot.getBoundingClientRect = () => ({ left: 0, width: 200, top: 0, height: 100, right: 200, bottom: 100, x: 0, y: 0, toJSON: () => ({}) });
+    await act(async () => void plot.dispatchEvent(new PointerEvent("pointermove", { clientX: 10, bubbles: true })));
+    expect(legend()).toBe("Monp95120");
+    // React reads a leave from the pointer going out to another element.
+    await act(async () => void plot.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    expect(legend()).toBe("Wedp9598");
+    const outside = vi.fn();
+    document.addEventListener("keydown", outside);
+    await act(async () => void plot.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
+    expect(legend()).toBe("Tuep95104");
+    expect(outside).not.toHaveBeenCalled();
+    document.removeEventListener("keydown", outside);
+  });
+});
+
 describe("links and buttons do nothing by themselves", () => {
   it("opens an http(s) Link through the opener on a click, and shows any other as plain text", async () => {
     const host = await show(program('a = Stack([Link("Docs", "https://example.com/a"), Link("Bad", "javascript:alert(1)"), Link("File", "file:///C:/x")])'));
@@ -318,7 +439,7 @@ describe("OpenUI Lang or Markdown", () => {
     const text = 'root = Stack([Text("kept"), Foo("lost")])';
     const host = await show(text);
     expect(host.textContent).toContain("kept");
-    expect(host.textContent).toContain("Part of this output could not be shown.");
+    expect(host.textContent).toContain("Part of this output could not be shown");
     expect(host.querySelector("pre")).toBeNull();
     const toggle = [...host.querySelectorAll("button")].find((b) => b.textContent === "Show source")!;
     await act(async () => toggle.click());
@@ -347,12 +468,44 @@ describe("the guide and the checks an agent reads", () => {
     const guide = outputGuide();
     for (const name of COMPONENT_NAMES) expect(guide, name).toContain(`${name}(`);
     expect(guide).toContain("root = Stack(");
-    const end = 'next = Button("Fix the two tickets", "Fix OPE-12 and OPE-31")';
-    const example = guide.slice(guide.indexOf("root = Stack([verdict"), guide.indexOf(end) + end.length);
-    expect(example).toContain("Tabs([");
+    const start = guide.indexOf("## Examples");
+    const example = guide.slice(guide.indexOf("root = Stack(", start), guide.indexOf("\n\n", guide.indexOf("root = Stack(", start)));
+    expect(example.split("\n")).toHaveLength(4);
     expect(checkOpenUI(example)).toEqual({ errors: [], warnings: [] });
-    // It is read once per output, not paid by every session: still, keep it to a few pages.
-    expect(guide.length).toBeLessThan(12_000);
+    // It is read before an agent's first output, not paid by every session: still, keep it to a few pages.
+    expect(guide.length).toBeLessThan(24_000);
+  });
+
+  it("gives the design rules after the syntax: the skill's text, without the front matter that makes it a skill", () => {
+    const guide = outputGuide();
+    expect(OUTPUT_SKILL.startsWith("# Designing a dummyPlane output")).toBe(true);
+    expect(OUTPUT_SKILL).not.toContain("\r");
+    expect(guide.indexOf("## Component Signatures")).toBeLessThan(guide.indexOf(OUTPUT_SKILL));
+    expect(guide.endsWith(`${OUTPUT_SKILL}\n`)).toBe(true);
+    expect(guide).not.toMatch(/^name: dummyplane-output$/m);
+    for (const section of ["## The first screen", "## Pick the component by the job", "## Words", "## Tone", "## Layout", "## Charts", "## Good and bad outputs", "## Before you call show_output"])
+      expect(OUTPUT_SKILL, section).toContain(section);
+  });
+
+  /** The skill's examples, each with its verdict: the program in an `openui` fence after a **Good** or **Bad** line. */
+  const examples = () => [...OUTPUT_SKILL.matchAll(/\*\*(Good|Bad)\*\*: ([^\n]+)\n\n```openui\n([\s\S]*?)```/g)].map((m) => ({ good: m[1] === "Good", what: m[2], ui: m[3].trim() }));
+
+  it("keeps the skill's examples true: each good one passes with no warning, each bad one draws a warning", () => {
+    const all = examples();
+    expect(all.filter((e) => e.good).length).toBeGreaterThanOrEqual(4);
+    expect(all.filter((e) => !e.good).length).toBeGreaterThanOrEqual(3);
+    for (const { good, what, ui } of all) {
+      const check = checkOpenUI(ui);
+      expect(check.errors, what).toEqual([]);
+      if (good) expect(check.warnings, what).toEqual([]);
+      else expect(check.warnings.length, what).toBeGreaterThan(0);
+    }
+  });
+
+  it("names only the library's components in the skill, and every one of them somewhere", () => {
+    const named = new Set([...OUTPUT_SKILL.matchAll(/\b([A-Z][A-Za-z]+)\(/g)].map((m) => m[1]));
+    for (const name of named) expect(LIBRARY_COMPONENT_NAMES, name).toContain(name);
+    for (const name of LIBRARY_COMPONENT_NAMES.filter((n) => n !== "Tab" && n !== "Divider" && n !== "Heading")) expect(OUTPUT_SKILL, name).toContain(name);
   });
 
   it("says in plain words what to fix", () => {
@@ -380,6 +533,31 @@ describe("the guide and the checks an agent reads", () => {
     // Inside Tabs too, and never more than five.
     expect(checkOpenUI(`root = Tabs([Tab("a", [Text("${long}")])])`).warnings).toHaveLength(1);
     expect(checkOpenUI(`root = Stack([${Array.from({ length: 8 }, () => `Text("${long}")`).join(", ")}])`).warnings).toHaveLength(5);
+  });
+
+  it("warns about what breaks the design rules: the title twice, Callouts that all shout, too many figures, parts, lines or columns, a chart of one bar, a Card in a Card", () => {
+    const warned = (ui: string, title?: string) => checkOpenUI(`root = Stack([${ui}])`, { title }).warnings.join(" ");
+    expect(warned('Heading("Test  run"), Text("x")', "Test run")).toMatch(/The Heading "Test run" repeats the output's title/);
+    expect(warned('Heading("Failures"), Text("x")', "Test run")).toBe("");
+    expect(warned('Callout("danger", "a"), Callout("warning", "b"), Callout("info", "c")')).toMatch(/3 Callouts: when everything stands out, nothing does/);
+    expect(warned('Callout("danger", "a"), Callout("warning", "b")')).toBe("");
+    const stats = (n: number) => `Row([${Array.from({ length: n }, (_, i) => `Stat("s${i}", ${i})`).join(", ")}])`;
+    expect(warned(stats(5))).toMatch(/A Row of 5 Stats: keep two to four/);
+    expect(warned(stats(4))).toBe("");
+    expect(warned('BarChart(["a"], [1], "Size")')).toMatch(/The BarChart "Size" has 1 bar: show it as a Stat/);
+    expect(warned('BarChart(["a", "b"], [1, 2])')).toMatch(/has 2 bars: show them as Stats in a Row/);
+    expect(warned('BarChart(["a", "b", "c"], [1, 2, 3])')).toBe("");
+    const parts = (n: number) => `Breakdown([${Array.from({ length: n }, (_, i) => `{label: "p${i}", value: ${i + 1}}`).join(", ")}])`;
+    expect(warned(parts(7))).toMatch(/The Breakdown has 7 parts: fold the smallest into "Other"/);
+    expect(warned(parts(6))).toBe("");
+    const lines = (n: number) => `LineChart(["a", "b"], [${Array.from({ length: n }, (_, i) => `{name: "l${i}", values: [1, 2]}`).join(", ")}])`;
+    expect(warned(lines(5))).toMatch(/The LineChart has 5 lines/);
+    expect(warned(lines(4))).toBe("");
+    const table = (n: number) => `Table([${Array.from({ length: n }, (_, i) => `"c${i}"`).join(", ")}], [])`;
+    expect(warned(table(6))).toMatch(/A Table of 6 columns crowds the output/);
+    expect(warned(table(5))).toBe("");
+    expect(warned('Card("Outer", [Card("Inner", [Text("x")], true)])')).toMatch(/The Card "Inner" sits inside another Card/);
+    expect(warned('Card("One", [Text("x")]), Card("Two", [Text("y")])')).toBe("");
   });
 
   it("refuses data fetching and state: output is static", () => {

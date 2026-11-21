@@ -84,13 +84,33 @@ export function nextPantheon(used: readonly (string | null | undefined)[]): Pant
   return (PANTHEONS.find((p) => !taken.has(p.id)) ?? PANTHEONS[0]).id;
 }
 
-/** The first name of the set nobody in the workspace has; then "Batman 2", "Superman 2"… */
+/**
+ * A name's first word: "Batman 2" is "batman" too. An agent named by the same word as another reads as the same agent
+ * (a report, a `message_agent`, an `@`), so the numbered ones count against the plain name as it does against them.
+ */
+const stem = (name: string) => name.replace(/\s+\d+$/, "").toLowerCase();
+
+/**
+ * The first name of the set that nobody has (`taken`: the agents alive or on the canvas in the project, and the
+ * members of its running missions). Once the whole set is in use, the first free name of another set, in order, so
+ * that no agent is named after one that is still there; "Batman 2", "Superman 2"… only when every set is in use.
+ */
 export function nextName(pantheon: string, taken: readonly string[]): string {
-  const names = pantheonById(pantheon).names;
+  const own = pantheonById(pantheon);
   const used = new Set(taken.map((name) => name.toLowerCase()));
-  for (let round = 1; ; round++) {
-    for (const name of names) {
-      const candidate = round === 1 ? name : `${name} ${round}`;
+  const stems = new Set(taken.map(stem));
+  const free = (names: readonly string[]) => names.find((name) => !stems.has(name.toLowerCase()));
+  const first = free(own.names);
+  if (first) return first;
+  // The sets after its own, wrapping round to those before it.
+  const at = PANTHEONS.findIndex((p) => p.id === own.id);
+  for (let i = 1; i < PANTHEONS.length; i++) {
+    const other = free(PANTHEONS[(at + i) % PANTHEONS.length].names);
+    if (other) return other;
+  }
+  for (let round = 2; ; round++) {
+    for (const name of own.names) {
+      const candidate = `${name} ${round}`;
       if (!used.has(candidate.toLowerCase())) return candidate;
     }
   }

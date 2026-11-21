@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { arrive } from "@/canvas/arrive";
 import { messages } from "@/i18n";
 import { workspacesStore } from "@/store/workspaces";
 import { agentsMessages } from "./messages";
@@ -19,6 +20,15 @@ export const IN_VIEW: Arrival = { reveal: true };
 
 /** The terminal starts without moving the view nor taking the keyboard; `announceArrival` says so. */
 export const quietly = (source: ArrivalSource): Arrival => ({ reveal: false, source });
+
+/**
+ * A launch the user asked for (the ring, the palette, the Agents panel and its menu, Compose a group, a group's
+ * Add an agent): its terminal takes the keyboard, so its first question (Claude's trust prompt) is answered by typing.
+ * The view stays as the launch showed it; nothing when the launch placed nothing.
+ */
+export function arriveLaunched(nodeId: string | null | undefined) {
+  if (nodeId) arrive(nodeId, { moveView: false });
+}
 
 /** Agents arriving within this of the first are one notice: a team forms in a burst. */
 const BURST_MS = 400;

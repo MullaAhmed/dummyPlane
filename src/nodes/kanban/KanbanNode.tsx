@@ -769,7 +769,7 @@ function CardView({
       onDragEnd={onDragEnd}
       onClick={onOpen}
       className={cn(
-        "group/card relative shrink-0 cursor-grab overflow-hidden active:cursor-grabbing rounded-md border border-dp-line bg-dp-card px-3 py-2 text-left text-dp-text shadow-dp transition-[border-color,opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:border-dp-text-3 has-[[data-card-open]:focus-visible]:ring-2 has-[[data-card-open]:focus-visible]:ring-dp-accent/70 motion-reduce:transition-none",
+        "group/card relative shrink-0 cursor-grab overflow-hidden active:cursor-grabbing rounded-md border border-dp-line bg-dp-card px-3 py-2 text-left text-dp-text transition-[border-color,opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:border-dp-text-3 has-[[data-card-open]:focus-visible]:ring-2 has-[[data-card-open]:focus-visible]:ring-dp-accent/70",
         dragging && "opacity-40",
       )}
     >
@@ -836,9 +836,10 @@ function CardView({
             <Tag
               hint={card.agentStatus ? t.agentAlert[card.agentStatus](card.agent) : t.agentChip(card.agent)}
               data-agent-status={card.agentStatus}
-              className={cn(CHIP, "max-w-full", card.agentStatus ? "bg-dp-danger/15 text-dp-text" : "bg-dp-accent-soft text-dp-text")}
+              // Blocked waits for the user and takes the wait tone everywhere (its dot, its report word); only a failure is red.
+              className={cn(CHIP, "max-w-full text-dp-text", !card.agentStatus ? "bg-dp-accent-soft" : card.agentStatus === "blocked" ? "bg-dp-wait/15" : "bg-dp-danger/15")}
             >
-              <Bot className={cn("size-3 shrink-0", card.agentStatus && "text-dp-danger")} />
+              <Bot className={cn("size-3 shrink-0", card.agentStatus === "blocked" && "text-dp-wait", card.agentStatus === "failed" && "text-dp-danger")} />
               <span className="truncate">{card.agent}</span>
               {/* Blocked or failed is said in a word: the tint and the icon's colour alone would not reach everyone. */}
               {card.agentStatus && <span className="shrink-0">· {b.agentState[card.agentStatus]}</span>}

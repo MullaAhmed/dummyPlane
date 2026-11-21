@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { messages, useMessages } from "@/i18n";
 import { formatAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { DOT_OF_TONE, StatusDot } from "@/nodes/terminal/StatusDot";
 import { projectsStore, type Project } from "@/store/projects";
 import { homeMessages } from "./messages";
 
@@ -49,7 +50,7 @@ export function ProjectCard({ project }: { project: Project }) {
     <div
       data-project-card
       className={cn(
-        "dp-glass-strong group relative rounded-xl p-5 transition-[color,background-color,border-color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none",
+        "dp-glass-strong group relative rounded-xl p-5 transition-[color,background-color,border-color] duration-(--dp-dur-fast) ease-(--dp-ease-out)",
         openable && "cursor-pointer hover:bg-dp-hover",
       )}
     >
@@ -146,8 +147,9 @@ export function ProjectCard({ project }: { project: Project }) {
         <div className="flex items-center gap-3 font-mono text-xs tabular-nums text-dp-text-2">
           <span>{t.workspaces(project.workspaceCount)}</span>
           {project.liveAgents > 0 && (
-            <span className="flex items-center gap-1 text-dp-ok">
-              <span className="size-1.5 rounded-full bg-dp-ok" />
+            // Agents whose process runs, their activity unknown here: the dot a terminal's header shows such an agent (StatusPill).
+            <span className="flex items-center gap-2">
+              <StatusDot state={DOT_OF_TONE.live} />
               {t.liveAgents(project.liveAgents)}
             </span>
           )}

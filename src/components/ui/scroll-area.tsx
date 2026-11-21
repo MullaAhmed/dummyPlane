@@ -43,7 +43,8 @@ function ScrollBar({
     >
       <ScrollAreaPrimitive.ScrollAreaThumb
         data-slot="scroll-area-thumb"
-        className="relative flex-1 rounded-full bg-border"
+        // The ink at 28%, 44% under the pointer: the same thumb as the WebView's own scrollbars (index.css).
+        className="relative flex-1 rounded-full bg-dp-text/28 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-text/44"
       />
     </ScrollAreaPrimitive.ScrollAreaScrollbar>
   )

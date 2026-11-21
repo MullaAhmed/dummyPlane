@@ -12,15 +12,21 @@ import { agentsStore } from "@/agents/agentsStore";
 import { ROUTER_LEVELS } from "@/mission/router";
 import { launchSettingsOf, switchedAgent } from "@/nodes/terminal/launch";
 import { agentStartedInShell } from "@/nodes/terminal/shellAgent";
-import { readTerminalPayload, type FleetPayload, type TerminalPayload } from "@/nodes/types";
+import type { FleetPayload, TerminalPayload } from "@/nodes/types";
 import { nodesStore, sessionOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { agentActivityStore } from "@/store/agentActivity";
 import type { SessionUsage } from "@/usage/usage";
 import { markLaunch, usageStore } from "@/usage/usageStore";
+import { laneStore } from "@/shell/lane";
+import { LANE_BOTTOM, LANE_RIGHT, LANE_TOP } from "@/shell/layout";
 import { canvasStore, EMPTY_VIEW } from "./canvasStore";
+import { editPanelStore } from "./editPanel";
 import { SelectionPanel } from "./SelectionPanel";
+import { EditButton } from "@/nodes/terminal/EditButton";
+import { useNodes } from "@/store/nodes";
 import { modelRouterStore } from "@/app/modelRouterSetting";
+import { tabTo } from "@/components/ui/tabTo";
 
 const { mutateElement } = vi.hoisted(() => ({ mutateElement: vi.fn() }));
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "immediately" }, mutateElement }));
@@ -81,6 +87,24 @@ const box = (id: string, type = "rectangle") =>
 
 let host: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
+/** Where the nodes' headers would be: each node's Edit (nodes/terminal/EditButton.tsx), which opens its panel. */
+let heads: HTMLDivElement;
+let headsRoot: ReturnType<typeof createRoot>;
+
+/** The Edit of every node, as their headers show it. */
+function Heads() {
+  const ids = useNodes((s) => Object.keys(s.nodes).join(" "));
+  return (
+    <>
+      {ids
+        .split(" ")
+        .filter(Boolean)
+        .map((id) => (
+          <EditButton key={id} nodeId={id} />
+        ))}
+    </>
+  );
+}
 
 beforeEach(() => {
   // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
@@ -98,12 +122,20 @@ beforeEach(() => {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
+  heads = document.createElement("div");
+  document.body.append(heads);
+  headsRoot = createRoot(heads);
+  return act(async () => headsRoot.render(<Heads />));
 });
 
 afterEach(async () => {
   await act(async () => root.unmount());
+  await act(async () => headsRoot.unmount());
   host.remove();
+  heads.remove();
   canvasStore.setState({ api: null, drawnSelection: [], view: EMPTY_VIEW, nodeRects: {} });
+  editPanelStore.setState({ openFor: null });
+  laneStore.setState({ occupants: [] });
   nodesStore.setState({ nodes: {} });
   accountsStore.setState({ profiles: [], active: null, loaded: false, unread: false, open: false });
   terminalStatusStore.setState({ statuses: {} });
@@ -316,7 +348,7 @@ const reported = (patch: Partial<SessionUsage> = {}): SessionUsage => ({
   ...patch,
 });
 
-/** Selects the terminal and, unless told not to, opens its panel from its Edit tab, as most tests need. */
+/** Selects the terminal and, unless told not to, opens its panel from its header's Edit, as most tests need. */
 async function mountTerminal(payload: TerminalPayload, selectedIds = ["t1"], mode: "reading" | null = null, open = true) {
   nodesStore.setState({
     nodes: {
@@ -327,12 +359,18 @@ async function mountTerminal(payload: TerminalPayload, selectedIds = ["t1"], mod
   });
   canvasStore.setState({ drawnSelection: [], view: { ...EMPTY_VIEW, mode, selectedIds } });
   await act(async () => root.render(<SelectionPanel />));
-  const tab = editTab();
+  // Only a node selected alone has a panel to open.
+  const tab = selectedIds.length === 1 ? editTab() : null;
   if (open && tab) await act(async () => tab.click());
 }
 
-/** The folded panel: its Edit tab, named after the terminal. */
-const editTab = () => host.querySelector<HTMLButtonElement>('button[aria-label^="Edit "][aria-expanded="false"]');
+/** The header's Edit of a node (by default the one selected), while its panel is folded. */
+const editTab = (nodeId = canvasStore.getState().view.selectedIds[0]) =>
+  nodeId ? document.querySelector<HTMLButtonElement>(`[data-edit-node="${nodeId}"][aria-expanded="false"]`) : null;
+/** The header's Edit of a node, folded or open. */
+const editButton = (nodeId: string) => document.querySelector<HTMLButtonElement>(`[data-edit-node="${nodeId}"]`);
+/** A click of the pointer: `detail` 1, where Enter or Space on a button clicks it with 0 (`click()`). */
+const pointerClick = (target: Element) => target.dispatchEvent(new MouseEvent("click", { detail: 1, bubbles: true, cancelable: true }));
 
 const field = (label: string) => host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
 const select = (label: string) => host.querySelector<HTMLButtonElement>(`button[role='combobox'][aria-label="${label}"]`);
@@ -401,7 +439,7 @@ it("copies and deletes the terminal from the buttons beside its name", async () 
   expect(requestClose).toHaveBeenCalledWith("t1");
 });
 
-it("sits beside the selected terminal, and follows it when the view moves", async () => {
+it("stands in the right lane, on its edge and its top, over no node, wherever the view goes", async () => {
   await mountTerminal(terminal());
   await act(async () =>
     canvasStore.setState({
@@ -410,10 +448,33 @@ it("sits beside the selected terminal, and follows it when the view moves", asyn
     }),
   );
   const panel = host.firstElementChild as HTMLElement;
-  expect([panel.style.left, panel.style.top]).toEqual(["512px", "100px"]);
+  expect([panel.style.right, panel.style.top, panel.style.left]).toEqual([`${LANE_RIGHT}px`, `${LANE_TOP}px`, ""]);
+  expect(panel.style.maxHeight).toBe(`calc(100% - ${LANE_TOP + LANE_BOTTOM}px)`);
+  // The lane's layer and width: the Agents panel's.
+  expect(panel.className).toContain("z-30");
+  expect(panel.className).toContain("w-84");
   expect(panel.className).not.toContain("left-[70px]");
+  expect(editPanelStore.getState().openFor).toBe("t1");
+  // It holds the lane while it shows.
+  expect(laneStore.getState().occupants).toEqual(["edit"]);
   await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, scrollX: 100, scrollY: 20 } }));
-  expect([panel.style.left, panel.style.top]).toEqual(["612px", "120px"]);
+  expect([panel.style.right, panel.style.top]).toEqual([`${LANE_RIGHT}px`, `${LANE_TOP}px`]);
+});
+
+it("leaves the lane when it folds, when another node is selected, and in reading mode", async () => {
+  await mountTerminal(terminal());
+  expect(editPanelStore.getState().openFor).toBe("t1");
+  await act(async () => button("Fold the panel")!.click());
+  expect(editPanelStore.getState().openFor).toBeNull();
+  await act(async () => editTab()!.click());
+  expect(editPanelStore.getState().openFor).toBe("t1");
+  await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: ["t2"] } }));
+  expect(editPanelStore.getState().openFor).toBeNull();
+  await act(async () => editTab()!.click());
+  expect(editPanelStore.getState().openFor).toBe("t2");
+  await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, mode: "reading" } }));
+  expect(editPanelStore.getState().openFor).toBeNull();
+  expect(laneStore.getState().occupants).toEqual([]);
 });
 
 it("stays hidden for several selected nodes, and in reading mode", async () => {
@@ -469,7 +530,7 @@ it("shows the folder as a path, whole on hover, its end in view, and copies it",
 
 it("shows the whole folder path to the keyboard too, in the Copy button's hint (P2 #20)", async () => {
   await mountTerminal(terminal({ cwd: "/home/ada/work/a-very-long-folder-name/api" }));
-  await act(async () => button("Copy the path")!.focus());
+  await act(async () => tabTo(button("Copy the path")!));
   await act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
   const tip = document.querySelector('[role="tooltip"]');
   expect(tip?.textContent).toContain("Copy the path");
@@ -636,7 +697,7 @@ it("offers a running terminal a restart once its effort changes, and gives a fle
   expect("effort" in fleetOf()).toBe(false);
 });
 
-it("starts on a small Edit tab beside the terminal, in the panel's place, and opens the panel there on a click", async () => {
+it("shows nothing beside a terminal selected alone, and opens the panel into the lane from its header's Edit", async () => {
   await mountTerminal(terminal(), ["t1"], null, false);
   await act(async () =>
     canvasStore.setState({
@@ -644,57 +705,49 @@ it("starts on a small Edit tab beside the terminal, in the panel's place, and op
       view: { ...canvasStore.getState().view, width: 1200, height: 800, scrollX: 0, scrollY: 0, zoom: 1 },
     }),
   );
-  const tab = editTab()!;
-  expect(tab.textContent).toBe("Edit");
-  expect(tab.getAttribute("aria-label")).toBe("Edit Batman");
-  expect([tab.style.left, tab.style.top]).toEqual(["512px", "100px"]);
-  // Filled with the ink: it reads beside the selection's own outline.
-  expect(tab.className).toContain("bg-dp-accent");
-  expect(host.querySelector("section[aria-label='Edit']")).toBeNull();
-  expect(field("Name")).toBeNull();
-  await act(async () => tab.click());
-  expect(editTab()).toBeNull();
+  // No tab of its own over the canvas: the Edit is in the node's header.
+  expect(host.innerHTML).toBe("");
+  const edit = editTab()!;
+  expect(edit.getAttribute("aria-label")).toBe("Edit Batman");
+  await act(async () => pointerClick(edit));
+  expect(edit.getAttribute("aria-expanded")).toBe("true");
   expect(field("Name")!.value).toBe("Batman");
+  // Into the lane, from its edge.
   const panel = host.firstElementChild as HTMLElement;
-  expect([panel.style.left, panel.style.top]).toEqual(["512px", "100px"]);
+  expect([panel.style.right, panel.style.top]).toEqual([`${LANE_RIGHT}px`, `${LANE_TOP}px`]);
   expect(panel.className).toContain("animate-in");
+  expect(panel.className).toContain("slide-in-from-right-1");
+  // Pressed again, it folds.
+  await act(async () => pointerClick(edit));
+  expect(edit.getAttribute("aria-expanded")).toBe("false");
+  expect(host.innerHTML).toBe("");
 });
 
-it("puts the tab on the terminal's left when its right has no room", async () => {
+it("carries the keyboard from the header's Edit into the panel, and back to it when it folds, never to the page's body (P2 #1)", async () => {
   await mountTerminal(terminal(), ["t1"], null, false);
-  await act(async () =>
-    canvasStore.setState({
-      nodeRects: { t1: { x: 700, y: 100, width: 420, height: 300 } },
-      view: { ...canvasStore.getState().view, width: 1200, height: 800, scrollX: 0, scrollY: 0, zoom: 1 },
-    }),
-  );
-  expect(editTab()!.style.left).toBe("616px");
-});
-
-it("carries the keyboard from its tab into the panel, and back to the tab when it folds, never to the page's body (P2 #1)", async () => {
-  await mountTerminal(terminal(), ["t1"], null, false);
-  // Enter on the focused tab: the panel takes its place, and the keyboard lands on its fold chevron.
+  // Enter on the focused Edit: the panel opens, and the keyboard lands on its fold chevron.
   editTab()!.focus();
   await act(async () => editTab()!.click());
   const fold = button("Fold the panel")!;
   expect(document.activeElement).toBe(fold);
-  // Folded from the keyboard: back on the tab that comes back.
+  // Folded from the keyboard: back on the header's Edit.
   await act(async () => fold.click());
-  expect(document.activeElement).toBe(editTab());
+  expect(document.activeElement).toBe(editButton("t1"));
 });
 
-it("leaves the focus alone for a press, which keeps the canvas's, and when a new selection folds the panel", async () => {
+it("leaves the focus alone for a pointer's click, and when a new selection folds the panel", async () => {
   await mountTerminal(terminal(), ["t1"], null, false);
   const canvas = document.createElement("div");
   canvas.tabIndex = -1;
   document.body.append(canvas);
   canvas.focus();
-  // A mouse press never focuses the tab (keepCanvasFocus): the focus stays on the canvas.
-  await act(async () => editTab()!.click());
+  // A pointer's click opens the panel without taking the keyboard into it.
+  await act(async () => pointerClick(editTab()!));
+  expect(field("Name")).not.toBeNull();
   expect(document.activeElement).toBe(canvas);
-  await act(async () => button("Fold the panel")!.click());
+  await act(async () => pointerClick(button("Fold the panel")!));
   expect(document.activeElement).toBe(canvas);
-  // Open from the keyboard, then folded by selecting nothing: no tab to go back to, nothing moved.
+  // Open from the keyboard, then folded by selecting nothing: nothing moved.
   editTab()!.focus();
   await act(async () => editTab()!.click());
   canvas.focus();
@@ -703,19 +756,19 @@ it("leaves the focus alone for a press, which keeps the canvas's, and when a new
   canvas.remove();
 });
 
-it("folds back to its tab, and every terminal selected starts on its tab", async () => {
+it("folds when it folds itself or another node is selected, and every node selected starts folded", async () => {
   await mountTerminal(terminal());
   expect(button("Fold the panel")!.getAttribute("aria-expanded")).toBe("true");
   await act(async () => button("Fold the panel")!.click());
   expect(field("Name")).toBeNull();
   expect(editTab()!.getAttribute("aria-label")).toBe("Edit Batman");
-  // Opened again, then another terminal selected: its tab only.
+  // Opened again, then another terminal selected: folded.
   await act(async () => editTab()!.click());
   expect(field("Name")).not.toBeNull();
   await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: ["t2"] } }));
   expect(editTab()!.getAttribute("aria-label")).toBe("Edit Cyborg");
   expect(field("Name")).toBeNull();
-  // The first one again, after none: its tab too.
+  // The first one again, after none: folded too.
   await act(async () => editTab()!.click());
   await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: [] } }));
   expect(host.innerHTML).toBe("");
@@ -724,11 +777,23 @@ it("folds back to its tab, and every terminal selected starts on its tab", async
   expect(field("Name")).toBeNull();
 });
 
-it("keeps the keyboard where it was when its tab is pressed", async () => {
-  await mountTerminal(terminal(), ["t1"], null, false);
-  const press = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
-  editTab()!.dispatchEvent(press);
-  expect(press.defaultPrevented).toBe(true);
+it("selects a node that is not selected alone before opening its panel, and opens it once the selection shows", async () => {
+  await mountTerminal(terminal(), ["t1", "t2"], null, false);
+  const updateScene = vi.fn();
+  canvasStore.setState({ api: { updateScene } as unknown as ExcalidrawImperativeAPI });
+  await act(async () => pointerClick(editButton("t2")!));
+  expect(updateScene).toHaveBeenCalledWith({ appState: { selectedElementIds: { t2: true }, selectedGroupIds: {} } });
+  // Not before: the panel of a node not selected alone folds at once.
+  expect(editPanelStore.getState().openFor).toBeNull();
+  await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: ["t2"] } }));
+  expect(editPanelStore.getState().openFor).toBe("t2");
+  expect(field("Name")!.value).toBe("Cyborg");
+});
+
+it("has no Edit in a node's header in reading mode, where the panel does not show", async () => {
+  await mountTerminal(terminal(), ["t1"], "reading", false);
+  expect(editButton("t1")).toBeNull();
+  expect(editButton("t2")).toBeNull();
 });
 
 // The lists of a Claude terminal: skills, plugins, MCP servers, subagents.
@@ -939,7 +1004,11 @@ it("makes the folder Claude runs in the terminal's own, on the conversation it r
   usageStore.setState({ sessions: { [HAND_STARTED]: reported({ sessionId: HAND_STARTED, folder: "D:/work/wt/upload" }) } });
   await mountTerminal(started(terminal({ title: "Claude · api", claudeSessionId: OWN_CONVERSATION })));
   expect(runningNote()?.textContent).toBe("Claude is running in upload");
-  expect(adoptButton()?.getAttribute("title")).toBe("D:/work/wt/upload");
+  // The whole path is in the app's hint, which the keyboard reaches too: no native title.
+  expect(adoptButton()?.hasAttribute("title")).toBe(false);
+  await act(async () => tabTo(adoptButton()!));
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
+  expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("D:/work/wt/upload");
   await act(async () => adoptButton()!.click());
   // Its default title follows the folder; the conversation is the one Claude runs, never a new one.
   expect(payloadOf()).toMatchObject({ cwd: "D:/work/wt/upload", title: "Claude · upload", claudeSessionId: HAND_STARTED });
@@ -1225,8 +1294,15 @@ it("says when a list cannot be read, reads it again, and says when it is empty",
   await mountTerminal(terminal());
   await openTab("Subagents");
   expect(host.querySelector("[role='alert']")?.textContent).toContain("Could not read the list");
+  expect(host.querySelector("[role='alert']")?.textContent).toContain("Check that the folder can be read, then try again");
+  expect(host.querySelector("[role='alert']")?.textContent).toContain("no access");
+  const retry = [...host.querySelectorAll("button")].find((b) => b.textContent === "Try again")!;
+  // The retry does not take the keyboard off the canvas.
+  const press = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+  retry.dispatchEvent(press);
+  expect(press.defaultPrevented).toBe(true);
   fail = false;
-  await act(async () => [...host.querySelectorAll("button")].find((b) => b.textContent === "Try again")!.click());
+  await act(async () => retry.click());
   await settle();
   expect(listCalls).toHaveLength(2);
   expect(host.textContent).toContain("No subagents in api or your Claude folder");
@@ -1256,7 +1332,7 @@ const fleetSession = (overrides: Partial<TerminalPayload> = {}): TerminalPayload
   terminal({ name: "Fleet", title: "Fleet", role: "orchestrator", cwd: "D:/work/api", ...overrides });
 const fleetOf = () => (nodesStore.getState().nodes.f1 as { payload: FleetPayload }).payload;
 
-/** Selects the fleet alone and, unless told not to, opens its panel from its Edit tab. */
+/** Selects the fleet alone and, unless told not to, opens its panel from its header's Edit. */
 async function mountFleet(payload: FleetPayload = { name: "Fleet", session: fleetSession() }, opened = true) {
   nodesStore.setState({
     nodes: {
@@ -1269,7 +1345,7 @@ async function mountFleet(payload: FleetPayload = { name: "Fleet", session: flee
   if (opened) await act(async () => editTab()!.click());
 }
 
-it("gives a selected Fleet the Edit tab, named after it, and opens its panel from there", async () => {
+it("gives a Fleet its header's Edit, named after it, and opens its panel from there", async () => {
   await mountFleet(undefined, false);
   expect(editTab()!.getAttribute("aria-label")).toBe("Edit Fleet");
   expect(field("Name")).toBeNull();
@@ -1537,6 +1613,18 @@ it("shows the shell a terminal will start with, among the ones the machine has",
   agentsStore.setState({ shells: [] });
 });
 
+it("offers WSL to a Shell terminal, never to an agent's", async () => {
+  agentsStore.setState({ shells: ["powershell", "cmd", "wsl"] });
+  try {
+    await mountTerminal(terminal({ agent: "shell", title: "Shell · api", shell: "powershell" }));
+    expect(await optionsOf("Shell")).toEqual(["PowerShell", "Command Prompt", "WSL"]);
+    await mountTerminal(terminal({ shell: "powershell" }));
+    expect(await optionsOf("Shell")).toEqual(["PowerShell", "Command Prompt"]);
+  } finally {
+    agentsStore.setState({ shells: [] });
+  }
+});
+
 /** Opens the Shell dropdown with the keyboard and picks a shell by its label, as a user does. */
 const pickShell = (label: string) => pick("Shell", label);
 
@@ -1671,118 +1759,15 @@ it("turns Remote Control on and off from its box, the same switch as the header'
   expect(host.querySelector("button[aria-label='Remote Control']")).toBeNull();
 });
 
-describe("the model router's switch in the Edit tab", () => {
+describe("the model router's switch in the Edit panel", () => {
   const routerSwitch = () => host.querySelector<HTMLButtonElement>("button[role='switch'][aria-label='Model router']");
-  const terminalPayload = () => (nodesStore.getState().nodes.t1 as { payload: TerminalPayload }).payload;
 
-  it("gives a Claude terminal its own switch, named by its visible label and described by its hint, saved at once and with no restart offered", async () => {
-    await mountTerminal(terminal({ model: "claude-haiku-5-5" }));
-    terminalStatusStore.getState().set("t1", { state: "running" });
-    await act(async () => void 0);
-    const sw = routerSwitch()!;
-    expect(sw).not.toBeNull();
-    expect(sw.getAttribute("aria-checked")).toBe("false");
-    // A native button the keyboard reaches: its visible label names it, the line under it describes it.
-    expect(sw.tagName).toBe("BUTTON");
-    expect(sw.tabIndex).toBeGreaterThanOrEqual(0);
-    await act(async () => sw.focus());
-    expect(document.activeElement).toBe(sw);
-    expect(host.querySelector(`label[for="${sw.id}"]`)?.textContent).toBe("Model router");
-    const hint = document.getElementById(sw.getAttribute("aria-describedby")!)!;
-    expect(hint.textContent).toBe(
-      `With it on, a sub-task a Fleet gives it starts it on the model of its level, and so does each sub-agent it opens, and theirs: ${ROUTER_LEVELS}; on Codex, the models set in Settings. A sub-task with no level leaves its model as it is, and so does any sub-task while the router is off for it. Unset, it follows Settings, or the Fleet or agent it works under; turned on or off here, it stays so, for every agent under it too, until Follow`,
-    );
-    await act(async () => sw.click());
-    expect(terminalPayload().router).toBe(true);
-    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
-    // The model it chose stays; the switch is no launch setting: a running terminal is not offered a restart.
-    expect(terminalPayload().model).toBe("claude-haiku-5-5");
-    expect(restartNow()).toBeUndefined();
-    await act(async () => routerSwitch()!.click());
-    expect(terminalPayload().router).toBe(false);
-    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("false");
-  });
-
-  it("is saved with the canvas: what is stored reads back with it on", async () => {
-    await mountTerminal(terminal());
-    await act(async () => routerSwitch()!.click());
-    expect(readTerminalPayload(JSON.parse(JSON.stringify(terminalPayload())))?.router).toBe(true);
-  });
-
-  it("acts on a Claude or a Codex terminal, whose sub-agents it routes", async () => {
-    await mountTerminal(terminal({ agent: "codex" }));
-    expect(routerSwitch()).not.toBeNull();
-    expect(routerSwitch()!.hasAttribute("aria-disabled")).toBe(false);
-    await act(async () => routerSwitch()!.click());
-    expect(terminalPayload().router).toBe(true);
-  });
-
-  describe("where it has nothing to route (a CLI without dummyPlane's tools, a Manager)", () => {
-    const CASES = [
-      { name: "Gemini", payload: { agent: "gemini" }, why: "Gemini can't open sub-agents, so the router has nothing to route here" },
-      { name: "a shell", payload: { agent: "shell" }, why: "A shell can't open sub-agents, so the router has nothing to route here" },
-      { name: "an Ollama model", payload: { agent: "ollama" }, why: "Ollama can't open sub-agents, so the router has nothing to route here" },
-      { name: "a Manager", payload: { role: "manager", fleet: "o1" }, why: "A Manager opens no sub-agents; its Fleet's switch routes the mission" },
-    ] as const;
-    const followButton = () => [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.startsWith("Follow"));
-
-    it.each(CASES)("still shows $name's switch, off and greyed out, and the line under it says why", async ({ payload, why }) => {
-      await mountTerminal(terminal(payload as Partial<TerminalPayload>));
-      const sw = routerSwitch()!;
-      expect(sw).not.toBeNull();
-      expect(sw.getAttribute("aria-checked")).toBe("false");
-      // aria-disabled, not disabled: the keyboard still reaches it, and the line under it describes it.
-      expect(sw.getAttribute("aria-disabled")).toBe("true");
-      expect(sw.hasAttribute("disabled")).toBe(false);
-      expect(sw.tabIndex).toBeGreaterThanOrEqual(0);
-      expect(sw.className).toContain("opacity-50");
-      expect(host.querySelector(`label[for="${sw.id}"]`)?.textContent).toBe("Model router");
-      expect(document.getElementById(sw.getAttribute("aria-describedby")!)?.textContent).toBe(why);
-      // Not what a switch that acts says of itself.
-      expect(host.textContent).not.toContain("With it on, a sub-task a Fleet gives it");
-    });
-
-    it.each(CASES)("changes nothing when $name's switch is pressed, even with Settings' router on, and offers no Follow", async ({ payload }) => {
-      modelRouterStore.setState({ on: true });
-      await mountTerminal(terminal({ ...payload, router: true } as Partial<TerminalPayload>));
-      const before = JSON.stringify(nodesStore.getState().nodes);
-      // Off whatever Settings say and whatever is stored: nothing is routed here.
-      expect(routerSwitch()!.getAttribute("aria-checked")).toBe("false");
-      await act(async () => routerSwitch()!.click());
-      await act(async () => routerSwitch()!.click());
-      expect(JSON.stringify(nodesStore.getState().nodes)).toBe(before);
-      expect(terminalPayload().router).toBe(true);
-      expect(modelRouterStore.getState().on).toBe(true);
-      expect(routerSwitch()!.getAttribute("aria-checked")).toBe("false");
-      expect(followButton()).toBeUndefined();
-    });
-
-    it("changes nothing either when its label is pressed", async () => {
-      await mountTerminal(terminal({ agent: "gemini" }));
-      const before = JSON.stringify(nodesStore.getState().nodes);
-      await act(async () => host.querySelector<HTMLLabelElement>(`label[for="${routerSwitch()!.id}"]`)!.click());
-      expect(JSON.stringify(nodesStore.getState().nodes)).toBe(before);
-      expect(routerSwitch()!.getAttribute("aria-checked")).toBe("false");
-    });
-  });
-
-  it("shows on while Settings' router is on, stores each click for that terminal alone, and Follow Settings unsets it", async () => {
-    modelRouterStore.setState({ on: true });
-    await mountTerminal(terminal());
-    const follow = () => [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Follow Settings");
-    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
-    expect(terminalPayload().router).toBeUndefined();
-    // Nothing to follow back to while it follows already.
-    expect(follow()).toBeUndefined();
-    await act(async () => routerSwitch()!.click());
-    expect(terminalPayload().router).toBe(false);
-    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("false");
-    await act(async () => routerSwitch()!.click());
-    expect(terminalPayload().router).toBe(true);
-    await act(async () => follow()!.click());
-    expect(terminalPayload().router).toBeUndefined();
-    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
-    expect(follow()).toBeUndefined();
+  it("is not in a terminal's: it is in the terminal's foot, beside Link, and in its ⋯ menu", async () => {
+    for (const payload of [{}, { agent: "codex" }, { agent: "gemini" }, { agent: "shell" }, { role: "manager", fleet: "o1" }] as Partial<TerminalPayload>[]) {
+      await mountTerminal(terminal(payload));
+      expect(routerSwitch(), JSON.stringify(payload)).toBeNull();
+      expect(host.textContent, JSON.stringify(payload)).not.toContain("Model router");
+    }
   });
 
   it("gives a Fleet back the mission's switch, in any state of its mission, and it writes the mission's router", async () => {
@@ -1812,32 +1797,31 @@ describe("the model router's switch in the Edit tab", () => {
   });
 });
 
-describe("the Edit tab of a Shell terminal an agent was started in", () => {
+describe("the Edit panel of a Shell terminal an agent was started in", () => {
   const CONVERSATION = "0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10";
   const routerSwitch = () => host.querySelector<HTMLButtonElement>("button[role='switch'][aria-label='Model router']");
   const startedByHand = (agent: "claude" | "codex") =>
     act(async () => void agentStartedInShell("t1", { nodeId: "t1", agent, pid: 4242, sessionId: CONVERSATION }));
 
-  it("shows a shell's options alone, then the agent's once Claude runs in it: model, effort, permissions, Remote Control and the router", async () => {
+  it("shows a shell's options alone, then the agent's once Claude runs in it: model, effort, permissions and Remote Control", async () => {
     terminalStatusStore.getState().set("t1", { state: "running" });
     await mountTerminal(started(terminal({ agent: "shell", title: "Shell · api" })));
     expect(select("Model")).toBeNull();
     expect(select("Permissions")).toBeNull();
     expect(checkbox("Remote Control")).toBeNull();
-    // The router's switch is on a shell too, greyed out: a shell opens no sub-agents.
-    expect(routerSwitch()!.getAttribute("aria-disabled")).toBe("true");
+    // The router's switch is in the foot, never in the Edit panel.
+    expect(routerSwitch()).toBeNull();
     expect(host.textContent).not.toContain("Effort");
     expect(select("Shell")).not.toBeNull();
 
     await startedByHand("claude");
-    // Claude's own Edit tab: its tabs, and its settings, with nothing to restart: the process runs as the shell started it.
+    // Claude's own Edit panel: its tabs, and its settings, with nothing to restart: the process runs as the shell started it.
     expect(tabs().map((b) => b.textContent)).toEqual(["General", "Skills", "Plugins", "MCP", "Subagents"]);
     expect(select("Model")).not.toBeNull();
     expect(host.textContent).toContain("Effort");
     expect(select("Permissions")).not.toBeNull();
     expect(checkbox("Remote Control")).not.toBeNull();
-    // Claude opens sub-agents: the switch acts now.
-    expect(routerSwitch()!.hasAttribute("aria-disabled")).toBe(false);
+    expect(routerSwitch()).toBeNull();
     expect(restartNow()).toBeUndefined();
     // Where it runs and who it is are the terminal's own.
     expect(host.querySelector("[data-folder]")?.textContent).toBe("D:/work/api");
@@ -1853,11 +1837,11 @@ describe("the Edit tab of a Shell terminal an agent was started in", () => {
     expect(restartNow()).toBeDefined();
   });
 
-  it("shows the router switch of a Codex terminal and Claude's other rows nowhere", async () => {
+  it("shows Claude's rows nowhere on a Codex terminal", async () => {
     terminalStatusStore.getState().set("t1", { state: "running" });
     await mountTerminal(started(terminal({ agent: "shell", title: "Shell · api" })));
     await startedByHand("codex");
-    expect(routerSwitch()).not.toBeNull();
+    expect(routerSwitch()).toBeNull();
     expect(select("Model")).toBeNull();
     expect(host.textContent).toContain(`Skills, plugins and MCP servers can be chosen for Claude terminals`);
   });
@@ -1869,7 +1853,7 @@ describe("the Edit tab of a Shell terminal an agent was started in", () => {
     expect(select("Model")).not.toBeNull();
     await act(async () => nodesStore.getState().update("t1", switchedAgent(sessionOf(nodesStore.getState().nodes.t1)!, "shell")));
     expect(select("Model")).toBeNull();
-    expect(routerSwitch()!.getAttribute("aria-disabled")).toBe("true");
+    expect(routerSwitch()).toBeNull();
     expect((nodesStore.getState().nodes.t1 as { payload: TerminalPayload }).payload.fromShell).toBeUndefined();
   });
 });

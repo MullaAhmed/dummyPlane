@@ -39,7 +39,7 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
   const t = useMessages(shellMessages).tabs;
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  // The badge counts its live agents, as the title bar does for the tab on screen; closing it warns of every process.
+  // The badge counts its workspace's live agents, on screen or not; closing it warns of every process.
   const liveAgents = useWorkspaceActiveAgents(workspace.id);
   const running = useRunningCount([workspace.id]);
   // The folder it picked is shown after its name; the project's own is only in the hint.
@@ -98,7 +98,7 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
         setMenuOpen(true);
       }}
       className={cn(
-        "group relative top-px flex h-8 shrink-0 items-center rounded-t-md border border-b-0 pl-3 pr-1 text-(length:--text-ui) transition-[color,background-color,border-color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none",
+        "group relative top-px flex h-8 shrink-0 items-center rounded-t-md border border-b-0 pl-3 pr-1 text-(length:--text-ui) transition-[color,background-color,border-color] duration-(--dp-dur-fast) ease-(--dp-ease-out)",
         active
           ? "border-dp-line bg-dp-tab-on text-dp-text before:absolute before:inset-x-2.5 before:-top-px before:h-0.5 before:rounded-full before:bg-dp-accent"
           : "border-transparent text-dp-text-2 hover:bg-dp-hover hover:text-dp-text",
@@ -117,9 +117,9 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
         hint={
           <span className="flex flex-col">
             <span>{workspace.name}</span>
-            {folder && <span className="break-all font-mono opacity-70">{folder}</span>}
+            {folder && <span className="break-all font-mono text-background/85">{folder}</span>}
             {/* The count's own hint, in the tab's: a native title on the badge would stack on it. */}
-            {liveAgents > 0 && <span className="opacity-70">{t.activeAgents(liveAgents)}</span>}
+            {liveAgents > 0 && <span className="text-background/85">{t.activeAgents(liveAgents)}</span>}
           </span>
         }
         variant="ghost"

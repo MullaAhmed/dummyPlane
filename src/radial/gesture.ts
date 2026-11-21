@@ -1,4 +1,5 @@
 import type { Point } from "@/agents/terminals";
+import { TITLE_BAR_HEIGHT } from "@/shell/layout";
 
 /**
  * The wheel: a round hub in the middle, then a donut of
@@ -91,12 +92,24 @@ export function isSlide(press: Point, pointer: Point): boolean {
   return Math.hypot(pointer.x - press.x, pointer.y - press.y) > SLIDE_THRESHOLD;
 }
 
-/** The ring's center: the click point, moved off the window's edges so that the wheel shows whole. */
-export function ringCenter(point: Point, window: { width: number; height: number }): Point {
+/** Where the ring and its arc may stand: the window, from `top` down (0 when left out). */
+export interface RingArea {
+  width: number;
+  height: number;
+  top?: number;
+}
+
+/** The window less the title bar: the ring and its More arc never rise over it (at 960x600 they did, from y 6). */
+export function ringArea(window: { innerWidth: number; innerHeight: number }): RingArea {
+  return { width: window.innerWidth, height: window.innerHeight, top: TITLE_BAR_HEIGHT };
+}
+
+/** The ring's center: the click point, moved off the area's edges (MARGIN inside them) so that the wheel shows whole. */
+export function ringCenter(point: Point, area: RingArea): Point {
   const clamp = (value: number, low: number, high: number) => Math.min(Math.max(value, low), high);
   return {
-    x: clamp(point.x, REACH + MARGIN, window.width - REACH - MARGIN),
-    y: clamp(point.y, REACH + MARGIN, window.height - REACH - MARGIN),
+    x: clamp(point.x, REACH + MARGIN, area.width - REACH - MARGIN),
+    y: clamp(point.y, (area.top ?? 0) + REACH + MARGIN, area.height - REACH - MARGIN),
   };
 }
 
@@ -264,8 +277,9 @@ export function slidePointing(center: Point, press: Point, pointer: Point, count
   return pointingAt(center, pointer, count, arc);
 }
 
-/** The arc, whole inside the window (MARGIN from its edges): the corners and the middle of each wedge's two arcs. */
-function arcFits(center: Point, arc: ArcLayout, window: { width: number; height: number }): boolean {
+/** The arc, whole inside the area (MARGIN from its edges): the corners and the middle of each wedge's two arcs. */
+function arcFits(center: Point, arc: ArcLayout, area: RingArea): boolean {
+  const top = (area.top ?? 0) + MARGIN;
   for (let item = 0; item < arc.count; item++) {
     const middle = arcAngle(arc, item);
     for (const t of [-0.5, -0.25, 0, 0.25, 0.5]) {
@@ -273,7 +287,7 @@ function arcFits(center: Point, arc: ArcLayout, window: { width: number; height:
         const p = at(radius, middle + t * ARC_STEP);
         const x = center.x + p.x;
         const y = center.y + p.y;
-        if (x < MARGIN || x > window.width - MARGIN || y < MARGIN || y > window.height - MARGIN) return false;
+        if (x < MARGIN || x > area.width - MARGIN || y < top || y > area.height - MARGIN) return false;
       }
     }
   }
@@ -296,11 +310,11 @@ function* turns(): Generator<number> {
  * still meeting the More wedge (shift); in a corner where no such place fits, round to the side
  * the window has room for (flip). Nowhere whole (a window smaller than the arc): centred on More.
  */
-export function arcLayout(center: Point, moreSlot: number, ringCount: number, count: number, window: { width: number; height: number }): ArcLayout {
+export function arcLayout(center: Point, moreSlot: number, ringCount: number, count: number, area: RingArea): ArcLayout {
   const base = slotAngle(moreSlot, ringCount);
   for (const turn of turns()) {
     const arc = { middle: wrapped(base + (turn * Math.PI) / 180), count };
-    if (arcFits(center, arc, window)) return arc;
+    if (arcFits(center, arc, area)) return arc;
   }
   return { middle: wrapped(base), count };
 }

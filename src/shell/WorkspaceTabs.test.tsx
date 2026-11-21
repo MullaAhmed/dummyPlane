@@ -13,6 +13,7 @@ import { getByRole, queryAllByRole } from "@/lib/a11y";
 import { workspacesStore } from "@/store/workspaces";
 import { TABS_HEIGHT } from "./layout";
 import { WorkspaceTabs } from "./WorkspaceTabs";
+import { tabTo } from "@/components/ui/tabTo";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -222,7 +223,7 @@ describe("the folder of a workspace", () => {
     );
   const folderTag = (id: string) => host.querySelector(`[data-tab="${id}"] [data-tab-folder]`)?.textContent ?? null;
   const hintOf = async (id: string) => {
-    await act(async () => host.querySelector<HTMLElement>(`[data-tab="${id}"] button`)!.focus());
+    await act(async () => tabTo(host.querySelector<HTMLElement>(`[data-tab="${id}"] button`)!));
     return document.querySelector('[role="tooltip"]')?.textContent ?? null;
   };
   const openMenu = async (id: string) => {

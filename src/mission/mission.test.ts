@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { budgetBar, budgetOf, clockText, memberTime, NEW_MISSION, nightMin, noNewWork, oneLine, overruns, proposedPlan, proposedTasks, readMission, remainingGlobal, sameName, spentMin, squashMessage, windingDown, worktreeOwners, type Member, type Mission } from "./mission";
+import { budgetBar, budgetOf, clockText, conflictPending, memberTime, NEW_MISSION, nightMin, noNewWork, oneLine, overruns, proposedPlan, proposedTasks, readMission, remainingGlobal, sameName, spentMin, squashMessage, subTasksNamedBy, windingDown, worktreeOwners, type Member, type Mission } from "./mission";
 
 const task = (agent: string, budget = 20) => ({ titre: "Login", consigne: "Fais le login", agent, budget_min: budget });
 const args = (...sous_taches: object[]) => ({ nom: "Auth", tache: "Ajoute l'authentification", sous_taches });
@@ -136,10 +136,59 @@ describe("tasks for the queue", () => {
 
   it("keeps titles unique: reassign and team name a task by its title", () => {
     const mission = { ...NEW_MISSION, plan: [{ title: "Login", brief: "b", agent: "Batman", budgetMin: 5 }], queue: [{ title: "API", brief: "b", budgetMin: 5 }], members: [] };
-    expect(proposedTasks(added(item("login")), mission, [])).toBe("Sub-task 1: the title \"login\" is taken; one title per task.");
-    expect(proposedTasks(added(item("api")), mission, [])).toContain("is taken");
-    expect(proposedTasks(added(item("Docs"), item("docs")), mission, [])).toContain("Sub-task 2: the title \"docs\" is taken; one title per task.");
+    expect(proposedTasks(added(item("login")), mission, [])).toContain('Sub-task 1: the title "login" is taken by a sub-task of the pending plan; one title per task');
+    expect(proposedTasks(added(item("api")), mission, [])).toContain("is taken by a task waiting in the queue");
+    expect(proposedTasks(added(item("Docs"), item("docs")), mission, [])).toContain('Sub-task 2: the title "docs" is taken by sub-task 1 of this same call');
     expect(proposedPlan(args(task("nouveau")), { ...mission, plan: undefined, queue: [{ title: "Login", brief: "b", budgetMin: 5 }] }, [])).toContain("is taken");
+  });
+
+  it("says who holds a title an agent works on or finished, and what to do about it", () => {
+    const member = (name: string, task: string, done: string[] = []) => ({ nodeId: name, name, task, budgetMin: 5, linked: false, branch: "b", worktree: "w", done });
+    const mission = { ...NEW_MISSION, state: "en_cours" as const, members: [member("Thor", "Banners", ["Header"])] };
+    const working = proposedTasks(added(item("banners")), mission, []) as string;
+    expect(working).toContain("is taken by Thor's sub-task");
+    // The way out is in the refusal: leave it to its holder, or give it a title of its own.
+    expect(working).toContain("If it is the same work, leave it to its holder; otherwise give this one a title of its own.");
+    expect(proposedTasks(added(item("Header")), mission, [])).toContain("is taken by a sub-task Thor finished");
+  });
+
+  it("says how long a title is past the limit, and offers one cut at a word, never cutting it itself", () => {
+    const long = "Rewrite the checkout flow so the cart survives a reload and the payment step keeps its draft";
+    const refused = proposedTasks(added(item(long)), NEW_MISSION, []) as string;
+    expect(refused).toContain("(60 characters at most): this one has 92");
+    expect(refused).toContain('for example "Rewrite the checkout flow so the cart survives a reload and"');
+    expect(refused).toContain("keep the detail in the brief");
+    // An unbroken text is cut where the limit falls; a title of 60 characters is no refusal.
+    expect(proposedTasks(added(item("x".repeat(70))), NEW_MISSION, [])).toContain(`for example "${"x".repeat(60)}"`);
+    expect(Array.isArray(proposedTasks(added(item("x".repeat(60))), NEW_MISSION, []))).toBe(true);
+    // An empty title is no length problem.
+    expect(proposedTasks(added(item("")), NEW_MISSION, [])).toBe("Sub-task 1: a short title (60 characters at most).");
+  });
+
+  it("names the sub-task a reassign means by the holder's name, its card or the start of its title, never by guess", () => {
+    const held = (name: string, task: string) => ({ nodeId: name, name, task, budgetMin: 5, linked: false, branch: "b", worktree: "w" });
+    const mission = {
+      ...NEW_MISSION,
+      state: "en_cours" as const,
+      plan: [
+        { title: "Login form", brief: "b", agent: "Batman", budgetMin: 5, card: "c1" },
+        { title: "Login API", brief: "b", agent: "Aquaman", budgetMin: 5 },
+        { title: "Docs", brief: "b", agent: "Shazam", budgetMin: 5 },
+      ],
+      members: [held("Batman", "Login form"), held("Aquaman", "Login API"), { ...held("Shazam", "Docs"), handedTo: "Batman" }, { ...held("Hulk", "Lint"), abandoned: true }],
+    };
+    const names = (given: string) => subTasksNamedBy(mission, given).map((m) => m.name);
+    expect(names("aquaman")).toEqual(["Aquaman"]);
+    expect(names("C1")).toEqual(["Batman"]);
+    expect(names("login f")).toEqual(["Batman"]);
+    // A start two sub-tasks share names none; one too short names none either.
+    expect(names("Login")).toEqual(["Batman", "Aquaman"]);
+    expect(names("lo")).toEqual([]);
+    // What was handed over or abandoned is no sub-task to hand over; free text, or nothing, fits none.
+    expect(names("Docs")).toEqual([]);
+    expect(names("Hulk")).toEqual([]);
+    expect(names("Finish the login form: validate every field")).toEqual([]);
+    expect(names("")).toEqual([]);
   });
 
   it("holds 100 tasks at most", () => {
@@ -151,7 +200,7 @@ describe("tasks for the queue", () => {
   it("says what is wrong in English", () => {
     try {
       const mission = { ...NEW_MISSION, queue: [{ title: "API", brief: "b", budgetMin: 5 }] };
-      expect(proposedTasks(added(item("api")), mission, [])).toBe('Sub-task 1: the title "api" is taken; one title per task.');
+      expect(proposedTasks(added(item("api")), mission, [])).toContain('Sub-task 1: the title "api" is taken by a task waiting in the queue; one title per task');
       expect(proposedTasks({ tasks: Array.from({ length: 101 }, (_, i) => item(`T${i}`)) }, NEW_MISSION, [])).toBe("The queue holds 100 tasks at most.");
     } finally {
     }
@@ -175,6 +224,14 @@ describe("tasks for the queue", () => {
     expect(saved?.members.map((m) => m.squashed)).toEqual(["c0ffee", undefined]);
     // What the cleanups are told: each agent with the head its squash took in, a stray with none.
     expect(worktreeOwners(saved!)).toEqual([{ name: "Batman", squashed: "c0ffee" }, { name: "Robin" }, { name: "Superman" }]);
+  });
+
+  it("keeps, after a restart, which report's merge conflicted: no merge retries the agent fixing it (#12)", () => {
+    const report = { summary: "ok", status: "termine", at: 7 };
+    const member = { nodeId: "n", name: "Batman", task: "A", budgetMin: 1, linked: false, branch: "b", worktree: "w", report, conflictAt: 7 };
+    const saved = readMission(JSON.parse(JSON.stringify({ state: "en_cours", members: [member, { ...member, nodeId: "m", name: "Robin", conflictAt: "7" }] })));
+    expect(saved?.members.map((m) => m.conflictAt)).toEqual([7, undefined]);
+    expect(conflictPending(saved!.members[0])).toBe(true);
   });
 
   it("names an agent's squash after its sub-task, its report and what it leaves to check as the body, never half a character", () => {

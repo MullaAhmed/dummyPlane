@@ -119,7 +119,7 @@ describe("enableRemote", () => {
   it("says what Claude answered, or that it did not answer", async () => {
     const refusal = ["❯ /remote-control", "  ⎿  Remote Control requires a claude.ai subscription", ...PROMPT].join("\n");
     expect(await enableRemote(fakeTerminal(EMPTY, () => refusal).io)).toEqual({ error: "Remote Control requires a claude.ai subscription" });
-    expect(await enableRemote(fakeTerminal(EMPTY, () => EMPTY).io)).toEqual({ error: "Claude did not confirm Remote Control." });
+    expect(await enableRemote(fakeTerminal(EMPTY, () => EMPTY).io)).toEqual({ error: "Claude did not confirm Remote Control" });
   });
 });
 
@@ -134,7 +134,7 @@ describe("a half-typed draft in Claude's prompt (backlog 27 oct)", () => {
 
   it("is never completed by /remote-control: enable and disable stop and say so", async () => {
     const shown = fakeTerminal(DRAFT, () => DRAFT);
-    expect(await enableRemote(shown.io)).toEqual({ error: "Claude has text being typed: send or clear it, then try again." });
+    expect(await enableRemote(shown.io)).toEqual({ error: "Claude has text being typed: send or clear it, then try again" });
     expect(await disableRemote(shown.io)).toMatchObject({ error: expect.stringContaining("text being typed") });
     expect(shown.typed).toEqual([]);
   });
@@ -142,7 +142,7 @@ describe("a half-typed draft in Claude's prompt (backlog 27 oct)", () => {
 
 describe("the consent dialog", () => {
   it("is never answered: enable and disable stop and say so", async () => {
-    const consent = { error: "Claude asks for your consent for Remote Control: answer in its terminal." };
+    const consent = { error: "Claude asks for your consent for Remote Control: answer in its terminal" };
     const shown = fakeTerminal(CONSENT, () => CONSENT);
     expect(await enableRemote(shown.io)).toEqual(consent);
     expect(await disableRemote(shown.io)).toEqual(consent);
@@ -198,7 +198,7 @@ describe("disableRemote", () => {
 
   it("leaves the menu with Escape when « Disconnect » cannot be reached", async () => {
     const { io, typed } = fakeTerminal(ACTIVE, (keys) => (keys === "\x1b" ? ACTIVE : MENU));
-    expect(await disableRemote(io)).toEqual({ error: "The Remote Control menu could not be read." });
+    expect(await disableRemote(io)).toEqual({ error: "The Remote Control menu could not be read" });
     expect(typed[typed.length - 1]).toBe("\x1b");
   });
 });

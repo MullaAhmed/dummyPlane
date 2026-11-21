@@ -6,12 +6,14 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { requestUi } from "@/commands/uiRequests";
 import { projectsStore, type Project } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
+import { arrive } from "@/canvas/arrive";
 import { ComposeGroup } from "./ComposeGroup";
 import { launchGroup } from "./groups";
 import { launchFolderStore } from "./launchFolder";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./groups", () => ({ launchGroup: vi.fn(() => Promise.resolve(null)) }));
+vi.mock("@/canvas/arrive", () => ({ arrive: vi.fn(() => true) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -48,6 +50,23 @@ it("launches the group on Enter in the name field", async () => {
   expect(launchGroup).toHaveBeenCalledWith(expect.objectContaining({ role: "general" }), expect.objectContaining({ cwd: "" }));
 });
 
+it("gives the keyboard to the group's first terminal once it is placed, and not back to the trigger", async () => {
+  vi.mocked(launchGroup).mockResolvedValueOnce({ frameId: "g", nodeIds: ["batman", "robin"] });
+  vi.mocked(arrive).mockClear();
+  await act(async () => field().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+  await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  expect(arrive).toHaveBeenCalledExactlyOnceWith("batman", { moveView: false });
+  expect(document.querySelector('[data-slot="popover-content"]')).toBeNull();
+  expect(document.activeElement).not.toBe(host.querySelector("button"));
+});
+
+it("places nothing, gives nothing: a launch that made no group leaves the keyboard alone", async () => {
+  vi.mocked(arrive).mockClear();
+  await act(async () => field().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+  await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  expect(arrive).not.toHaveBeenCalled();
+});
+
 it("starts the group's agents in the workspace's folder, shown in its window", async () => {
   projectsStore.setState({ projects: [{ id: "p1", name: "api", path: "D:\\code\\api", lastOpenedAt: 0, missing: false } as Project], activeId: "p1" });
   await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
@@ -66,4 +85,14 @@ it("does not launch on the Enter that ends an IME composition", async () => {
 
 it("shows the role's name until the user types one (R5a)", () => {
   expect(field().value).toBe("General");
+});
+
+it("shows at once when a request (the palette, a shortcut) opens it, and grows from its trigger when clicked", async () => {
+  const content = () => document.body.querySelector('[data-slot="popover-content"]');
+  expect(content()?.hasAttribute("data-instant")).toBe(true);
+  // Closed, then opened by its trigger: the popover's own entrance plays again.
+  await act(async () => document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  await act(async () => host.querySelector("button")!.click());
+  expect(content()).not.toBeNull();
+  expect(content()!.hasAttribute("data-instant")).toBe(false);
 });

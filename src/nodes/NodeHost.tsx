@@ -1,7 +1,8 @@
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import type { NonDeleted, ExcalidrawEmbeddableElement } from "@excalidraw/excalidraw/element/types";
 import { useCanvas } from "@/canvas/canvasStore";
 import { nodeKindOf } from "@/canvas/nodeElement";
+import { keepOutOfTabOrder } from "@/canvas/tabStops";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CrashNotice } from "@/shell/CrashNotice";
 import { FileNode } from "./file/FileNode";
@@ -16,13 +17,21 @@ import { nodesMessages } from "./messages";
 
 /**
  * Renders the dummyPlane node behind an Excalidraw embeddable, chosen by its kind.
- * A render error stays in the node's frame; its process keeps running.
+ * A render error stays in the node's frame; its process keeps running. The
+ * node's id is on a wrapper that draws no box (`contents`): the node a press on
+ * its controls activates (canvas/liveControls.ts), whatever its kind.
  */
 export const NodeHost = memo(function NodeHost({ element }: { element: NonDeleted<ExcalidrawEmbeddableElement> }) {
+  const box = useRef<HTMLDivElement>(null);
+  // Only the active node is in the Tab order: the others' buttons and fields came ahead of the rails (tabStops.ts).
+  const active = useCanvas((s) => s.activeNode === element.id);
+  useEffect(() => (box.current && !active ? keepOutOfTabOrder(box.current) : undefined), [active]);
   return (
-    <ErrorBoundary scope="node" fallback={(error, retry) => <CrashNotice error={error} retry={retry} compact />}>
-      <NodeOfKind element={element} />
-    </ErrorBoundary>
+    <div ref={box} data-node-id={element.id} className="contents">
+      <ErrorBoundary scope="node" fallback={(error, retry) => <CrashNotice error={error} retry={retry} compact />}>
+        <NodeOfKind element={element} />
+      </ErrorBoundary>
+    </div>
   );
 }, (prev, next) => prev.element.id === next.element.id);
 
@@ -47,6 +56,6 @@ function NodeOfKind({ element }: { element: NonDeleted<ExcalidrawEmbeddableEleme
     case "output":
       return <OutputNode nodeId={element.id} />;
     default:
-      return <div className="grid h-full place-items-center rounded-md border bg-card text-muted-foreground">{t.unknownNode}</div>;
+      return <div className="grid h-full place-items-center rounded-md border border-dp-line bg-dp-surface text-dp-text-2">{t.unknownNode}</div>;
   }
 }

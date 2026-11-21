@@ -1,7 +1,7 @@
 import { messages } from "@/i18n";
 import type { AgentBranch } from "@/ipc/mission";
-import type { Permission } from "@/ipc/pty";
-import { HALF_CHARACTER } from "@/lib/cut";
+import type { AgentId, Permission } from "@/ipc/pty";
+import { cutWhole, HALF_CHARACTER } from "@/lib/cut";
 import { agentMessages } from "@/mcp/messages";
 import { readLevel, type Level } from "./router";
 import type { TicketSource } from "./tickets";
@@ -24,6 +24,8 @@ export interface SubTask {
   card?: string;
   /** The agent that handed it to the Fleet (`hand_off`); absent for the Fleet's own. */
   handedBy?: string;
+  /** Titles of the mission's tasks it waits for: it is handed to no agent before each is done and merged (`./waits`). */
+  waitsFor?: string[];
 }
 
 /** A task waiting for a new agent. */
@@ -34,6 +36,21 @@ export function queuedTask(task: SubTask): QueuedTask {
   const queued: Partial<SubTask> = { ...task };
   delete queued.agent;
   return queued as QueuedTask;
+}
+
+/**
+ * A change to a running mission's waiting tasks that its Fleet proposed and the user has yet to approve
+ * (`./amendment`): nothing changes before. Only tasks no agent holds yet can be added, edited or dropped.
+ */
+export interface Amendment {
+  /** What the user asked, as the Fleet restated it. */
+  task: string;
+  /** Tasks to add to the queue; under the title of a waiting task, one replaces it in its place. */
+  tasks: QueuedTask[];
+  /** Titles of the waiting tasks to drop. */
+  drop: string[];
+  /** Titles of the waiting tasks that `tasks` replace: one that waits no more by the time it is applied is no task to add again. */
+  replaces?: string[];
 }
 
 /** A task an agent is through with, for the morning report. */
@@ -62,6 +79,10 @@ export interface Report {
   check?: string;
 }
 
+/** Why a merged agent stays open instead of closing with its merge (`cleanUpAfterMerge`). */
+export type StaysOpen = "handed" | "subAgents" | "user" | "atWork";
+const STAYS_OPEN: readonly string[] = ["handed", "subAgents", "user", "atWork"] satisfies readonly StaysOpen[];
+
 /** An agent of the formed team, in its worktree. */
 export interface Member {
   nodeId: string;
@@ -73,6 +94,11 @@ export interface Member {
   linked: boolean;
   branch: string;
   worktree: string;
+  /**
+   * The agent whose worktree and branch it works in, taken over by `reassign` to "new" from a holder that stopped
+   * before finishing: git names them after that agent, so its merge's cleanup removes them under that name.
+   */
+  worktreeOf?: string;
   /** When its sub-task was typed: its events are watched from then on. */
   sentAt?: number;
   /**
@@ -89,10 +115,28 @@ export interface Member {
   squashed?: string;
   /** Closed once its work was merged, its worktree and branch removed (`cleanUpAfterMerge`): it takes no other sub-task. */
   cleanedUp?: true;
+  /**
+   * Its merge's cleanup left it open (`cleanUpAfterMerge`): the head that merge took in, and why. Its runner was told
+   * once; a later merge tries again without a word, never "it closes now" again, and closes it once it is free.
+   */
+  leftOpen?: { head: string; why: StaysOpen };
+  /**
+   * The `at` of the report whose merge conflicted: while it is its latest, the agent is fixing that conflict in its
+   * own worktree, and no merge of its branch starts by itself (the queue's, a `merge` of the others): only its next
+   * report, or a `merge` that names it, merges it again (28 Oct, F2: a retry undid Daredevil's resolution mid-way).
+   */
+  conflictAt?: number;
   /** Minutes added by `prolonger`. */
   extraMin?: number;
   /** The overruns already told: 1 at 100 % of its budget, 2 at 200 %. */
   overdue?: 1 | 2;
+  /** The warning at 80 % of its budget was told (`BUDGET_WARN_AT`). */
+  nearTold?: true;
+  /**
+   * Milliseconds the whole mission only waited on the user (a dialog, an expired login) while this sub-task was open:
+   * its budget does not count them (`spentMin`).
+   */
+  pausedMs?: number;
   /** Its sub-task went to this agent (`reattribuer`): its clock stops. */
   handedTo?: string;
   /** `next_task` started a new agent in its place: its task, blocked or failed, is dropped; `reassign` no longer finds it. */
@@ -124,6 +168,10 @@ export interface Mission {
   slug?: string;
   branch?: string;
   worktree?: string;
+  /** The user's branch the mission was cut from: the one `land` brings its work onto. */
+  base?: string;
+  /** What the user is asked to land (`land`), until they answer in the Fleet's panel: only their click lands. */
+  landing?: LandRequest;
   /** The group of the agents created for it. */
   frameId?: string;
   /**
@@ -166,10 +214,85 @@ export interface Mission {
    * was launched before Managers existed: its Fleet runs it, the old way.
    */
   manager?: string;
+  /**
+   * What re-opens the Manager on its own conversation once its terminal was closed: a closed node's row goes with
+   * the next scene save, its conversation's id with it. Kept from its node (`@/mission/restore`); only for the
+   * Manager it names (`nodeId`).
+   */
+  managerSession?: ManagerSession;
+  /**
+   * The group its Manager and team stand in ("Mission <name>"), kept with the mission: after a restart nobody may stand
+   * in it (the closed agents' elements are gone), and a re-open of the Manager or a new agent looks for it by this id,
+   * never by who is in it, else it makes a second one (`@/mission/manager`).
+   */
+  teamFrame?: string;
+  /**
+   * The cards of the agents its Fleet opened with spawn_agent beside the plan, and theirs (`@/kanban/adHocCards`): each
+   * agent's card on the mission's board, which its report moves. Not members: nothing of the plan follows them.
+   */
+  adHoc?: AdHocCard[];
   /** The Kanban board the mission runs on: its cards are its tasks. */
   board?: string;
+  /** The Fleet's proposed change to the waiting tasks, while it runs; the user approves or declines it. */
+  amendment?: Amendment;
   /** The board was made for the mission, not handed over by the user ("Plan with the fleet"). */
   boardMade?: boolean;
+}
+
+/** An ad-hoc agent's card, as `Mission.adHoc` keeps it: the agent's node, the board and the card on it. */
+export interface AdHocCard {
+  nodeId: string;
+  board: string;
+  card: string;
+}
+
+/** The most ad-hoc cards a mission remembers: the oldest are let go, their agents' reports no longer move a card. */
+export const MAX_AD_HOC_CARDS = 200;
+
+function readAdHoc(raw: unknown): AdHocCard[] {
+  if (!Array.isArray(raw)) return [];
+  const cards = raw.flatMap((entry): AdHocCard[] => {
+    const r = (typeof entry === "object" && entry !== null ? entry : {}) as Record<string, unknown>;
+    return typeof r.nodeId === "string" && typeof r.board === "string" && typeof r.card === "string" ? [{ nodeId: r.nodeId, board: r.board, card: r.card }] : [];
+  });
+  return cards.slice(-MAX_AD_HOC_CARDS);
+}
+
+/** A Manager's node and conversation, as `Mission.managerSession` keeps them. */
+export interface ManagerSession {
+  nodeId: string;
+  agent: AgentId;
+  name: string;
+  claudeSessionId?: string;
+  codexSessionId?: string;
+}
+
+function readManagerSession(raw: unknown): ManagerSession | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.nodeId !== "string" || typeof r.agent !== "string" || typeof r.name !== "string") return undefined;
+  return {
+    nodeId: r.nodeId,
+    agent: r.agent as AgentId,
+    name: r.name,
+    ...(typeof r.claudeSessionId === "string" && r.claudeSessionId ? { claudeSessionId: r.claudeSessionId } : {}),
+    ...(typeof r.codexSessionId === "string" && r.codexSessionId ? { codexSessionId: r.codexSessionId } : {}),
+  };
+}
+
+/** A question to the user: whether `tip`, the mission's head, comes onto `target`, their branch (`./land.ts`). */
+export interface LandRequest {
+  target: string;
+  branch: string;
+  tip: string;
+  /** The newest commits it brings, "<short sha> <subject>"; `count` counts them all. */
+  commits: string[];
+  count: number;
+  fastForward: boolean;
+  /** When it was asked: a click on an older question does nothing. */
+  at: number;
+  /** The node whose call asked it (the Fleet's, the Manager's): it hears the outcome too. */
+  askedBy?: string;
 }
 
 export const NEW_AGENT = "nouveau";
@@ -226,18 +349,27 @@ function readMember(raw: unknown): Member | null {
     branch: r.branch,
     worktree: r.worktree,
   };
+  if (typeof r.worktreeOf === "string" && r.worktreeOf) member.worktreeOf = r.worktreeOf;
   if (typeof r.sentAt === "number") member.sentAt = r.sentAt;
   // Typed already: what was left of it is no longer to type.
   else if (typeof r.brief === "string" && r.brief) member.brief = r.brief;
   if (r.merged === true) member.merged = true;
   if (typeof r.squashed === "string" && r.squashed) member.squashed = r.squashed;
   if (r.cleanedUp === true) member.cleanedUp = true;
+  const leftOpen = r.leftOpen as Record<string, unknown> | undefined;
+  if (leftOpen && typeof leftOpen.head === "string" && typeof leftOpen.why === "string" && STAYS_OPEN.includes(leftOpen.why)) {
+    member.leftOpen = { head: leftOpen.head, why: leftOpen.why as StaysOpen };
+  }
+  // Read back after a restart: the agent may still be fixing that conflict, and no merge may retry it meanwhile.
+  if (typeof r.conflictAt === "number") member.conflictAt = r.conflictAt;
   const report = r.report as Record<string, unknown> | undefined;
   if (report && typeof report.summary === "string" && typeof report.status === "string" && STATUSES.includes(report.status)) {
     member.report = { summary: report.summary, status: report.status as ReportStatus, at: typeof report.at === "number" ? report.at : 0, ...(typeof report.check === "string" ? { check: report.check } : {}) };
   }
   if (typeof r.extraMin === "number") member.extraMin = r.extraMin;
   if (r.overdue === 1 || r.overdue === 2) member.overdue = r.overdue;
+  if (r.nearTold === true) member.nearTold = true;
+  if (typeof r.pausedMs === "number" && r.pausedMs > 0) member.pausedMs = r.pausedMs;
   if (typeof r.handedTo === "string") member.handedTo = r.handedTo;
   if (r.abandoned === true) member.abandoned = true;
   if (Array.isArray(r.done)) member.done = r.done.filter((title): title is string => typeof title === "string");
@@ -263,6 +395,7 @@ function readQueued(task: QueuedTask): QueuedTask {
   const { title, brief, budgetMin } = task;
   const level = readLevel(task.level);
   const group = task.group as Partial<PlanGroup> | undefined;
+  const waitsFor = Array.isArray(task.waitsFor) ? task.waitsFor.filter((name): name is string => typeof name === "string" && name !== "") : [];
   return {
     title,
     brief,
@@ -271,7 +404,18 @@ function readQueued(task: QueuedTask): QueuedTask {
     ...(typeof group?.id === "string" && typeof group.name === "string" ? { group: { id: group.id, name: group.name } } : {}),
     ...(typeof task.card === "string" && task.card ? { card: task.card } : {}),
     ...(typeof task.handedBy === "string" && task.handedBy ? { handedBy: task.handedBy } : {}),
+    ...(waitsFor.length > 0 ? { waitsFor } : {}),
   };
+}
+
+function readAmendment(raw: unknown): Amendment | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const r = raw as Record<string, unknown>;
+  const tasks = Array.isArray(r.tasks) ? r.tasks.filter(isQueued).map(readQueued) : [];
+  const drop = Array.isArray(r.drop) ? r.drop.filter((title): title is string => typeof title === "string" && title !== "") : [];
+  if (typeof r.task !== "string" || (tasks.length === 0 && drop.length === 0)) return undefined;
+  const replaces = Array.isArray(r.replaces) ? r.replaces.filter((title): title is string => typeof title === "string" && title !== "") : [];
+  return { task: r.task, tasks, drop, ...(replaces.length > 0 ? { replaces } : {}) };
 }
 
 /** A saved mission; undefined when absent or unreadable. A launch cut short by a restart is back to its plan. */
@@ -286,11 +430,14 @@ export function readMission(raw: unknown): Mission | undefined {
   };
   // Only a night has a length: a regular mission saved with the old global budget drops it.
   if (typeof r.budgetMin === "number" && r.overnight === true) mission.budgetMin = r.budgetMin;
-  for (const key of ["name", "task", "project", "slug", "branch", "worktree", "frameId", "summary", "summaryUi", "error", "manager", "board"] as const) {
+  for (const key of ["name", "task", "project", "slug", "branch", "worktree", "base", "frameId", "summary", "summaryUi", "error", "manager", "board", "teamFrame"] as const) {
     if (typeof r[key] === "string") mission[key] = r[key];
   }
   if (Array.isArray(r.plan)) mission.plan = r.plan.filter(isSubTask).map(readSubTask);
   if (Array.isArray(r.queue)) mission.queue = r.queue.filter(isQueued).map(readQueued);
+  // Only a running mission has waiting tasks to change: a proposal the mission outlived has nothing to apply to.
+  const amendment = r.state === "en_cours" ? readAmendment(r.amendment) : undefined;
+  if (amendment) mission.amendment = amendment;
   if (typeof r.startedAt === "number") mission.startedAt = r.startedAt;
   if (typeof r.endedAt === "number") mission.endedAt = r.endedAt;
   if (r.globalOverdue === true) mission.globalOverdue = true;
@@ -301,10 +448,24 @@ export function readMission(raw: unknown): Mission | undefined {
   if (tickets) mission.tickets = tickets;
   if (r.autoLaunch === true) mission.autoLaunch = true;
   if (r.boardMade === true) mission.boardMade = true;
+  const managerSession = readManagerSession(r.managerSession);
+  if (managerSession) mission.managerSession = managerSession;
+  const adHoc = readAdHoc(r.adHoc);
+  if (adHoc.length > 0) mission.adHoc = adHoc;
   if (Array.isArray(r.handChecks)) mission.handChecks = r.handChecks.filter((line): line is string => typeof line === "string");
   if (Array.isArray(r.strays)) mission.strays = r.strays.filter((name): name is string => typeof name === "string" && name !== "");
   if (r.permission === "ask" || r.permission === "edits" || r.permission === "work") mission.permission = r.permission;
+  const landing = readLandRequest(r.landing);
+  if (landing) mission.landing = landing;
   return mission;
+}
+
+/** A question to land that was waiting for the user: it still waits after a restart. */
+function readLandRequest(raw: unknown): LandRequest | undefined {
+  const r = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
+  if (typeof r.target !== "string" || typeof r.branch !== "string" || typeof r.tip !== "string" || typeof r.at !== "number") return undefined;
+  const commits = Array.isArray(r.commits) ? r.commits.filter((line): line is string => typeof line === "string") : [];
+  return { target: r.target, branch: r.branch, tip: r.tip, commits, count: typeof r.count === "number" ? r.count : commits.length, fastForward: r.fastForward === true, at: r.at, ...(typeof r.askedBy === "string" ? { askedBy: r.askedBy } : {}) };
 }
 
 /**
@@ -312,12 +473,15 @@ export function readMission(raw: unknown): Mission | undefined {
  * is read as its caller resolved it (`@/mission/launch` levelsRequired): on, where a level picks the team's model,
  * every task needs one.
  */
-function readTaskFields(r: Record<string, unknown>, n: number, mission: Mission): Omit<QueuedTask, "group"> | string {
+export function readTaskFields(r: Record<string, unknown>, n: number, mission: Mission): Omit<QueuedTask, "group"> | string {
   const e = messages(agentMessages).plan;
   const title = text(r.titre);
   const brief = text(r.consigne);
   const budget = r.budget_min;
-  if (!title || title.length > MAX_TITLE) return e.title(n, MAX_TITLE);
+  if (!title) return e.title(n, MAX_TITLE);
+  // A title is an identifier (`reassign`, `team`), so it is never cut for the caller: the refusal says how long it is
+  // and offers a cut at a word, so that the next call needs no guess.
+  if (title.length > MAX_TITLE) return e.titleLong(n, MAX_TITLE, title.length, shortTitle(title));
   if (!brief) return e.brief(n);
   if (typeof budget !== "number" || !Number.isInteger(budget) || budget < 1) return e.budget(n);
   // The night is real time: agents in parallel share it, only one sub-task alone could not fit.
@@ -327,18 +491,49 @@ function readTaskFields(r: Record<string, unknown>, n: number, mission: Mission)
   const level = readLevel(r.niveau);
   if (given && !level) return e.level(n);
   if (mission.router && !level) return e.levelRouter(n);
-  return { title, brief, budgetMin: budget, ...(level ? { level } : {}) };
+  const waitsFor = readWaits(r.waits_for);
+  if (!waitsFor) return e.waitsFor(n);
+  return { title, brief, budgetMin: budget, ...(level ? { level } : {}), ...(waitsFor.length > 0 ? { waitsFor } : {}) };
+}
+
+/** The titles a task waits for, as typed and once each; null when `waits_for` is not a list of titles. Whether they exist is `./waits`'. */
+function readWaits(raw: unknown): string[] | null {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.some((name) => typeof name !== "string" || !text(name))) return null;
+  const names: string[] = [];
+  for (const name of raw.map(text)) if (!names.some((other) => sameName(other, name))) names.push(name);
+  return names;
+}
+
+/** `title` cut to the limit at its last word, when that keeps more than half of it. */
+function shortTitle(title: string): string {
+  const cut = cutWhole(title, MAX_TITLE);
+  const space = cut.lastIndexOf(" ");
+  return (space > MAX_TITLE / 2 ? cut.slice(0, space) : cut).trimEnd();
+}
+
+/** Where a title is held, for the refusal of a task that reuses it. */
+export type TitleHolder = { kind: "plan" } | { kind: "queue" } | { kind: "agent"; name: string; done: boolean } | { kind: "call"; n: number };
+interface TakenTitle {
+  title: string;
+  by: TitleHolder;
 }
 
 /** The titles the mission's tasks already use: `reassign` and `team` name a task by its title. */
-const takenTitles = (mission: Mission, withPlan: boolean) => [
-  ...(withPlan ? (mission.plan ?? []).map((s) => s.title) : []),
-  ...(mission.queue ?? []).map((s) => s.title),
-  ...mission.members.flatMap((m) => [m.task, ...(m.done ?? [])]),
+const takenTitles = (mission: Mission, withPlan: boolean): TakenTitle[] => [
+  ...(withPlan ? (mission.plan ?? []).map((s): TakenTitle => ({ title: s.title, by: { kind: "plan" } })) : []),
+  ...(mission.queue ?? []).map((s): TakenTitle => ({ title: s.title, by: { kind: "queue" } })),
+  ...mission.members.flatMap((m): TakenTitle[] => [
+    { title: m.task, by: { kind: "agent", name: m.name, done: false } },
+    ...(m.done ?? []).map((title): TakenTitle => ({ title, by: { kind: "agent", name: m.name, done: true } })),
+  ]),
 ];
 
+/** Who holds `title` among `taken`, if anyone. */
+const heldBy = (taken: readonly TakenTitle[], title: string) => taken.find((t) => sameName(t.title, title))?.by;
+
 /** The card a task names, "" for none; null when it is not one of `cards`. */
-function namedCard(r: Record<string, unknown>, cards: readonly string[]): string | null {
+export function namedCard(r: Record<string, unknown>, cards: readonly string[]): string | null {
   if (r.card === undefined || r.card === null) return "";
   const card = text(r.card);
   return cards.includes(card) ? card : null;
@@ -358,13 +553,14 @@ export function proposedTasks(args: Record<string, unknown>, mission: Mission, g
     const r = (typeof item === "object" && item !== null ? item : {}) as Record<string, unknown>;
     const fields = readTaskFields(r, i + 1, mission);
     if (typeof fields === "string") return fields;
-    if (taken.some((title) => sameName(title, fields.title))) return e.titleTaken(i + 1, fields.title);
+    const clash = heldBy(taken, fields.title);
+    if (clash) return e.titleTaken(i + 1, fields.title, clash);
     const wanted = text(r.groupe);
     const group = wanted ? groups.find((g) => sameName(g.name, wanted)) : undefined;
     if (wanted && !group) return e.notLinkedGroup(i + 1, wanted);
     const card = namedCard(r, cards);
     if (card === null) return e.card(i + 1, String(r.card));
-    taken.push(fields.title);
+    taken.push({ title: fields.title, by: { kind: "call", n: i + 1 } });
     tasks.push({ ...fields, ...(group ? { group: { id: group.id, name: group.name } } : {}), ...(card ? { card } : {}) });
   }
   return tasks;
@@ -404,7 +600,10 @@ export function proposedPlan(
     // The queue names no agent: whoever has a seat first takes the task.
     if (known !== NEW_AGENT && n > mission.maxAgents) return e.waitsForNew(n, mission.maxAgents);
     if (known !== NEW_AGENT && plan.some((s) => s.agent === known)) return e.alreadyHas(known);
-    if ([...taken, ...plan.map((s) => s.title)].some((title) => sameName(title, fields.title))) return e.titleTaken(n, fields.title);
+    // Waiting for others, it starts from the queue: a linked agent's sub-task starts at the go-ahead.
+    if (known !== NEW_AGENT && fields.waitsFor) return e.waitsForAgent(n);
+    const clash = heldBy([...taken, ...plan.map((s, j): TakenTitle => ({ title: s.title, by: { kind: "call", n: j + 1 } }))], fields.title);
+    if (clash) return e.titleTaken(n, fields.title, clash);
     const wanted = text(r.groupe);
     if (wanted && known !== NEW_AGENT) return e.groupForNew(n);
     const group = wanted ? groups.find((g) => sameName(g.name, wanted)) : undefined;
@@ -440,6 +639,25 @@ export function pastTask(member: Member, report: Report): PastTask {
 /** The sub-tasks `reassign` takes, by the members holding them: not handed over, nor left by `next_task`. */
 export const reassignable = (mission: Mission) => mission.members.filter((m) => !m.handedTo && !m.abandoned);
 
+/** How short a start of a title may be to name it: below, "T1" would fit every task of a series. */
+const MIN_TITLE_START = 3;
+
+/**
+ * The sub-tasks `reassign` takes that `given` names without being their exact title: the name of the agent holding
+ * one, the id of its card, or the start of its title (case and accents aside). Several fit when a start is shared:
+ * the caller then names none of them by guess.
+ */
+export function subTasksNamedBy(mission: Mission, given: string): Member[] {
+  const wanted = fold(given);
+  if (!wanted) return [];
+  return reassignable(mission).filter((m) => {
+    if (fold(m.name) === wanted) return true;
+    const card = mission.plan?.find((s) => s.title === m.task)?.card;
+    if (card && fold(card) === wanted) return true;
+    return wanted.length >= MIN_TITLE_START && fold(m.task).startsWith(wanted);
+  });
+}
+
 /** The agents whose worktrees a mission's cleanup removes: its members, and those its end left behind (`strays`). */
 export const worktreeOwners = (mission: Mission): AgentBranch[] => [
   ...mission.members.map((m) => ({ name: m.name, ...(m.squashed ? { squashed: m.squashed } : {}) })),
@@ -457,13 +675,19 @@ export function squashMessage(member: Pick<Member, "task" | "report">): string {
   return [oneLine(member.task), ...body].join("\n\n").replace(HALF_CHARACTER, "");
 }
 
+/** Its last merge conflicted, and it has not reported since: it is fixing that conflict (`Member.conflictAt`). */
+export const conflictPending = (member: Pick<Member, "conflictAt" | "report">) => member.conflictAt !== undefined && member.conflictAt === member.report?.at;
+
 /** A member's budget with its extensions. */
 export const budgetOf = (member: Member) => member.budgetMin + (member.extraMin ?? 0);
 
-/** Minutes a member has spent: from its sub-task's sending to its report, in real time. */
+/**
+ * Minutes a member has spent: from its sub-task's sending to its report, in real time, less the time the whole
+ * mission only waited on the user (`pausedMs`): a login that expired overnight is not the agent's time.
+ */
 export function spentMin(member: Member, now: number): number {
   if (member.sentAt === undefined) return 0;
-  return Math.max(0, ((member.report?.at ?? now) - member.sentAt) / MINUTE);
+  return Math.max(0, ((member.report?.at ?? now) - member.sentAt - (member.pausedMs ?? 0)) / MINUTE);
 }
 
 /**
@@ -499,6 +723,33 @@ export function overruns(mission: Mission, now: number): { members: Overrun[]; g
   const night = nightMin(mission);
   const global = night !== undefined && mission.startedAt !== undefined && !mission.globalOverdue && (now - mission.startedAt) / MINUTE >= night;
   return { members, global };
+}
+
+/** The share of a budget at which its agent's runner is warned, before it is used up. */
+export const BUDGET_WARN_AT = 0.8;
+
+export interface NearBudget {
+  nodeId: string;
+  name: string;
+  task: string;
+  budget: number;
+  /** Whole minutes left of the budget. */
+  left: number;
+}
+
+/**
+ * The members at 80 % of their budget with no report, each told once. Not overnight: a night's budgets are targets
+ * and nobody is there to extend them. One that went past 100 % between two looks is told that overrun, not this.
+ */
+export function nearBudgets(mission: Mission, now: number): NearBudget[] {
+  if (mission.state !== "en_cours" || mission.overnight) return [];
+  return mission.members.flatMap((m): NearBudget[] => {
+    if (m.sentAt === undefined || m.report || m.handedTo || m.abandoned || m.nearTold || m.overdue) return [];
+    const budget = budgetOf(m);
+    const spent = spentMin(m, now);
+    if (spent < BUDGET_WARN_AT * budget || spent >= budget) return [];
+    return [{ nodeId: m.nodeId, name: m.name, task: m.task, budget, left: Math.max(1, Math.ceil(budget - spent)) }];
+  });
 }
 
 /** The whole minutes left of the night, real time from the go-ahead; undefined outside one. */

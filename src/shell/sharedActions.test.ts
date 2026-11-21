@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { toast } from "sonner";
 import { showAbout } from "@/app/about";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import { agentsStore } from "@/agents/agentsStore";
@@ -11,9 +10,11 @@ import { addFleet } from "@/fleet/fleets";
 import { workspacesStore } from "@/store/workspaces";
 import { readSource } from "@/theme/cssBlocks";
 import { focusCommandBar } from "./commandBarFocus";
+import { showTroubleshooting } from "./troubleshoot";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
+vi.mock("./troubleshoot", () => ({ showTroubleshooting: vi.fn(() => Promise.resolve()) }));
 const { options } = vi.hoisted(() => ({ options: () => ({ cwd: "C:/code", shell: "default", title: "", command: "" }) }));
 vi.mock("@/agents/launchAgent", () => ({ launchAgent: vi.fn(() => Promise.resolve()), defaultLaunchOptions: options }));
 vi.mock("@/fleet/fleets", () => ({ addFleet: vi.fn(() => Promise.resolve()) }));
@@ -29,18 +30,18 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("tells dummyPlane's version (\"About dummyPlane\")", async () => {
+it("opens Troubleshooting for \"About dummyPlane\", where the version and what the app is stand at the head, in a dialog that stays", async () => {
   await showAbout();
-  expect(toast).toHaveBeenCalledWith("dummyPlane 0.1.0", { description: "A local, open source canvas for agents" });
+  expect(showTroubleshooting).toHaveBeenCalledWith({ instant: true });
 });
 
-it("launches an agent, or places a fleet, at the center of the view", () => {
+it("launches an agent, or places a fleet, at the center of the work area", () => {
   launchAt("codex");
   const [agent, , center] = vi.mocked(launchAgent).mock.calls[0];
   expect(agent).toBe("codex");
-  expect(center).toEqual({ x: 500, y: 400 });
+  expect(center).toEqual({ x: 500, y: 406 });
   placeFleet();
-  expect(addFleet).toHaveBeenCalledWith("w1", { x: 500, y: 400 });
+  expect(addFleet).toHaveBeenCalledWith("w1", { x: 500, y: 406 });
 });
 
 it("launches an agent or places a fleet where the radial menu was opened", () => {
@@ -62,7 +63,7 @@ it("keeps one implementation of each action: the buttons call the shared ones", 
   expect(readSource("shell/ToolRail.tsx")).toContain("fitScene");
   expect(readSource("shell/ZoomControl.tsx")).toContain("zoomTo(");
   expect(readSource("shell/SettingsMenu.tsx")).toContain("exportCurrentScene");
-  expect(readSource("shell/SettingsMenu.tsx")).toContain("showAbout");
+  expect(readSource("shell/SettingsMenu.tsx")).toContain("showTroubleshooting");
   expect(readSource("home/HomeScreen.tsx")).toContain('from "./addProject"');
   expect(readSource("shell/WorkspaceTabs.tsx")).toContain('from "./workspaceActions"');
   expect(readSource("shell/WindowControls.tsx")).toContain("toggleMaximizeWindow");

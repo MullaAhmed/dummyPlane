@@ -1,14 +1,16 @@
 import { messages } from "@/i18n";
-import { startMissionCards } from "@/kanban/fleetBoards";
+import { cardDone, startMissionCards } from "@/kanban/fleetBoards";
 import { agentMessages } from "@/mcp/messages";
 import { nodesStore } from "@/store/nodes";
-import { activeCount, freeSeat, holdSeat, moving, oneAtATime, seatHeld, seatsHeld } from "./active";
+import { activeCount, freeSeat, holdSeat, moving, oneAtATime, seatHeld, seatsHeld, seatsOf } from "./active";
 import { duplicateWork } from "./activeWork";
 import type { ActiveWork } from "./duplicateTask";
 import { notify } from "./events";
 import { assign, leftBehind, mergeMember, newMember, subTaskText, withTeamNote, withTicketNote } from "./launch";
-import { NEW_AGENT, noNewWork, type Member, type Mission, type QueuedTask, type Report, type SubTask } from "./mission";
+import { newWorktreeLine } from "./setup";
+import { conflictPending, NEW_AGENT, noNewWork, type Member, type Mission, type QueuedTask, type Report, type SubTask } from "./mission";
 import { agentState, canvasKnown, isFleetClosed, missionOf, missionRunner, setMission, updateMember } from "./store";
+import { waitingOn, waitState } from "./waits";
 
 const t = () => messages(agentMessages);
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -29,8 +31,29 @@ const canStart = (fleetId: string, mission: Mission) => mission.state === "en_co
 /** Fewer than Max agents are at work: one more may start. */
 const seatLeft = (fleetId: string, mission: Mission) => activeCount(fleetId, mission) < mission.maxAgents;
 
-/** Done, its branch not in the mission's yet: a new agent's worktree, cut from the mission's branch, would miss its work. */
-const unmerged = (mission: Mission) => mission.members.filter((m) => !m.handedTo && !m.abandoned && m.report?.status === "termine" && !m.merged);
+/**
+ * The queue's tasks whose card stands in its board's done column leave it: that work was done outside the queue (an
+ * ad-hoc agent, the user, a card the runner moved), and a new agent on it would redo it, while the mission could not be
+ * shown finished (12 Nov, wt-be-upload-land: two entries "already done and merged" still listed as waiting). Read where
+ * the queue is read, not on one mover: the user drags cards too. The runner of a running mission hears which.
+ */
+export function settleQueue(fleetId: string): void {
+  const mission = missionNow(fleetId);
+  // Two waiting tasks may share a card (the second starts once the first is done): a card a task of the plan holds,
+  // done with the merge of that task, says nothing of the one still waiting.
+  const held = new Set((mission?.plan ?? []).map((task) => task.card));
+  const over = (mission?.queue ?? []).filter((task) => task.card && !held.has(task.card) && cardDone(fleetId, task.card));
+  if (!mission || over.length === 0) return;
+  setMission(fleetId, { queue: (mission.queue ?? []).filter((task) => !over.includes(task)) });
+  if (mission.state === "en_cours") notify(missionRunner(fleetId), t().lines.queueSettled(over.map((task) => task.title)));
+}
+
+/**
+ * Done, its branch not in the mission's yet: a new agent's worktree, cut from the mission's branch, would miss its work.
+ * Not one fixing its own merge conflict (`conflictPending`): a retry now would undo its resolution mid-way; its next
+ * report merges it (`afterReport`), or a `merge` that names it.
+ */
+const unmerged = (mission: Mission) => mission.members.filter((m) => !m.handedTo && !m.abandoned && m.report?.status === "termine" && !m.merged && !conflictPending(m));
 
 async function turnEnded(nodeId: string) {
   for (let waited = 0; waited < TURN_END_MS && agentState(nodeId) === "travaille"; waited += TURN_POLL_MS) {
@@ -108,7 +131,8 @@ function skipped(fleetId: string, mission: Mission, task: QueuedTask, tell = tru
  * being merged, whose seats they will take. A skipped duplicate takes no seat: the tasks behind it start.
  */
 function unclaimed(fleetId: string, mission: Mission, tell = true): QueuedTask[] {
-  const left = (mission.queue ?? []).filter((task) => !seatHeld(fleetId, task.title) && !skipped(fleetId, mission, task, tell));
+  // A task waiting for others (`waitsFor`) takes no seat, nor a merging member's, before each of them is in.
+  const left = (mission.queue ?? []).filter((task) => !seatHeld(fleetId, task.title) && waitingOn(mission, task).length === 0 && !skipped(fleetId, mission, task, tell));
   return left.slice(mission.members.filter((m) => moving.has(m.nodeId)).length);
 }
 
@@ -121,8 +145,11 @@ async function create(fleetId: string, task: QueuedTask): Promise<{ said: string
   if (!mission.queue?.some((waiting) => waiting.title === task.title)) return undefined;
   // Read again too: an agent may have taken the task, or its card, while this one waited for its turn.
   if (skipped(fleetId, mission, task)) return undefined;
+  // A new worktree: its agent is told how to fill it, read while the worktree is made.
+  const lookingUp = newWorktreeLine(fleetId, record.workspaceId);
   const made = await newMember(fleetId, record.workspaceId, mission, { ...task, agent: NEW_AGENT });
   if (typeof made === "string") return { said: t().lines.newFailed(task.title, made) };
+  const setup = await lookingUp;
   const now = missionNow(fleetId);
   // Finished meanwhile: its team is gone, this one would sit idle in its worktree.
   if (now?.state !== "en_cours") {
@@ -135,7 +162,7 @@ async function create(fleetId: string, task: QueuedTask): Promise<{ said: string
   // In the tick it joins the team: counted once, never twice nor not at all.
   freeSeat(fleetId, task.title);
   void startMissionCards(fleetId, [made], [subTask]).catch(() => undefined);
-  void assign(fleetId, made, withTicketNote(fleetId, now, withTeamNote(now, subTaskText(now.name ?? "", subTask, made.branch)), task));
+  void assign(fleetId, made, withTicketNote(fleetId, now, withTeamNote(now, subTaskText(now.name ?? "", subTask, made.branch, undefined, setup)), task));
   return { said: t().lines.newAgent(made.name, task.title, queue.length), made };
 }
 
@@ -166,6 +193,7 @@ async function startNew(fleetId: string, task: QueuedTask): Promise<void> {
  * before the first wait.
  */
 function fill(fleetId: string): Promise<void> {
+  settleQueue(fleetId);
   const mission = missionNow(fleetId);
   if (!mission?.queue?.length || !canStart(fleetId, mission) || !canvasKnown(fleetId)) return Promise.resolve();
   const seats = mission.maxAgents - activeCount(fleetId, mission);
@@ -179,6 +207,7 @@ function fill(fleetId: string): Promise<void> {
  * After a task arrives, a conflict is resolved, or the mission starts.
  */
 export async function pumpQueue(fleetId: string): Promise<void> {
+  settleQueue(fleetId);
   const mission = missionNow(fleetId);
   if (!mission?.queue?.length || !canStart(fleetId, mission)) return;
   // Each merge holds its seat at once: the parallel fill leaves it its task.
@@ -186,13 +215,23 @@ export async function pumpQueue(fleetId: string): Promise<void> {
   await Promise.all([...merges, fill(fleetId)]);
 }
 
+/** What a waiting task still waits for, and where each stands. */
+const unmet = (mission: Mission, task: QueuedTask) => waitingOn(mission, task).map((title) => ({ title, state: t().plan.state[waitState(mission, title)] }));
+
 /** Nobody is left working: the fleet hears once why nothing moves any more. */
 function tellIfIdle(fleetId: string) {
   const mission = missionNow(fleetId);
   if (mission?.state !== "en_cours" || !mission.queue) return;
   const team = mission.members.filter((m) => !m.handedTo);
   if (team.some((m) => !m.report || moving.has(m.nodeId)) || seatsHeld(fleetId) > 0) return;
-  const line = mission.queue.length === 0 ? t().lines.queueEmpty : t().lines.queueStuck(mission.queue.length);
+  const waiting = mission.queue.filter((task) => waitingOn(mission, task).length > 0);
+  // Nobody works, so what a task waits for will not come on its own: say which, not "no new agent could take it".
+  const line =
+    mission.queue.length === 0
+      ? t().lines.queueEmpty(mission.overnight === true)
+      : waiting.length > 0
+        ? t().lines.queueWaits(waiting.map((task) => ({ title: task.title, waits: unmet(mission, task) })))
+        : t().lines.queueStuck(mission.queue.length);
   const key = `${fleetId}:${mission.startedAt}`;
   if (idleTold.get(key) === line) return;
   idleTold.set(key, line);
@@ -239,6 +278,7 @@ export async function giveNext(fleetId: string, member: Member): Promise<{ given
   const report = member.report;
   if (!report) return { refused: t().reassign.notDone(member.name) };
   if (member.abandoned) return { refused: t().lines.alreadyLeft(member.name) };
+  settleQueue(fleetId);
   const mission = missionNow(fleetId);
   if (mission && noNewWork(mission, Date.now())) return { refused: t().lines.windingDown };
   if (!mission) return { refused: t().lines.nothingFor(member.name) };
@@ -246,16 +286,19 @@ export async function giveNext(fleetId: string, member: Member): Promise<{ given
     // Tasks wait, but another agent is on each: say who, the caller reads it here.
     const waiting = (mission.queue ?? []).filter((task) => !seatHeld(fleetId, task.title));
     const held = waiting.map((task) => ({ task, who: holderOf(fleetId, mission, task) })).find(({ who }) => who);
-    return { refused: held?.who ? t().lines.duplicateNext(held.task.title, held.who) : t().lines.nothingFor(member.name) };
+    if (held?.who) return { refused: t().lines.duplicateNext(held.task.title, held.who) };
+    // Or tasks that wait for others: say for which.
+    const blocked = waiting.find((task) => waitingOn(mission, task).length > 0);
+    return { refused: blocked ? t().lines.nextWaits(blocked.title, unmet(mission, blocked)) : t().lines.nothingFor(member.name) };
   }
   if (!canvasKnown(fleetId)) return { refused: t().reassign.hidden };
-  if (!seatLeft(fleetId, mission)) return { refused: t().lines.noSeat(mission.maxAgents) };
+  if (!seatLeft(fleetId, mission)) return { refused: t().lines.noSeat(seatsOf(fleetId, mission)) };
   if (report.status === "termine" && !member.merged && !(await mergeOnce(fleetId, member.nodeId))) return { refused: t().lines.notMoved(member.name) };
   // All is read again after the merge; the seat is held before the next wait.
   const now = missionNow(fleetId);
   const task = now && unclaimed(fleetId, now, false)[0];
   if (!now || !task) return { refused: t().lines.nothingFor(member.name) };
-  if (!seatLeft(fleetId, now)) return { refused: t().lines.noSeat(now.maxAgents) };
+  if (!seatLeft(fleetId, now)) return { refused: t().lines.noSeat(seatsOf(fleetId, now)) };
   holdSeat(fleetId, task.title);
   const result = await startHeld(fleetId, task);
   if (!result?.made) return { refused: result?.said ?? t().lines.nothingFor(member.name) };

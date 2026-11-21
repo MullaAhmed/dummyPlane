@@ -422,21 +422,31 @@ it("writes the overdue and agent-alert chips in the text ink, the danger on thei
     workspaceId: "w1",
     kind: "kanban",
     payload: {
-      columns: [{ id: "todo", title: "To do", cardIds: ["c1"] }],
-      cards: { c1: { id: "c1", title: "Late", notes: "", priority: "none", due: "2020-01-01", agent: "Batman", agentStatus: "blocked" } },
+      columns: [{ id: "todo", title: "To do", cardIds: ["c1", "c2"] }],
+      cards: {
+        c1: { id: "c1", title: "Late", notes: "", priority: "none", due: "2020-01-01", agent: "Batman", agentStatus: "blocked" },
+        c2: { id: "c2", title: "Broken", notes: "", priority: "none", agent: "Robin", agentStatus: "failed" },
+      },
     },
   });
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => root.render(<KanbanNode nodeId="alerts" />));
-  const chips = [host.querySelector<HTMLElement>("[data-overdue]")!, host.querySelector<HTMLElement>('[data-agent-status="blocked"]')!];
-  for (const chip of chips) {
+  // An overdue card and a failed agent are errors: the danger tint. A blocked agent waits for the user: the wait tint, as its dot does.
+  const errors = [host.querySelector<HTMLElement>("[data-overdue]")!, host.querySelector<HTMLElement>('[data-agent-status="failed"]')!];
+  for (const chip of errors) {
     expect(chip.className).toContain("bg-dp-danger/15");
     expect(chip.className).toContain("text-dp-text");
     expect(chip.className).not.toContain("text-dp-danger");
     expect(chip.querySelector("svg")!.getAttribute("class")).toContain("text-dp-danger");
   }
+  const blocked = host.querySelector<HTMLElement>('[data-agent-status="blocked"]')!;
+  expect(blocked.className).toContain("bg-dp-wait/15");
+  expect(blocked.className).not.toContain("danger");
+  expect(blocked.className).toContain("text-dp-text");
+  expect(blocked.querySelector("svg")!.getAttribute("class")).toContain("text-dp-wait");
+  expect(blocked.querySelector("svg")!.getAttribute("class")).not.toContain("danger");
   await act(async () => root.unmount());
   document.body.replaceChildren();
 
@@ -448,6 +458,9 @@ it("writes the overdue and agent-alert chips in the text ink, the danger on thei
     const tint = blend(t["--dp-card"], t["--dp-danger"], 0.15);
     expect(contrast(t["--dp-text"], tint), `${palette} text on the danger tint`).toBeGreaterThanOrEqual(4.5);
     expect(contrast(t["--dp-danger"], tint), `${palette} danger icon on its tint`).toBeGreaterThanOrEqual(3);
+    const waitTint = blend(t["--dp-card"], t["--dp-wait"], 0.15);
+    expect(contrast(t["--dp-text"], waitTint), `${palette} text on the wait tint`).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(t["--dp-wait"], waitTint), `${palette} wait icon on its tint`).toBeGreaterThanOrEqual(3);
   }
 });
 

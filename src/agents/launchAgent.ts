@@ -5,6 +5,7 @@ import { newTerminalPayload } from "@/nodes/terminal/launch";
 import { workspaceFolder } from "@/store/workspaceFolder";
 import { workspacesStore } from "@/store/workspaces";
 import { agentsStore } from "./agentsStore";
+import { watchFirstQuestion } from "./firstQuestion";
 import { nameForNewAgent } from "./naming";
 import { addTerminal, type Point } from "./terminals";
 
@@ -38,5 +39,8 @@ export async function launchAgent(agent: AgentId, options: LaunchOptions, center
   if (!workspaceId) return null;
   const group = groupAt(canvasStore.getState().frames, center);
   const name = await nameForNewAgent(workspaceId, group?.group.pantheon);
-  return addTerminal(workspaceId, newTerminalPayload({ ...options, agent }, name), center, group?.id ?? null);
+  const nodeId = await addTerminal(workspaceId, newTerminalPayload({ ...options, agent }, name), center, group?.id ?? null);
+  // Its first question (trust this folder?) is the user's, and waits as any question does.
+  if (nodeId) watchFirstQuestion(nodeId, agent);
+  return nodeId;
 }

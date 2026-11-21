@@ -3,7 +3,7 @@ import { defineMessages } from "@/i18n";
 export const fleetMessages = defineMessages({
   agent: {
     title: "Agent for the Fleet",
-    description: "The Fleet runs on this CLI, and so does every agent it starts: its team, the agents that take its queue, and their sub-agents.",
+    description: "The Fleet runs on this CLI, and so does every agent it starts: its team, the agents that take its queue, and their sub-agents",
     label: "CLI the Fleet runs on",
     installed: "Installed",
     missing: "Not installed",

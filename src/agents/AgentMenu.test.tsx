@@ -6,7 +6,7 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { open as pickDirectory } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { requestUi } from "@/commands/uiRequests";
-import { AGENT_IDS, type AgentInfo } from "@/ipc/pty";
+import { AGENT_IDS, type AgentInfo, type ShellKind } from "@/ipc/pty";
 import { projectsStore, type Project } from "@/store/projects";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
@@ -15,12 +15,19 @@ import { AGENT_ORDER } from "./catalog";
 import { AgentMenu } from "./AgentMenu";
 import { launchFolderKey, launchFolderStore } from "./launchFolder";
 import { installAgent, pullOllamaModel } from "./installAgent";
+import { launchAgent } from "./launchAgent";
+import { arrive } from "@/canvas/arrive";
+import { placeMarkdown } from "@/studio/placeMarkdown";
+import { tabTo } from "@/components/ui/tabTo";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(() => Promise.resolve()) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(() => Promise.resolve(null)) }));
-vi.mock("./quickActions", () => ({ newConsole: vi.fn(), placeFleet: vi.fn() }));
+vi.mock("./quickActions", () => ({ placeFleet: vi.fn() }));
+vi.mock("@/studio/placeMarkdown", () => ({ placeMarkdown: vi.fn(() => Promise.resolve()) }));
 vi.mock("./installAgent", () => ({ installAgent: vi.fn(() => Promise.resolve("node")), pullOllamaModel: vi.fn(() => Promise.resolve("node")) }));
+vi.mock("./launchAgent", async (importOriginal) => ({ ...(await importOriginal<typeof import("./launchAgent")>()), launchAgent: vi.fn(() => Promise.resolve("node")) }));
+vi.mock("@/canvas/arrive", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/canvas/arrive")>()), arrive: vi.fn(() => true) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -29,6 +36,8 @@ const only = (...ids: string[]): AgentInfo[] => AGENT_IDS.map((id) => ({ id, ava
 let agents: AgentInfo[];
 let models: string[];
 let npm: boolean;
+/** What `list_shells` finds on this machine. */
+let shellList: ShellKind[];
 let writes: { key: string; value: unknown }[];
 /** What the backend was told about the folders of workspaces. */
 let folderWrites: { id: string; folder: string | null }[];
@@ -40,6 +49,7 @@ beforeEach(() => {
   agents = only("claude");
   models = [];
   npm = true;
+  shellList = ["powershell"];
   vi.mocked(installAgent).mockClear();
   vi.mocked(pullOllamaModel).mockClear();
   agentsStore.setState({ agents: [], shells: [], loaded: false });
@@ -56,7 +66,7 @@ beforeEach(() => {
     if (cmd === "set_setting") writes.push(args as { key: string; value: unknown });
     if (cmd === "set_workspace_folder") folderWrites.push(args as { id: string; folder: string | null });
     if (cmd === "list_agents") return agents;
-    if (cmd === "list_shells") return ["powershell"];
+    if (cmd === "list_shells") return shellList;
     if (cmd === "list_ollama_models") return models;
     if (cmd === "refresh_path") return null;
     if (cmd === "npm_available") return npm;
@@ -88,10 +98,35 @@ it("offers to install the missing agents only", async () => {
   expect(installButtons()[0].disabled).toBe(false);
 });
 
+it("says why a missing agent's row is greyed in the app's hint on a wrapper, never a native title", async () => {
+  await openMenu();
+  const row = document.body.querySelector<HTMLButtonElement>('[data-agent-pick="codex"]')!;
+  expect(row.disabled).toBe(true);
+  expect(row.hasAttribute("title")).toBe(false);
+  // The disabled row takes no pointer of its own: its wrapper does.
+  await act(async () => {
+    row.parentElement!.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerType: "mouse" }));
+  });
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
+  expect(hintShown()).toBe("codex not found in PATH");
+  // A usable row has no wrapper.
+  expect(document.body.querySelector('[data-agent-pick="claude"]')!.parentElement!.classList.contains("relative")).toBe(true);
+});
+
 it("offers nothing before the agents are known", async () => {
   mockIPC((cmd) => (cmd === "list_agents" || cmd === "list_shells" ? new Promise(() => undefined) : undefined));
   await openMenu();
   expect(installButtons()).toEqual([]);
+});
+
+it("says under Gemini that its recursive deletes outside the worktree are not blocked, and under no agent dummyPlane guards", async () => {
+  await openMenu();
+  const line = (id: string) => document.body.querySelector(`[data-deletes-not-blocked="${id}"]`);
+  expect(line("gemini")?.textContent).toBe("Not guarded: recursive deletes outside the worktree are not blocked");
+  // It sits in Gemini's row, under its name.
+  expect(document.body.querySelector('[data-agent-pick="gemini"]')?.contains(line("gemini"))).toBe(true);
+  expect(line("claude")).toBeNull();
+  expect(document.body.querySelectorAll("[data-deletes-not-blocked]")).toHaveLength(1);
 });
 
 it("shows the whole command before running it, then installs from the menu", async () => {
@@ -191,7 +226,7 @@ it("launches the palette's custom agent on the command typed in its form", async
   await openMenu();
   await act(async () => requestUi({ kind: "agentMenu", view: "options" }));
   const command = field("Command to run")!;
-  expect(document.getElementById(command.getAttribute("aria-describedby")!)!.textContent).toBe("A Custom terminal runs it in its shell when it starts.");
+  expect(document.getElementById(command.getAttribute("aria-describedby")!)!.textContent).toBe("A Custom terminal runs it in its shell when it starts");
   expect(button("Launch the custom command")!.disabled).toBe(true);
   await type(command, "npm run dev");
   await act(async () => button("Launch the custom command")!.click());
@@ -221,7 +256,7 @@ it("keeps the command out of the footer's Options and out of the other agents' l
   expect([...document.body.querySelectorAll("label")].map((l) => l.textContent)).toEqual(["Folder", "Shell", "Title"]);
   expect(field("Command to run")).toBeNull();
   expect(button("Launch the custom command")).toBeUndefined();
-  expect(document.body.textContent).toContain("The next agents you launch from this menu use these.");
+  expect(document.body.textContent).toContain("The next agents you launch from this menu use these");
   await type(field("Title")!, "API");
   await act(async () => button("Launch options")!.click());
   await act(async () => button("Claude")!.click());
@@ -262,7 +297,7 @@ it("shows the folder the next terminals start in at the top of the menu, its ful
   expect(folderShown()).toBe("api");
   // No native title: the app's hint, which the keyboard reaches on Change….
   expect(folderBar().querySelector("[title]")).toBeNull();
-  await act(async () => button("Change…")!.focus());
+  await act(async () => tabTo(button("Change…")!));
   expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("D:\\code\\api");
   expect(button("Change…")).toBeTruthy();
   expect(button("Project folder")).toBeUndefined();
@@ -298,7 +333,7 @@ it("goes back to the project folder with « Project folder »", async () => {
   await openMenu();
   pickNext("D:\\work\\lib");
   await act(async () => button("Change…")!.click());
-  await act(async () => button("Project folder")!.focus());
+  await act(async () => tabTo(button("Project folder")!));
   expect(hintShown()).toContain("D:\\code\\api");
   await act(async () => button("Project folder")!.click());
   expect(folderShown()).toBe("api");
@@ -319,7 +354,7 @@ it("lists the recent folders, and a click on one chooses it", async () => {
   await act(async () => document.body.querySelector<HTMLElement>("[data-recent-folder]")!.click());
   expect(folderShown()).toBe("one");
   expect(recentShown()).toEqual(["two"]);
-  await act(async () => document.body.querySelector<HTMLElement>("[data-recent-folder]")!.focus());
+  await act(async () => tabTo(document.body.querySelector<HTMLElement>("[data-recent-folder]")!));
   expect(hintShown()).toBe("D:\\work\\two");
 });
 
@@ -451,13 +486,13 @@ const menuOrder = () =>
     if (el.dataset.agentPick) return [el.dataset.agentPick];
     if (el.dataset.install || el.dataset.launchOptions !== undefined) return [];
     const text = el.textContent ?? "";
-    return ["New console", "Fleet", "Kanban"].filter((name) => text.startsWith(name));
+    return ["Fleet", "Kanban", "Markdown"].filter((name) => text.startsWith(name));
   });
 
-it("groups what the menu adds under three small headings: Agents, Terminals, then Fleet and boards", async () => {
+it("groups what the menu adds under small headings: Agents, Terminals, Fleet and boards, then Files", async () => {
   await openMenu();
   const agents = AGENT_ORDER.filter((id) => id !== "shell");
-  expect(menuOrder()).toEqual(["§Agents", ...agents, "§Terminals", "New console", "shell", "§Fleet and boards", "Fleet", "Kanban"]);
+  expect(menuOrder()).toEqual(["§Agents", ...agents, "§Terminals", "shell", "§Fleet and boards", "Fleet", "Kanban", "§Files", "Markdown"]);
   // The heading that said what is not an agent is gone: the sections say it.
   expect(document.body.querySelector("[data-not-agents]")).toBeNull();
   expect(document.body.textContent).not.toContain("Not an agent");
@@ -465,7 +500,7 @@ it("groups what the menu adds under three small headings: Agents, Terminals, the
   for (const group of document.body.querySelectorAll<HTMLElement>('[data-slot="popover-content"] [role="group"]')) {
     expect(document.getElementById(group.getAttribute("aria-labelledby")!)?.hasAttribute("data-section")).toBe(true);
   }
-  expect(document.body.querySelectorAll('[data-slot="popover-content"] [role="group"]')).toHaveLength(3);
+  expect(document.body.querySelectorAll('[data-slot="popover-content"] [role="group"]')).toHaveLength(4);
 });
 
 it("keeps the launch folder on top and the place hint with Options at the bottom, around the sections", async () => {
@@ -485,8 +520,8 @@ it("takes the keyboard on the first usable agent, and Tab follows the sections",
   const tabbable = [...content.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")].map((b) => b.textContent ?? "");
   const at = (text: string) => tabbable.findIndex((label) => label.startsWith(text));
   expect(at("Change…")).toBe(0);
-  expect([at("Claude"), at("New console"), at("Shell"), at("Fleet"), at("Kanban"), at("Options")]).toEqual(
-    [at("Claude"), at("New console"), at("Shell"), at("Fleet"), at("Kanban"), at("Options")].sort((a, b) => a - b),
+  expect([at("Claude"), at("Shell"), at("Fleet"), at("Kanban"), at("Markdown"), at("Options")]).toEqual(
+    [at("Claude"), at("Shell"), at("Fleet"), at("Kanban"), at("Markdown"), at("Options")].sort((a, b) => a - b),
   );
   expect(at("Claude")).toBeGreaterThan(at("Change…"));
   expect(at("Options")).toBe(tabbable.length - 1);
@@ -495,12 +530,88 @@ it("takes the keyboard on the first usable agent, and Tab follows the sections",
   expect(document.body.querySelector('[data-slot="popover-content"]')).toBeNull();
 });
 
-describe("the agents-only popover of Other agent… (the ring's and the palette's)", () => {
+it("opens a Markdown file of the project from Files, the menu closing for the system's dialog", async () => {
+  vi.mocked(placeMarkdown).mockClear();
+  await openMenu();
+  const row = document.body.querySelector<HTMLButtonElement>("[data-markdown-pick]")!;
+  expect(row.textContent).toBe("Markdowna .md file of the project, rendered");
+  await act(async () => row.click());
+  expect(placeMarkdown).toHaveBeenCalledWith(undefined);
+  expect(document.body.querySelector('[data-slot="popover-content"]')).toBeNull();
+});
+
+describe("Shell, the Terminals section's one row", () => {
+  const shellRow = () => document.body.querySelector<HTMLButtonElement>('[data-agent-pick="shell"]')!;
+  const shellPicks = () => [...document.body.querySelectorAll<HTMLButtonElement>("[data-shell-pick]")];
+
+  it("is the section's only row, and names the shells it opens", async () => {
+    shellList = ["powershell", "cmd", "gitbash", "wsl"];
+    await openMenu();
+    const section = document.body.querySelector('[data-section="terminals"]')!.parentElement!;
+    expect([...section.querySelectorAll("button")]).toEqual([shellRow()]);
+    expect(button("New console")).toBeUndefined();
+    expect(shellRow().textContent).toBe("ShellPowerShell, Command Prompt, Git Bash, WSL");
+  });
+
+  it("asks which shell, and places a Shell terminal in the one picked", async () => {
+    shellList = ["powershell", "cmd", "gitbash", "wsl"];
+    await openMenu();
+    await act(async () => shellRow().click());
+    expect(shellPicks().map((b) => b.dataset.shellPick)).toEqual(["powershell", "cmd", "gitbash", "wsl"]);
+    expect(shellPicks().map((b) => b.textContent)).toEqual([
+      "PowerShellWindows PowerShell",
+      "Command Promptcmd.exe",
+      "Git Bashbash from Git for Windows",
+      "WSLyour default Linux distribution",
+    ]);
+    // The first shell, the agents' own, has the keyboard: Enter opens it.
+    expect(document.activeElement).toBe(shellPicks()[0]);
+    expect(document.body.textContent).toContain("then click on the canvas to place it");
+    await act(async () => shellPicks()[3].click());
+    expect(placing()).toMatchObject({ agent: "shell", options: { shell: "wsl", command: "" } });
+    expect(document.body.querySelector('[data-slot="popover-content"]')).toBeNull();
+  });
+
+  it("remembers the shell picked last, and never gives WSL to the next agents", async () => {
+    shellList = ["powershell", "cmd", "wsl"];
+    await openMenu();
+    await act(async () => shellRow().click());
+    await act(async () => shellPicks()[2].click());
+    // Opened again: WSL has the check and the keyboard.
+    await act(async () => host.querySelector("button")!.click());
+    await act(async () => shellRow().click());
+    expect(document.activeElement).toBe(shellPicks()[2]);
+    expect(shellPicks()[2].querySelector("svg.lucide-check")).not.toBeNull();
+    expect(shellPicks()[0].querySelector("svg.lucide-check")).toBeNull();
+    // An agent still starts in the agents' shell.
+    await act(async () => document.body.querySelector<HTMLButtonElement>("[data-slot='popover-content'] button")!.click());
+    await act(async () => button("Claude")!.click());
+    expect(placing()).toMatchObject({ agent: "claude", options: { shell: "powershell" } });
+  });
+
+  it("gives the keyboard back to the Shell row when Back leaves the shells", async () => {
+    shellList = ["powershell", "cmd"];
+    await openMenu();
+    shellRow().focus();
+    await act(async () => shellRow().click());
+    expect(shellPicks()).toHaveLength(2);
+    await act(async () => document.body.querySelector<HTMLButtonElement>("[data-slot='popover-content'] button")!.click());
+    expect(document.activeElement).toBe(shellRow());
+  });
+
+  it("opens at once when this machine has one shell", async () => {
+    shellList = ["default"];
+    await openMenu();
+    expect(shellRow().querySelector("svg.lucide-chevron-right")).toBeNull();
+    await act(async () => shellRow().click());
+    expect(shellPicks()).toHaveLength(0);
+    expect(placing()).toMatchObject({ agent: "shell", options: { shell: "default" } });
+  });
+});
+
+describe("the whole menu, whatever a request asked for", () => {
   const agentsOnly = AGENT_ORDER.filter((id) => id !== "shell");
   const content = () => document.body.querySelector<HTMLElement>('[data-slot="popover-content"]')!;
-  /** The request the command makes: the agents alone, where the click was. */
-  const ask = (extra: { at?: { x: number; y: number } } = {}) =>
-    act(async () => requestUi({ kind: "agentMenu", view: "agents", only: "agents", ...extra }));
   const mount = () => act(async () => root.render(<AgentMenu answersRequests trigger={() => <button type="button">open</button>} />));
   /** Escape, from where the keyboard is: the menu closes. */
   const close = async () => {
@@ -509,70 +620,80 @@ describe("the agents-only popover of Other agent… (the ring's and the palette'
   };
   /** A sub-view's Back is its first control. */
   const goBack = () => act(async () => content().querySelector<HTMLButtonElement>("button")!.click());
+  const whole = ["§Agents", ...agentsOnly, "§Terminals", "shell", "§Fleet and boards", "Fleet", "Kanban", "§Files", "Markdown"];
 
-  it("holds only the launch folder, the agents, Custom and Ollama among them, and the footer, headed Launch an agent", async () => {
+  it("opens whole on a request for the agents, where the radial menu was pressed: the \"Other agent…\" list is OtherAgentMenu's, not this menu's", async () => {
+    agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
     await mount();
-    await ask({ at: { x: 5, y: 6 } });
-    expect(menuOrder()).toEqual(["§Launch an agent", ...agentsOnly]);
-    expect(agentsOnly).toContain("custom");
-    expect(agentsOnly).toContain("ollama");
-    const buttons = [...content().querySelectorAll<HTMLButtonElement>("button")];
-    expect(buttons[0].textContent).toBe("Change…");
-    expect(buttons[buttons.length - 1].textContent).toBe("Options");
+    await act(async () => requestUi({ kind: "agentMenu", view: "agents", at: { x: 5, y: 6 } }));
+    expect(menuOrder()).toEqual(whole);
+    expect(content().textContent).not.toContain("Launch an agent");
     expect(content().textContent).toContain("launched where you clicked");
-    for (const gone of ["New console", "Fleet", "Kanban"]) expect(button(gone), gone).toBeUndefined();
-    expect(document.body.querySelector('[data-agent-pick="shell"]')).toBeNull();
-    expect(document.body.querySelectorAll('[data-slot="popover-content"] [role="group"]')).toHaveLength(1);
   });
 
   it("takes the keyboard on the first usable agent", async () => {
     agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
     await mount();
-    await ask();
+    await act(async () => requestUi({ kind: "agentMenu", view: "agents" }));
     expect(document.activeElement?.textContent).toContain("Claude");
   });
 
-  it("stays agents-only when Back leaves Custom, Ollama, an Install or the Options, and gives the keyboard back to what opened it", async () => {
-    // Ollama is there to be picked: a missing one has its Install, which is tried too.
-    agents = only("claude", "ollama");
-    agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
-    await mount();
-    await ask();
-    for (const opener of ['[data-agent-pick="custom"]', '[data-agent-pick="ollama"]', "[data-install]", "[data-launch-options]"]) {
-      const from = content().querySelector<HTMLButtonElement>(opener)!;
-      from.focus();
-      await act(async () => from.click());
-      expect(menuOrder(), opener).not.toContain("§Launch an agent");
-      await goBack();
-      expect(menuOrder(), opener).toEqual(["§Launch an agent", ...agentsOnly]);
-      expect(document.activeElement, opener).toBe(content().querySelector(opener));
-    }
-  });
-
-  it("is the ＋'s whole menu again once the trigger opens it", async () => {
+  it("goes back to the whole menu from the palette's custom agent and Ollama, whether it was open or closed", async () => {
     // The agents are known: the keyboard enters the menu, and Escape is heard from it.
     agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
     await mount();
-    await ask();
-    await close();
-    await act(async () => host.querySelector("button")!.click());
-    expect(menuOrder()).toEqual(["§Agents", ...agentsOnly, "§Terminals", "New console", "shell", "§Fleet and boards", "Fleet", "Kanban"]);
-  });
-
-  it("does not hold a request that did not ask for it: the palette's custom agent goes back to the whole menu", async () => {
-    // The agents are known: the keyboard enters the menu, and Escape is heard from it.
-    agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
-    await mount();
-    await ask();
+    await act(async () => requestUi({ kind: "agentMenu", view: "agents" }));
     // Still open: another request, the palette's "Launch a custom agent…", for the Custom form.
     await act(async () => requestUi({ kind: "agentMenu", view: "options" }));
     expect(content().textContent).toContain("Launch the custom command");
     await goBack();
-    expect(menuOrder()).toContain("§Terminals");
+    expect(menuOrder()).toEqual(whole);
     // And from closed: the same, whatever the menu was before.
     await close();
     await act(async () => requestUi({ kind: "agentMenu", view: "ollama" }));
     await goBack();
-    expect(menuOrder()).toContain("§Terminals");
+    expect(menuOrder()).toEqual(whole);
   });
+
+  it("gives the keyboard back to what opened a sub-view, Back from Custom, Ollama, an Install or the Options", async () => {
+    // Ollama is there to be picked: a missing one has its Install, which is tried too.
+    agents = only("claude", "ollama");
+    agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
+    await mount();
+    await act(async () => requestUi({ kind: "agentMenu", view: "agents" }));
+    for (const opener of ['[data-agent-pick="custom"]', '[data-agent-pick="ollama"]', "[data-install]", "[data-launch-options]"]) {
+      const from = content().querySelector<HTMLButtonElement>(opener)!;
+      from.focus();
+      await act(async () => from.click());
+      expect(menuOrder(), opener).not.toContain("§Agents");
+      await goBack();
+      expect(menuOrder(), opener).toEqual(whole);
+      expect(document.activeElement, opener).toBe(content().querySelector(opener));
+    }
+  });
+
+  it("launches where the radial menu was pressed and gives the new terminal the keyboard: the trigger does not take it back", async () => {
+    agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
+    vi.mocked(arrive).mockClear();
+    await mount();
+    await act(async () => requestUi({ kind: "agentMenu", view: "agents", at: { x: 5, y: 6 } }));
+    await act(async () => content().querySelector<HTMLButtonElement>('[data-agent-pick="claude"]')!.click());
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(vi.mocked(launchAgent).mock.lastCall?.[2]).toEqual({ x: 5, y: 6 });
+    expect(arrive).toHaveBeenCalledWith("node", { moveView: false });
+    expect(document.body.querySelector('[data-slot="popover-content"]')).toBeNull();
+    expect(document.activeElement).not.toBe(host.querySelector("button"));
+  });
+});
+
+it("fits under the title bar at 960x600: its rows scroll, the launch folder and the Options footer stay out of the scroll", async () => {
+  await openMenu();
+  const content = document.body.querySelector<HTMLElement>('[data-slot="popover-content"]')!;
+  // Capped at the room Radix measured inside the collision padding, a column.
+  expect([...content.classList]).toEqual(expect.arrayContaining(["max-h-(--radix-popover-content-available-height)", "flex", "flex-col", "w-72"]));
+  const rows = content.querySelector<HTMLElement>("[data-agent-rows]")!;
+  expect([...rows.classList]).toEqual(expect.arrayContaining(["min-h-0", "overflow-y-auto"]));
+  expect(rows.contains(content.querySelector("[data-launch-folder]"))).toBe(false);
+  expect(rows.contains(content.querySelector("[data-launch-options]"))).toBe(false);
+  expect(rows.querySelector('[data-agent-pick="claude"]')).not.toBeNull();
 });

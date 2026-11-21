@@ -2,7 +2,6 @@ import { useId, type ReactNode } from "react";
 import { ArrowLeft, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMessages } from "@/i18n";
 import type { ShellKind } from "@/ipc/pty";
@@ -13,8 +12,8 @@ import type { LaunchOptions } from "./launchAgent";
 import { pickFolder } from "./launchFolder";
 import { agentsMessages } from "./messages";
 
-// dp-label sits in the components layer: Label's own text-sm would win over its 12 px, so the size is said again.
-const LABEL = "dp-label text-xs";
+// A field's name: a native label in the section label's style (shadcn's Label would resize it, and .dp-label is never resized), as in the loops dialog.
+const LABEL = "dp-label";
 
 /** Folder, shell and title of the next launch, and the command of a Custom one. */
 export function LaunchOptionsForm(props: {
@@ -50,9 +49,9 @@ export function LaunchOptionsForm(props: {
       {/* What a Custom terminal is for comes first; the rest only says where and how it runs. */}
       {showCommand && (
         <div className="grid gap-1.5">
-          <Label htmlFor={`${id}-command`} className={LABEL}>
+          <label htmlFor={`${id}-command`} className={LABEL}>
             {t.command}
-          </Label>
+          </label>
           <Input
             id={`${id}-command`}
             autoFocus
@@ -70,9 +69,9 @@ export function LaunchOptionsForm(props: {
         </div>
       )}
       <div className="grid gap-1.5">
-        <Label htmlFor={`${id}-folder`} className={LABEL}>
+        <label htmlFor={`${id}-folder`} className={LABEL}>
           {t.folder}
-        </Label>
+        </label>
         <div className="flex gap-1.5">
           {/* Read-only, not disabled: the path stays focusable and selectable to copy it. */}
           <Input
@@ -100,9 +99,9 @@ export function LaunchOptionsForm(props: {
         )}
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor={`${id}-shell`} className={LABEL}>
+        <label htmlFor={`${id}-shell`} className={LABEL}>
           {t.shell}
-        </Label>
+        </label>
         <Select value={value.shell} onValueChange={(shell) => set({ shell: shell as ShellKind })}>
           <SelectTrigger id={`${id}-shell`} className="h-8 w-full">
             <SelectValue />
@@ -117,9 +116,9 @@ export function LaunchOptionsForm(props: {
         </Select>
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor={`${id}-title`} className={LABEL}>
+        <label htmlFor={`${id}-title`} className={LABEL}>
           {t.titleField}
-        </Label>
+        </label>
         <Input id={`${id}-title`} value={value.title} onChange={(e) => set({ title: e.target.value })} placeholder={t.automatic} autoComplete="off" className="h-8" />
       </div>
       {footer}

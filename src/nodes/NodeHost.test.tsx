@@ -7,7 +7,15 @@ import { canvasStore } from "@/canvas/canvasStore";
 import { NodeHost } from "./NodeHost";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("./terminal/TerminalNode", () => ({ TerminalNode: ({ nodeId }: { nodeId: string }) => <div data-shown={nodeId} /> }));
+// A terminal's header button and its xterm field: two stops of the Tab order.
+vi.mock("./terminal/TerminalNode", () => ({
+  TerminalNode: ({ nodeId }: { nodeId: string }) => (
+    <div data-shown={nodeId}>
+      <button type="button">Close</button>
+      <textarea />
+    </div>
+  ),
+}));
 vi.mock("./fleet/FleetNode", () => ({ FleetNode: () => null }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -23,4 +31,21 @@ it("shows nothing of a terminal whose group is folded, and brings it back when u
   await act(async () => canvasStore.setState({ frames: [frame(false)] as never }));
   expect(host.querySelector("[data-shown='a']")).not.toBeNull();
   await act(async () => root.unmount());
+});
+
+it("keeps a node out of the Tab order while it is not the active one, and puts it back once it is", async () => {
+  canvasStore.setState({ frames: [], activeNode: null });
+  const host = document.createElement("div");
+  const root = createRoot(host);
+  await act(async () => root.render(<NodeHost element={element} />));
+  // Its id, for what a press on its controls activates (canvas/liveControls.ts).
+  expect(host.querySelector("[data-node-id='a']")).not.toBeNull();
+  const stops = () => [...host.querySelectorAll<HTMLElement>("button, textarea")].map((e) => e.tabIndex);
+  expect(stops()).toEqual([-1, -1]);
+  await act(async () => canvasStore.setState({ activeNode: "a" }));
+  expect(stops()).toEqual([0, 0]);
+  await act(async () => canvasStore.setState({ activeNode: "b" }));
+  expect(stops()).toEqual([-1, -1]);
+  await act(async () => root.unmount());
+  canvasStore.setState({ activeNode: null });
 });

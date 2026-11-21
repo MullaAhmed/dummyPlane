@@ -5,13 +5,13 @@ import { messages, useMessages } from "@/i18n";
 import type { AgentId } from "@/ipc/pty";
 import { cn } from "@/lib/utils";
 import { DropdownMenuCheckboxItem, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { IconButton } from "@/shell/buttons";
+import { HintedButton, IconButton } from "@/shell/buttons";
 import { missionMessages } from "./messages";
 import { followRouter, routerInert, setRouter, useRouterFollow, useRouterOn } from "./routerState";
 
 /**
  * Why a terminal's switch has nothing to route (`routerInert`), in plain words; undefined while it acts. The words of
- * its hint, its menu entry's title and the line under it in its Edit tab.
+ * its hint, its menu entry's title and the line under it in its Edit panel.
  */
 export function routerInertText(payload: { agent: AgentId; role?: string }): string | undefined {
   const t = messages(missionMessages);
@@ -22,11 +22,11 @@ export function routerInertText(payload: { agent: AgentId; role?: string }): str
 }
 
 /**
- * The model router as a sticky switch in a node's header, a terminal's or a Fleet's: the same 28px icon button as
- * the header's others, on until it is turned off. Its name stays "Model router" and its state is `aria-pressed`'s
- * (one name, never "Turn the router off"); on, it takes the accent's tint, which the icon's ink keeps legible in
- * every palette (as the rails' active button). A header shows it from 28rem of node on (`WIDE_ONLY`): a narrower
- * node reaches the same switch in its Edit tab.
+ * The model router as a sticky switch in a Fleet's header: the same 28px icon button as the header's others, on until
+ * it is turned off. Its name stays "Model router" and its state is `aria-pressed`'s (one name, never "Turn the router
+ * off"); on, it takes the accent's tint, which the icon's ink keeps legible in every palette (as the rails' active
+ * button). A header shows it from 28rem of node on (`WIDE_ONLY`): a narrower Fleet reaches the same switch in its Edit
+ * tab. A terminal's is in its foot, beside Link (`FootRouterToggle`).
  */
 export function RouterToggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
   const t = useMessages(missionMessages);
@@ -63,7 +63,7 @@ function InertRouterToggle({ reason }: { reason: string }) {
         aria-describedby={noteId}
         data-router="off"
         onClick={(event) => event.preventDefault()}
-        className="cursor-not-allowed opacity-50 hover:bg-transparent hover:text-dp-text-2 active:scale-100"
+        className="cursor-not-allowed text-dp-text-3 hover:bg-transparent hover:text-dp-text-3 active:scale-100"
       >
         <Route />
       </IconButton>
@@ -87,6 +87,71 @@ export function NodeRouterToggle({ nodeId, inert }: { nodeId: string; inert?: st
 function ActiveRouterToggle({ nodeId }: { nodeId: string }) {
   const on = useRouterOn(nodeId);
   return <RouterToggle on={on} onChange={(next) => setRouter(nodeId, next)} />;
+}
+
+/** The foot's switch: Link's size and quiet ink, a word beside the icon. */
+const FOOT_SWITCH = "font-normal text-dp-text-2 hover:text-dp-text";
+
+/**
+ * A terminal's switch in its foot, beside Link (`AgentFoot`), where the user links the agent and so decides who it
+ * works with: the route icon and "Router", as quiet as Link while off, in the accent's tint while on. Its name stays
+ * "Model router" (it holds the visible word) and its state is `aria-pressed`'s, as the header switch's. "Follow" is
+ * in the ⋯ menu. `inert`, the reason it has nothing to route (`routerInertText`), shows it greyed out, off and
+ * unwritten, with that reason as its hint and its description.
+ */
+export function FootRouterToggle({ nodeId, inert }: { nodeId: string; inert?: string }) {
+  return inert ? <InertFootRouterToggle reason={inert} /> : <ActiveFootRouterToggle nodeId={nodeId} />;
+}
+
+function ActiveFootRouterToggle({ nodeId }: { nodeId: string }) {
+  const t = useMessages(missionMessages);
+  const on = useRouterOn(nodeId);
+  return (
+    <HintedButton
+      hint={t.routerSwitch}
+      hintSide="top"
+      variant="ghost"
+      size="xs"
+      aria-label={t.routerSwitch}
+      aria-pressed={on}
+      data-router={on ? "on" : "off"}
+      data-foot-router
+      onClick={() => setRouter(nodeId, !on)}
+      className={cn(FOOT_SWITCH, on && "bg-dp-accent-soft text-dp-accent-ink hover:bg-dp-accent-soft hover:text-dp-accent-ink")}
+    >
+      <Route aria-hidden />
+      {t.routerShort}
+    </HintedButton>
+  );
+}
+
+function InertFootRouterToggle({ reason }: { reason: string }) {
+  const t = useMessages(missionMessages);
+  const noteId = useId();
+  return (
+    <>
+      <HintedButton
+        hint={reason}
+        hintSide="top"
+        variant="ghost"
+        size="xs"
+        aria-label={t.routerSwitch}
+        aria-pressed={false}
+        aria-disabled
+        aria-describedby={noteId}
+        data-router="off"
+        data-foot-router
+        onClick={(event) => event.preventDefault()}
+        className={cn(FOOT_SWITCH, "cursor-not-allowed text-dp-text-3 hover:bg-transparent hover:text-dp-text-3 active:scale-100")}
+      >
+        <Route aria-hidden />
+        {t.routerShort}
+      </HintedButton>
+      <span id={noteId} hidden>
+        {reason}
+      </span>
+    </>
+  );
 }
 
 /**
@@ -124,7 +189,7 @@ function InertRouterMenuItem({ reason }: { reason: string }) {
       title={reason}
       onSelect={(event) => event.preventDefault()}
       onCheckedChange={() => undefined}
-      className="cursor-not-allowed opacity-50"
+      className="cursor-not-allowed text-dp-text-3 focus:text-dp-text-3"
     >
       {t.routerSwitch}
     </DropdownMenuCheckboxItem>

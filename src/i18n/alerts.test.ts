@@ -5,6 +5,7 @@ import { appMessages } from "@/app/messages";
 import { canvasMessages } from "@/canvas/messages";
 import { commandsMessages } from "@/commands/messages";
 import { fleetMessages } from "@/fleet/messages";
+import { gitMessages } from "@/git/messages";
 import { homeMessages } from "@/home/messages";
 import { kanbanMessages } from "@/kanban/messages";
 import { loopsMessages } from "@/loops/messages";
@@ -14,6 +15,7 @@ import { noteMessages } from "@/nodes/note/messages";
 import { outputMessages } from "@/nodes/output/messages";
 import { notesMessages } from "@/notes/messages";
 import { presetsMessages } from "@/presets/messages";
+import { reviewMessages } from "@/review/messages";
 import { shellMessages } from "@/shell/messages";
 import { storeMessages } from "@/store/messages";
 import { studioMessages } from "@/studio/messages";
@@ -111,6 +113,88 @@ const NEXT: [string, string][] = [
   [messages(studioMessages).saveNext, "Your changes stay in the tab: save again"],
 ];
 
+/** The problems shown inside panels (InlineProblem): a title in the app's words and a next step, as a toast's. */
+const git = messages(gitMessages).problem;
+const review = messages(reviewMessages).problem;
+const studio = messages(studioMessages);
+const loops = messages(loopsMessages).dialog;
+const INLINE: [string, string][] = [
+  [git.rejected("origin/main"), "Push refused: origin/main has commits this branch does not have"],
+  [git.rejectedNext, "Pull them in a terminal here, then push again"],
+  [git.push("origin/main"), "Could not push to origin/main"],
+  [git.pushNext, "Push from a terminal here to see what git asks for"],
+  [git.overwritten("side"), "Could not switch to side: your uncommitted changes would be overwritten"],
+  [git.overwrittenNext, "Commit or discard them first, then switch"],
+  [git.switch("side"), "Could not switch to side"],
+  [git.switchNext, "The branch did not change: refresh, then try again"],
+  [git.commit, "Could not commit"],
+  [git.commitNext, "Your message and choices are kept: fix what git says, then commit again"],
+  [git.identity, "Git does not know who you are"],
+  [git.identityNext, "Set user.name and user.email with git config in a terminal"],
+  [git.discard("src/a.ts"), "Could not discard src/a.ts"],
+  [git.discardNext, "Look at the file again, then discard it again"],
+  [git.branches, "Could not list the branches"],
+  [git.branchesNext, "Refresh, then open the menu again"],
+  [git.read, "Could not read the repository"],
+  [git.diff("src/a.ts"), "Could not read the diff of src/a.ts"],
+  [git.history, "Could not read the history"],
+  [git.readNext, "Refresh to read it again"],
+  [git.notRepo, "This folder is not a git repository"],
+  [git.notRepoNext, "Run git init in a terminal here, then refresh"],
+  [git.locked, "Another git command is using this repository"],
+  [git.lockedNext, "Wait for it to finish, then try again"],
+  [git.terminal, "Open a terminal here"],
+  [review.changes, "Could not read the changes"],
+  [review.diff("src/a.ts"), "Could not read the diff of src/a.ts"],
+  [review.files, "Could not list the files"],
+  [review.file("README.md"), "Could not read README.md"],
+  [review.next, "Refresh to read it again"],
+  [review.notRepo, "This folder is not a git repository"],
+  [review.notRepoNext, "Run git init in a terminal here, or start the agent in a repository"],
+  [studio.treeFailed, "Could not read the project's files"],
+  [studio.treeNext, "Refresh the tree to read them again"],
+  [studio.readFailed("logo.png"), "Could not open logo.png"],
+  [studio.readNext, "Open it in another editor, or pick another file"],
+  [studio.reloadFailed("src/a.ts"), "Could not read src/a.ts again from the disk"],
+  [studio.reloadNext, "Your version stays in the tab: reload again, or overwrite"],
+  [messages(canvasMessages).loadFailed, "Could not load this workspace"],
+  [messages(canvasMessages).loadNext, "Try again, or open another workspace"],
+  [messages(canvasMessages).selection.listFailed, "Could not read the list"],
+  [messages(canvasMessages).selection.listNext, "Check that the folder can be read, then try again"],
+  [messages(nodesMessages).file.readFailed, "Could not read the file"],
+  [messages(nodesMessages).file.readNext, "Refresh to read it again"],
+  [shell.troubleshoot.failed, "Could not run the diagnostics"],
+  [shell.troubleshoot.failedNext, "Check again, or report the problem if it keeps failing"],
+  [messages(missionMessages).overnight.checkFailed, "The project could not be checked"],
+  [messages(missionMessages).overnight.checkNext, "Check that git and gh run in a terminal, then try again"],
+  [messages(notesMessages).listFailed, "Could not read the notes"],
+  [messages(notesMessages).listNext, "Check that .dummyplane/notes can be read, then refresh"],
+  [messages(notesMessages).createFailed("auth"), "Could not create the note auth"],
+  [messages(notesMessages).createNext, "Check that .dummyplane/notes can be written, then try again"],
+  [messages(notesMessages).group.readFailed, "Could not read the project's notes"],
+  [messages(notesMessages).group.readNext, "Check that .dummyplane/notes can be read, then try again"],
+  [shell.usage.tokensFailed, "Could not read Claude's logs"],
+  [shell.usage.tokensNext, "Check that Claude's folder can be read, then try again"],
+  [loops.problem.noTargets, "Stopped: none of its agents is running"],
+  [loops.problemNext.noTargets, "Restart one of its agents, or edit the loop to pick others"],
+  [loops.problem.noAgents, "Stopped: its targets are shells, not agents"],
+  [loops.problem.noAgent, "Off: none of its targets is an agent"],
+  [loops.problemNext.noAgent, "Edit the loop to choose agents"],
+];
+
+describe("problems inside panels in the app's voice, as toasts (docs/design-system.md, Alerts)", () => {
+  it("says what failed, then what to do next, each in a sentence of its own", () => {
+    for (const [actual, expected] of INLINE) expect(actual).toBe(expected);
+  });
+
+  it("keeps them short and calm, and never sends the person to a git command the app does not have as if it had it", () => {
+    for (const [text] of INLINE) {
+      expect(text, text).not.toMatch(/!|\.$|Error:|os error|\$\{|git pull|git fetch/);
+      expect(text.length, text).toBeLessThanOrEqual(80);
+    }
+  });
+});
+
 describe("error toasts in the app's voice (docs/design-system.md, Alerts)", () => {
   it("says what failed in a plain sentence of its own", () => {
     for (const [actual, expected] of TITLES) expect(actual).toBe(expected);
@@ -130,7 +214,22 @@ describe("error toasts in the app's voice (docs/design-system.md, Alerts)", () =
   it("titles every Windows notification with the agent and its state, the finish's format", () => {
     expect(shell.notification.title("Batman", shell.notification.waiting)).toBe("Batman · Waiting");
     expect(shell.notification.title("Batman", shell.finishAlert.states.done)).toBe("Batman · Done");
+    // The state table's words: Done only for an agent that reported, Ready for one whose turn ended without a report.
+    expect(shell.notification.title("Batman", shell.finishAlert.states.blocked)).toBe("Batman · Blocked");
+    expect(shell.notification.title("Batman", shell.finishAlert.states.failed)).toBe("Batman · Failed");
+    expect(shell.notification.title("Batman", shell.finishAlert.states.finished)).toBe("Batman · Ready");
     expect(shell.notification.question).toBe("Has a question for you");
+    // A Fleet's decision is a wait too, in fixed lines: no mission, branch or folder on the lock screen.
+    expect(shell.notification.decision).toEqual({
+      plan: "Has a plan for your go-ahead",
+      changes: "Proposes changes to the waiting tasks",
+      land: "Asks to land its mission",
+      leftovers: "Asks to clean up leftovers",
+    });
+    expect(shell.waitingNotice.decision.plan("Atlas")).toBe("Atlas has a plan for you");
+    expect(shell.waitingNotice.decision.changes("Atlas")).toBe("Atlas proposes changes");
+    expect(shell.waitingNotice.decision.land("Atlas")).toBe(shell.waitingNotice.question("Atlas"));
+    expect(shell.waitingNotice.decision.leftovers("Atlas")).toBe(shell.waitingNotice.question("Atlas"));
     // The notice in the window keeps its own line, which names the agent.
     expect(shell.waitingNotice.question("Batman")).toBe("Batman has a question");
   });

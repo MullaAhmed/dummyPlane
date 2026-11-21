@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { boot } from "@/app/boot";
 import { ArrangeLayoutMenu } from "@/agents/ArrangeLayoutMenu";
+import { GroupAgentMenu } from "@/agents/GroupAgentMenu";
+import { OtherAgentMenu } from "@/agents/OtherAgentMenu";
 import { GoToLine } from "@/studio/GoToLine";
 import { QuitPrompt } from "@/studio/QuitPrompt";
 import { Palette } from "@/commands/Palette";
@@ -83,6 +85,14 @@ export default function App() {
       {/* The layouts of an "Arrange as…" (a ring's Arrange, the palette's): its next opening tries it again. */}
       <QuietBoundary scope="arrange layouts" useResetKey={usePaletteOpenings}>
         <ArrangeLayoutMenu />
+      </QuietBoundary>
+      {/* The agents of an "Other agent…" (the canvas ring's wedge, the palette's): its next opening tries it again. */}
+      <QuietBoundary scope="other agents" useResetKey={usePaletteOpenings}>
+        <OtherAgentMenu />
+      </QuietBoundary>
+      {/* The agents of a group's "Add an agent" (the group ring's wedge, the palette's): its next opening tries it again. */}
+      <QuietBoundary scope="group agents" useResetKey={usePaletteOpenings}>
+        <GroupAgentMenu />
       </QuietBoundary>
       <QuietBoundary scope="go to line" useResetKey={usePaletteOpenings}>
         <GoToLine />

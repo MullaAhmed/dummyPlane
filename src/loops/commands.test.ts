@@ -46,7 +46,7 @@ it("stop all works from anywhere, home included: an emergency brake", () => {
   expect(loopsStore.getState().runningCount()).toBe(0);
 });
 
-it("opens the window through a request to the interface", () => {
+it("opens the window through a request to the interface, at once: the palette is the keyboard", () => {
   runCommand(loopCommands()[0], project);
-  expect(pendingUiRequest()).toEqual({ kind: "loops" });
+  expect(pendingUiRequest()).toEqual({ kind: "loops", instant: true });
 });

@@ -60,9 +60,22 @@ export function createRemovalGuard(isRunning: (nodeId: string) => boolean, initi
             remove: [...caught, ...left, ...members.map((e) => e.id)],
             ...(released.length > 0 ? { release: released.map((e) => e.id) } : {}),
           };
+    // The arrows that joined them: Excalidraw's own deletion frees their ends (an undo takes them), and a node put
+    // back alone leaves them orphans, which the wire upkeep then deletes: a link the user drew, lost by a closing
+    // they may yet cancel.
+    const byId = new Map(elements.map((e) => [e.id, e]));
+    const ends = (e: ExcalidrawElement) => {
+      const { startBinding, endBinding } = e as { startBinding?: { elementId: string } | null; endBinding?: { elementId: string } | null };
+      return [startBinding?.elementId, endBinding?.elementId];
+    };
+    const wires = [...was.values()].filter((e) => {
+      if (e.type !== "arrow" || back.includes(e.id) || !ends(e).some((id) => id !== undefined && back.includes(id))) return false;
+      const current = byId.get(e.id);
+      return !current || current.isDeleted || ends(current).join() !== ends(e).join();
+    });
     return {
       dispose: removed.filter((id) => !back.includes(id)),
-      restore: back.map((id) => was.get(id)!),
+      restore: [...back.map((id) => was.get(id)!), ...wires],
       ask,
     };
   };

@@ -1,4 +1,5 @@
 import type { ArrangeLayout } from "@/agents/arrangeLayout";
+import { stateWords } from "@/agents/messages";
 import { defineMessages, plural } from "@/i18n";
 
 /** The app shell's texts: title bar, rails, menus, dialogs. */
@@ -9,18 +10,21 @@ export const shellMessages = defineMessages(
     fallbackAgent: "Agent",
     percent: (n: number) => `${n}%`,
     activityRail: { agents: "Agents", agentsWaiting: (count: number) => `Agents, ${count} waiting`, notes: "Notes", settings: "Settings" },
-    agentCounts: {
-      working: "Agents working",
-      waiting: "Agents waiting for your answer",
-      active: "Active agents in this workspace",
-      activeCount: (count: number) => plural(count, "active", "active"),
-      // A counter's name says its number first, as the counter shows it (WCAG 2.5.3 label in name).
-      workingName: (count: number) => `${plural(count, "agent", "agents")} working`,
-      waitingName: (count: number) => `${plural(count, "agent", "agents")} waiting for your answer`,
-      activeName: (count: number) => `${plural(count, "active agent", "active agents")} in this workspace`,
+    workingCount: {
+      hint: "Agents working",
+      // A count's name says its number first, as the count shows it (WCAG 2.5.3 label in name).
+      name: (count: number) => `${plural(count, "agent", "agents")} working`,
     },
     waitingNotice: {
+      label: "Agents waiting for your answer",
       question: (name: string) => `${name} has a question`,
+      // A Fleet whose panel asks a decision (`@/mission/decisions`): its row's first line; the line under it says what.
+      decision: {
+        plan: (name: string) => `${name} has a plan for you`,
+        changes: (name: string) => `${name} proposes changes`,
+        land: (name: string) => `${name} has a question`,
+        leftovers: (name: string) => `${name} has a question`,
+      },
       others: (count: number) => `+ ${plural(count, "more", "more")}`,
     },
     /**
@@ -29,13 +33,21 @@ export const shellMessages = defineMessages(
      */
     notification: {
       title: (name: string, state: string) => `${name} · ${state}`,
-      waiting: "Waiting",
+      waiting: stateWords.waiting,
       /** A fixed line, never the question: a notification can show on the lock screen. */
       question: "Has a question for you",
+      /** A Fleet's decision, in fixed lines too: no mission's name, branch or folder on the lock screen. */
+      decision: {
+        plan: "Has a plan for your go-ahead",
+        changes: "Proposes changes to the waiting tasks",
+        land: "Asks to land its mission",
+        leftovers: "Asks to clean up leftovers",
+      },
     },
     /** A main agent finished (`@/shell/finishAlert`): a report, a mission's end, or a turn after real work. */
     finishAlert: {
-      states: { done: "Done", blocked: "Blocked", failed: "Failed", finished: "Finished" },
+      // The table's words: a report says its own, a turn that ended without one leaves the agent Ready.
+      states: { done: stateWords.done, blocked: stateWords.blocked, failed: stateWords.failed, finished: stateWords.ready },
       /** A turn that ended without a report: nothing it said to show. */
       turnOver: "Ready for your next message",
       /** A mission ended without a summary. */
@@ -51,7 +63,7 @@ export const shellMessages = defineMessages(
     },
     closeAgent: {
       fallbackName: "this agent",
-      several: (names: string[]) => `These agents are still running; closing them ends their session: ${names.join(", ")}.`,
+      several: (names: string[]) => `These agents are still running; closing them ends their session: ${names.join(", ")}`,
       inMission: (name: string) =>
         `${name} is leading a mission in progress. Closing it stops its session; its agents keep going, but nobody will read their reports. The mission's worktrees and branches stay on disk.`,
       fleet: (name: string) => `${name} is still running. Closing it ends its session.`,
@@ -60,7 +72,7 @@ export const shellMessages = defineMessages(
       agentReady: (name: string) => `${name} is ready. Closing it ends its session.`,
       fleetWorking: (name: string) => `${name} is working. Closing it ends its session.`,
       fleetReady: (name: string) => `${name} is ready. Closing it ends its session.`,
-      stopped: (name: string) => `${name} is stopped.`,
+      stopped: (name: string) => `${name} is stopped`,
       alsoChildren: (names: string[]) => `Also close the sub-agents it opened: ${names.join(", ")}`,
       titleOne: (name: string) => `Close ${name}?`,
       titleMany: (count: number) => `Close ${count} agents?`,
@@ -71,7 +83,7 @@ export const shellMessages = defineMessages(
     },
     closeGroup: {
       title: (name: string | undefined) => (name ? `Close the group ${name}?` : "Close this group?"),
-      description: (names: string[]) => `These agents are still running; closing the group ends their session: ${names.join(", ")}.`,
+      description: (names: string[]) => `These agents are still running; closing the group ends their session: ${names.join(", ")}`,
       cancel: "Cancel",
       confirm: "Close the group",
     },
@@ -80,15 +92,15 @@ export const shellMessages = defineMessages(
       placeholder: "Message agents",
       placeholderTo: (name: string) => `Message ${name}`,
       emptyHint: "Select agents or type @",
-      hint: 'Try "@all run the tests"',
-      hideHint: "Hide the tip",
+      // The first-use tip: the empty field's placeholder, until the first send.
+      tip: 'Try "@all run the tests"',
     },
     crash: {
       part: "This part of the interface hit an error",
       retry: "Try again",
       openLogs: "Open the logs folder",
       app: "The interface hit an error",
-      agentsKeepRunning: "Your agents keep running: reloading the interface finds them again.",
+      agentsKeepRunning: "Your agents keep running: reloading the interface finds them again",
       reload: "Reload the interface",
     },
     /** The start-up error screen: what failed, then the ways out. */
@@ -104,6 +116,8 @@ export const shellMessages = defineMessages(
       dark: "Dark (Clay)",
       scene: "Scene",
       agents: "Agents",
+      alerts: "Alerts",
+      layout: "Layout",
       updates: "Updates",
       help: "Help",
       nativeNotifications: "Windows notifications",
@@ -132,7 +146,6 @@ export const shellMessages = defineMessages(
       exportPng: "Export as PNG…",
       autoUpdates: "Check automatically",
       checkUpdates: "Check now",
-      about: "About dummyPlane",
       openLogs: "Open the logs folder",
       troubleshoot: "Troubleshooting…",
     },
@@ -142,20 +155,21 @@ export const shellMessages = defineMessages(
       description:
         "With the model router on, the level of a sub-agent's or a mission agent's task picks its model. Claude's are dummyPlane's. For another CLI, write a model for each level; a level left empty keeps that CLI's own model.",
       // The global switch is off: no level picks anything until a node's switch is turned on.
-      off: "The model router is off in Settings: a level picks a model only under a terminal or a Fleet whose switch is on.",
+      off: "The model router is off in Settings: a level picks a model only under a terminal or a Fleet whose switch is on",
       level: "Level",
       levels: { faible: "Low", moyen: "Medium", eleve: "High", extreme: "Extreme" },
       empty: "Its own",
       modelFor: (cli: string, level: string) => `${cli} model for the ${level} level`,
       // Under the fields, always: what a field may hold; one outlined in red was not kept.
-      format: "A model is letters, digits and - . _ [ ], 64 characters at most, never a Claude model: one that is not is not kept.",
+      format: "A model is letters, digits and - . _ [ ], 64 characters at most, never a Claude model: one that is not is not kept",
       done: "Done",
     },
     troubleshoot: {
       title: "Troubleshooting",
       description: "What dummyPlane sees on this PC, and where to go from there",
       loading: "Checking…",
-      failed: (error: string) => `Could not run the diagnostics: ${error}`,
+      failed: "Could not run the diagnostics",
+      failedNext: "Check again, or report the problem if it keeps failing",
       agents: "Agents",
       notFound: "not found",
       gitMissing: "Missions and the git chip need it",
@@ -166,8 +180,8 @@ export const shellMessages = defineMessages(
       serverDown: "Agent states and the fleet's tools depend on it: restart dummyPlane, and if it goes on, attach the log to your report",
       checkAgain: "Check again",
       copy: "Copy the diagnostics",
-      copied: "Diagnostics copied: paste them into your report.",
-      copyFailed: "Could not copy: the clipboard refused the diagnostics.",
+      copied: "Diagnostics copied: paste them into your report",
+      copyFailed: "Could not copy: the clipboard refused the diagnostics",
       openLogs: "Open the logs folder",
       openData: "Open the data folder",
       guide: "Troubleshooting guide",
@@ -239,7 +253,7 @@ export const shellMessages = defineMessages(
       moveRight: "Move right",
       folder: "Folder…",
       useProjectFolder: "Use the project folder",
-      folderNote: "Applies to what starts next; terminals already open stay where they are.",
+      folderNote: "Applies to what starts next; terminals already open stay where they are",
       folderOf: (path: string) => `Works in ${path}`,
       delete: "Delete",
       newWorkspace: "New workspace",
@@ -259,8 +273,8 @@ export const shellMessages = defineMessages(
       description: (running: number, names: string[] = []) => {
         const who = names.length > 0 ? ` (${names.join(", ")})` : "";
         return running > 0
-          ? `${plural(running, "agent will be stopped", "agents will be stopped")}${who} and the workspace's canvas erased.`
-          : "The workspace's canvas will be erased.";
+          ? `${plural(running, "agent will be stopped", "agents will be stopped")}${who} and the workspace's canvas erased`
+          : "The workspace's canvas will be erased";
       },
       ok: "Delete",
       cancel: "Cancel",
@@ -302,7 +316,9 @@ export const shellMessages = defineMessages(
       tokensBack: "Usage",
       tokensTitle: "Tokens · 30 days",
       tokensLoading: "Reading Claude's logs…",
-      tokensFailed: (error: string) => `Could not read: ${error}`,
+      tokensFailed: "Could not read Claude's logs",
+      tokensNext: "Check that Claude's folder can be read, then try again",
+      tokensRetry: "Try again",
       tokensEmpty: "No tokens found in Claude's logs over 30 days",
       tokensDefaultOnly: "Default account only: Claude profiles are not counted here",
       tokensChart: (peak: string) => `Tokens per day (peak: ${peak})`,

@@ -1,10 +1,12 @@
 import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
-import { ZONE_OFFSETS } from "@/canvas/canvasFocus";
+import { zoneOffsets } from "@/canvas/canvasFocus";
 import { canvasStore } from "@/canvas/canvasStore";
 import { withGroupSpeciality } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
+import { cameraMotion } from "@/canvas/viewActions";
 import { agentsStore } from "@/agents/agentsStore";
 import { defaultAgent } from "@/agents/catalog";
+import { watchLaunched } from "@/agents/firstQuestion";
 import { launchGroup } from "@/agents/groups";
 import { defaultLaunchOptions } from "@/agents/launchAgent";
 import { linkFleet, addFleetToGroup, renameFleet } from "@/fleet/fleets";
@@ -56,6 +58,8 @@ export async function liveDeployDeps(): Promise<DeployDeps> {
     isAvailable: (agent) => agents.length === 0 || agents.some((a) => a.id === agent && a.available),
     launchGroup: async (plan, at) => {
       const made = await launchGroup(plan, defaultLaunchOptions(), at);
+      // A team the user deployed: each one's first question (trust this folder?) is theirs, and waits as any question does.
+      if (made) watchLaunched(made.nodeIds);
       if (made) await frameKnown(made.frameId);
       return made;
     },
@@ -75,7 +79,7 @@ export async function liveDeployDeps(): Promise<DeployDeps> {
       const scene = canvasStore.getState().api;
       const targets = scene?.getSceneElements().filter((e) => ids.includes(e.id) || (e.frameId !== null && ids.includes(e.frameId)));
       if (scene && targets && targets.length > 0) {
-        scene.scrollToContent(targets, { fitToViewport: true, viewportZoomFactor: 0.9, animate: true, canvasOffsets: ZONE_OFFSETS });
+        scene.scrollToContent(targets, { fitToViewport: true, viewportZoomFactor: 0.9, ...cameraMotion("app"), canvasOffsets: zoneOffsets() });
       }
     },
   };

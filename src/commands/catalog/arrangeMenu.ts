@@ -1,8 +1,7 @@
 import type { ArrangeTarget } from "@/agents/arrangeAs";
-import { clientOf } from "@/agents/placement";
-import { canvasStore } from "@/canvas/canvasStore";
 import type { CommandContext } from "../command";
 import { requestUi } from "../uiRequests";
+import { windowPointOf } from "./menuPoint";
 
 /**
  * Asks for the list of layouts of an "Arrange as…" (src/agents/ArrangeLayoutMenu.tsx) for `target`: at the point of the
@@ -10,7 +9,5 @@ import { requestUi } from "../uiRequests";
  */
 export function askArrangeLayout(ctx: CommandContext, target: ArrangeTarget) {
   if (!ctx.workspaceId) return;
-  const { view } = canvasStore.getState();
-  const at = ctx.at ? clientOf(ctx.at, view) : { x: view.offsetLeft + view.width / 2, y: view.offsetTop + view.height / 2 };
-  requestUi({ kind: "arrangeMenu", workspaceId: ctx.workspaceId, target, at });
+  requestUi({ kind: "arrangeMenu", workspaceId: ctx.workspaceId, target, at: windowPointOf(ctx) });
 }

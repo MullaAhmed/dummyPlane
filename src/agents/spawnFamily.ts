@@ -1,6 +1,9 @@
+import { agentActivityStore } from "@/store/agentActivity";
+import type { TerminalReport } from "@/nodes/types";
 import { isManagerNode, nodesStore, terminalOf } from "@/store/nodes";
 import { isRestarting, statusOf } from "@/store/terminalStatus";
 import type { ClosingAgents } from "@/store/ui";
+import { isClosedNode } from "./closedNode";
 import { sceneAccess } from "./sceneAccess";
 
 /**
@@ -83,9 +86,55 @@ export function markReported(nodeId: string) {
   reported.add(nodeId);
 }
 
+/**
+ * Whether a sub-agent's last task is reported and no new work was typed into it since. The set above is the app's run
+ * only; `lastReport` is saved with the node and cleared by the first line typed after it (`onNewWork`), so after a
+ * restart it alone says so: a check that read the set only would let a finished agent be woken, and seated, unasked.
+ */
+export function hasReported(nodeId: string): boolean {
+  return reported.has(nodeId) || terminalOf(nodesStore.getState().nodes[nodeId])?.lastReport !== undefined;
+}
+
 /** New work its parent gave it (message_agent): at work again, it holds a seat and the duplicate guard sees it. */
 export function unmarkReported(nodeId: string) {
   reported.delete(nodeId);
+}
+
+/** How long a message that gave a finished sub-agent new work holds its seat while the message is not typed (a session to start, a dialog open). */
+export const WAKE_HOLD_MS = 120_000;
+
+/** The sub-agents given new work that had reported, each with the report that stood then and the time (`wakeHeld`). */
+const waking = new Map<string, { since: number; report: TerminalReport | undefined }>();
+
+/**
+ * The message that gives a sub-agent that reported new work, or starts its stopped session again, seats it at once:
+ * its report stands until the message is typed, its process runs only once started again, and two such messages in
+ * a row must not both pass a cap with one seat left, as `launching` holds a spawn's.
+ */
+export function holdWake(nodeId: string) {
+  waking.set(nodeId, { since: Date.now(), report: terminalOf(nodesStore.getState().nodes[nodeId])?.lastReport });
+}
+
+/** Its message will not be typed (its session did not start again): the seat is free again. */
+export function releaseWake(nodeId: string) {
+  waking.delete(nodeId);
+}
+
+/**
+ * Whether a sub-agent still holds the seat its new work gave it. From the moment its own state says so the seat is its
+ * state's, and the hold lets go: its report changed (the message typed cleared it, or it reported again), or, with
+ * none to clear, its process runs; or after WAKE_HOLD_MS.
+ */
+function wakeHeld(id: string): boolean {
+  const held = waking.get(id);
+  if (held === undefined) return false;
+  const report = terminalOf(nodesStore.getState().nodes[id])?.lastReport;
+  const answered = report !== held.report || (held.report === undefined && statusOf(id).state === "running");
+  if (answered || Date.now() - held.since > WAKE_HOLD_MS) {
+    waking.delete(id);
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -94,21 +143,42 @@ export function unmarkReported(nodeId: string) {
  * One whose terminal is being started again is at work through it: its old process's exit frees no seat.
  */
 export function atWork(id: string): boolean {
-  if (launching.has(id)) return true;
+  // First: a terminal the user closed holds nothing, though its launch is still waiting for a Claude that never comes
+  // (a minute) or a start that began as it closed set its status to running.
+  if (isClosedNode(id)) return false;
+  if (launching.has(id) || wakeHeld(id)) return true;
   if (reported.has(id) || terminalOf(nodesStore.getState().nodes[id])?.lastReport) return false;
   const state = statusOf(id).state;
   return state === "running" || state === "starting" || isRestarting(id);
 }
 
 /**
- * The sub-agents at work now, every tree and workspace together: created, not stopped, not reported yet. A
- * mission's agents under their Manager are its team, counted by Max active agents, not here; theirs count.
+ * Whether a sub-agent holds one of the spawn cap's seats: at work, and its agent still in its terminal. One that
+ * quit to its shell (`left`) is a process that runs no agent: it spends nothing and does no work, so it holds none
+ * (a mission's team keeps its seat then: its agent is resumed in place, `relaunchTakesSeat`).
+ */
+function holdsSeat(id: string): boolean {
+  if (!atWork(id)) return false;
+  if (launching.has(id) || waking.has(id) || isRestarting(id)) return true;
+  return agentActivityStore.getState().activities[id]?.left !== true;
+}
+
+/**
+ * Whether the cap on sub-agents counts `id`: an agent another agent spawned that is not a Manager's team agent, which
+ * a mission's Max active agents counts instead.
+ */
+export function isCapped(id: string): boolean {
+  const parent = terminalOf(nodesStore.getState().nodes[id])?.spawnedBy;
+  return parent ? !isManagerNode(parent) : false;
+}
+
+/**
+ * The sub-agents holding a seat of the cap now, every tree and workspace together: created, not stopped, not
+ * closed, not reported yet. A mission's agents under their Manager are its team, counted by Max active agents, not
+ * here; theirs count.
  */
 export function spawnedAtWork(): string[] {
-  return Object.entries(nodesStore.getState().nodes).flatMap(([id, record]) => {
-    const parent = terminalOf(record)?.spawnedBy;
-    return parent && !isManagerNode(parent) && atWork(id) ? [id] : [];
-  });
+  return Object.keys(nodesStore.getState().nodes).filter((id) => isCapped(id) && holdsSeat(id));
 }
 
 export function runningSpawned(): number {

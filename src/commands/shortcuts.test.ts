@@ -25,6 +25,11 @@ describe("shortcutOf", () => {
     // Ungroup: taken only when the app's Ungroup can act (dispatch.test.ts); else it still reaches Excalidraw.
     expect(shortcutOf(key({ key: "G", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Shift+G");
     expect(shortcutOf(key({ key: "g", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Shift+G");
+    // The git window: any case, never Ctrl+B alone (the Code Studio's editor, a shell's back one character).
+    expect(shortcutOf(key({ key: "B", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Shift+B");
+    expect(shortcutOf(key({ key: "b", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Shift+B");
+    expect(shortcutOf(key({ key: "b", ctrlKey: true }))).toBeNull();
+    expect(shortcutOf(key({ key: "B", ctrlKey: true, shiftKey: true, repeat: true }))).toBeNull();
   });
 
   it("leaves Ctrl+Shift+G to a text field or a terminal, never to the canvas's selection", () => {

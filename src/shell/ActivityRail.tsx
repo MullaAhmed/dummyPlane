@@ -31,7 +31,7 @@ export function ActivityRail() {
   return (
     <nav className="dp-glass absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-lg p-1">
       {/* Its name carries the pip's number: "Agents, 2 waiting" (WCAG 2.5.3 label in name). */}
-      <RailButton toggle label={waiting > 0 ? t.agentsWaiting(waiting) : t.agents} active={open} onClick={() => setAgentsPanel(!open)}>
+      <RailButton toggle data-agents-toggle label={waiting > 0 ? t.agentsWaiting(waiting) : t.agents} active={open} onClick={() => setAgentsPanel(!open)}>
         <Users />
         {waiting > 0 && (
           <span

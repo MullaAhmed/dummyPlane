@@ -1,3 +1,4 @@
+import { isClosedNode } from "@/agents/closedNode";
 import { isRestarting, isRunning } from "@/store/terminalStatus";
 import type { Member, Mission } from "./mission";
 
@@ -46,7 +47,8 @@ const onTask = (m: Member) => !m.handedTo && !handingOver.has(m.nodeId) && (!m.r
  * (`relaunch`, its menu, its resume card): its old process's exit frees no seat.
  */
 export function activeMembers(mission: Mission): Member[] {
-  return mission.members.filter((m) => onTask(m) && (m.sentAt === undefined || isRunning(m.nodeId) || isRestarting(m.nodeId)));
+  // A closed terminal never starts nor runs again on its own: one closed before its task was typed would keep its seat for good.
+  return mission.members.filter((m) => onTask(m) && !isClosedNode(m.nodeId) && (m.sentAt === undefined || isRunning(m.nodeId) || isRestarting(m.nodeId)));
 }
 
 /** Whether a member holds a seat now: it counts against Max agents. */
@@ -62,6 +64,17 @@ export function relaunchTakesSeat(mission: Mission, member: Member): boolean {
 
 /** The seats taken: the members at work, and the new agents on their way. */
 export const activeCount = (fleetId: string, mission: Mission) => activeMembers(mission).length + seatsHeld(fleetId);
+
+/**
+ * The seats of a mission as a refusal for want of one tells them (`Seats` in `@/mcp/messages`): the taken ones
+ * against Max agents, and who holds them, by name, the agents on their way last.
+ */
+export function seatsOf(fleetId: string, mission: Mission): { held: number; max: number; who: string } {
+  const names = activeMembers(mission).map((m) => m.name);
+  const coming = seatsHeld(fleetId);
+  if (coming > 0) names.push(coming === 1 ? "a new agent on its way" : `${coming} new agents on their way`);
+  return { held: activeCount(fleetId, mission), max: mission.maxAgents, who: names.join(", ") };
+}
 
 /** The agents being created, by fleet: one at a time, each named and placed once the previous one exists. */
 const creating = new Map<string, Promise<unknown>>();

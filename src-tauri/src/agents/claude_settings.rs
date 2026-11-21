@@ -7,11 +7,15 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
+use super::delete_guard::GUARDED_TOOLS;
 use super::hooks_server::{ASKED_TOOLS, manager_hook_url, valid_node_id};
 use crate::pty::shell::{Permission, Role};
 
 const NOTIFICATIONS: &str =
     "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|idle_prompt";
+
+/// What a fleet and a Manager are denied: they read the repository and run nothing in it.
+const READ_ONLY_DENIED: [&str; 5] = ["Edit", "Write", "NotebookEdit", "Bash", "PowerShell"];
 
 pub fn settings_json(url: &str, role: Role) -> Value {
     let hook = json!({ "type": "http", "url": url, "timeout": 2 });
@@ -19,8 +23,9 @@ pub fn settings_json(url: &str, role: Role) -> Value {
     // dummyPlane's own tools never ask.
     let mut permissions = json!({ "allow": ["mcp__dummyplane"] });
     if role.reads_only() {
-        // A fleet or a Manager does not code itself, nor run commands in the user's folder.
-        permissions["deny"] = json!(["Edit", "Write", "NotebookEdit", "Bash"]);
+        // A fleet or a Manager does not code itself, nor run commands in the user's folder: neither
+        // of the shells Claude has on Windows, Bash and PowerShell.
+        permissions["deny"] = json!(READ_ONLY_DENIED);
     }
     // A Manager has no spawn_agent: its question says so, and is answered with the queue instead.
     let pre_tool = if role == Role::Manager {
@@ -44,27 +49,34 @@ pub fn settings_json(url: &str, role: Role) -> Value {
             // Manager's team starts from the queue. The matcher names exactly the
             // tools the hook server may refuse: the Workflow tool among them, and the
             // Skill tool, for a skill that forks into a sub-agent of its own.
-            "PreToolUse": [{ "matcher": ASKED_TOOLS.join("|"), "hooks": [pre_tool] }],
+            "PreToolUse": [
+                { "matcher": ASKED_TOOLS.join("|"), "hooks": [pre_tool] },
+                // The commands of an agent, read for deletes (`delete_guard`): the folder it was
+                // started in travels in the URL.
+                { "matcher": GUARDED_TOOLS.join("|"), "hooks": [hook] },
+            ],
         },
         "permissions": permissions,
     })
 }
 
 /// What needs a yes in Claude, for an agent nobody watches. Read-only tools ask nothing.
-const WORK_TOOLS: [&str; 7] = [
+const WORK_TOOLS: [&str; 8] = [
     "Edit",
     "Write",
     "NotebookEdit",
     "Bash",
+    "PowerShell",
     "WebFetch",
     "WebSearch",
     "Agent",
 ];
 
-/// What reaches the remote without `git push`, then `git push` itself. Text
-/// rules, not a sandbox: they read the command as written, and an agent that
+/// What reaches the remote without `git push`, then `git push` itself, for Bash and for
+/// PowerShell alike (the same commands, the same rules: every Bash rule has its twin).
+/// Text rules, not a sandbox: they read the command as written, and an agent that
 /// runs commands can word it otherwise (see `NO_PUSH_ENV`, also passed in review).
-const MISSION_DENIES: [&str; 7] = [
+const MISSION_DENIES: [&str; 14] = [
     "Bash(git push *)",
     "Bash(git push)",
     "Bash(gh pr create *)",
@@ -72,6 +84,13 @@ const MISSION_DENIES: [&str; 7] = [
     "Bash(gh api *)",
     "Bash(gh issue comment *)",
     "Bash(gh release create *)",
+    "PowerShell(git push *)",
+    "PowerShell(git push)",
+    "PowerShell(gh pr create *)",
+    "PowerShell(gh pr merge *)",
+    "PowerShell(gh api *)",
+    "PowerShell(gh issue comment *)",
+    "PowerShell(gh release create *)",
 ];
 
 /// A mission's choice, in this session's settings only: the user's files stay as they are.
@@ -353,7 +372,10 @@ mod tests {
         let agent = settings_json(URL, Role::Agent);
         assert_eq!(
             agent["hooks"]["PreToolUse"],
-            json!([{ "matcher": "Task|Agent|Workflow|Skill", "hooks": [hook] }])
+            json!([
+                { "matcher": "Task|Agent|Workflow|Skill", "hooks": [hook] },
+                { "matcher": "Bash|PowerShell", "hooks": [hook] },
+            ])
         );
         // A fleet has spawn_agent too: its built-in sub-agents are asked about the same way,
         // and the hook server answers it as an agent (`hooks_server::pre_tool_use`); only a
@@ -377,6 +399,24 @@ mod tests {
             assert_eq!(
                 matcher.split('|').collect::<Vec<_>>(),
                 ["Task", "Agent", "Workflow", "Skill"],
+                "{role:?}"
+            );
+        }
+    }
+
+    /// A second matcher, so the first one stays exactly the tools the hook server may refuse.
+    #[test]
+    fn the_settings_file_has_dummyplane_read_the_commands_of_every_role_for_deletes() {
+        let dir = tempfile::tempdir().unwrap();
+        for role in [Role::Agent, Role::Fleet, Role::Manager] {
+            let path = write(dir.path(), "n1", URL, role, None, None).unwrap();
+            let read: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+            let entry = &read["hooks"]["PreToolUse"][1];
+            assert_eq!(entry["matcher"], "Bash|PowerShell", "{role:?}");
+            // Plain URL, not a Manager's tagged one: the guard needs no tag.
+            assert_eq!(
+                entry["hooks"],
+                json!([{ "type": "http", "url": URL, "timeout": 2 }]),
                 "{role:?}"
             );
         }
@@ -738,9 +778,10 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
     fn a_fleet_may_neither_edit_files_nor_run_commands() {
         let manager = settings_json(URL, Role::Fleet);
         assert_eq!(manager["permissions"]["allow"], json!(["mcp__dummyplane"]));
+        // Neither shell: the PowerShell tool ran commands where only Bash was denied.
         assert_eq!(
             manager["permissions"]["deny"],
-            json!(["Edit", "Write", "NotebookEdit", "Bash"])
+            json!(["Edit", "Write", "NotebookEdit", "Bash", "PowerShell"])
         );
         assert!(
             settings_json(URL, Role::Agent)["permissions"]
@@ -756,14 +797,14 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
         assert_eq!(manager["permissions"], fleet["permissions"]);
         assert_eq!(
             manager["permissions"]["deny"],
-            json!(["Edit", "Write", "NotebookEdit", "Bash"])
+            json!(["Edit", "Write", "NotebookEdit", "Bash", "PowerShell"])
         );
         // At night too, it is opened nothing its team gets, and pushes nothing.
         let mut night = manager.clone();
         apply_permission(&mut night, Some(Permission::Work), Role::Manager);
         assert_eq!(night["permissions"]["allow"], json!(["mcp__dummyplane"]));
         let deny = night["permissions"]["deny"].as_array().unwrap();
-        for rule in ["Bash", "Edit", "Bash(git push *)"] {
+        for rule in ["Bash", "PowerShell", "Edit", "Bash(git push *)"] {
             assert!(deny.contains(&json!(rule)), "{rule}");
         }
         // Its hooks are everyone's, but for its sub-agent question, tagged so the refusal names its queue.
@@ -775,10 +816,14 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
         }
         assert_eq!(
             manager["hooks"]["PreToolUse"],
-            json!([{
-                "matcher": "Task|Agent|Workflow|Skill",
-                "hooks": [{ "type": "http", "url": format!("{URL}&role=manager"), "timeout": 2 }]
-            }])
+            json!([
+                {
+                    "matcher": "Task|Agent|Workflow|Skill",
+                    "hooks": [{ "type": "http", "url": format!("{URL}&role=manager"), "timeout": 2 }]
+                },
+                // The deletes are read for a Manager's team alike: its own tag only words a refusal.
+                agent["hooks"]["PreToolUse"][1],
+            ])
         );
     }
 
@@ -894,5 +939,67 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
                 .unwrap()
                 .contains(&json!("Bash"))
         );
+    }
+
+    /// A Work agent's settings file, as `write` writes it.
+    fn work_agent() -> Value {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write(
+            dir.path(),
+            "n1",
+            URL,
+            Role::Agent,
+            None,
+            Some(Permission::Work),
+        )
+        .unwrap();
+        serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+    }
+
+    /// Regression: on Windows a Work agent's PowerShell calls prompted, though Bash was allowed.
+    #[test]
+    fn a_work_agent_may_run_powershell_as_it_runs_bash() {
+        let read = work_agent();
+        let allow = read["permissions"]["allow"].as_array().unwrap();
+        assert!(allow.contains(&json!("Bash")));
+        assert!(allow.contains(&json!("PowerShell")));
+    }
+
+    /// Every Bash rule has a PowerShell twin, so a future Bash rule without one fails here.
+    #[test]
+    fn every_bash_deny_rule_has_a_powershell_twin() {
+        for permission in [Permission::Ask, Permission::Edits, Permission::Work] {
+            let mut settings = settings_json(URL, Role::Agent);
+            apply_permission(&mut settings, Some(permission), Role::Agent);
+            let deny = settings["permissions"]["deny"].as_array().unwrap().clone();
+            let bash_rules: Vec<&str> = deny
+                .iter()
+                .filter_map(Value::as_str)
+                .filter(|rule| rule.starts_with("Bash("))
+                .collect();
+            assert!(!bash_rules.is_empty(), "{permission:?}");
+            for rule in bash_rules {
+                let twin = rule.replacen("Bash(", "PowerShell(", 1);
+                assert!(
+                    deny.contains(&json!(twin)),
+                    "{permission:?}: no twin for {rule}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_work_agent_is_refused_git_push_through_powershell_too() {
+        let read = work_agent();
+        let deny = read["permissions"]["deny"].as_array().unwrap();
+        assert!(deny.contains(&json!("PowerShell(git push *)")));
+        assert!(deny.contains(&json!("PowerShell(git push)")));
+    }
+
+    /// The delete guard reads the PowerShell calls of a Work agent as it reads its Bash calls.
+    #[test]
+    fn a_work_agent_s_delete_guard_reads_bash_and_powershell() {
+        let read = work_agent();
+        assert_eq!(read["hooks"]["PreToolUse"][1]["matcher"], "Bash|PowerShell");
     }
 }

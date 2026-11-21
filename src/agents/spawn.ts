@@ -1,9 +1,9 @@
-import { subagentSettingsStore } from "@/app/subagentSettings";
 import { FLEET_CAPABLE } from "@/fleet/capable";
 import { framesFromScene, groupOf } from "@/canvas/groups";
 import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
 import { profileNamed } from "@/accounts/store";
+import { cardAdHocAgent } from "@/kanban/adHocCards";
 import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtensions";
 import { AppError } from "@/ipc/invoke";
 import { ptySendText, ptyWrite, type AgentId } from "@/ipc/pty";
@@ -24,17 +24,21 @@ import { isManagerNode, nodeNameOf, nodesStore, terminalOf, type NodeRecord } fr
 import { isRunning } from "@/store/terminalStatus";
 import { quietly } from "./arrivals";
 import { AGENTS } from "./catalog";
-import { NODE_GAP } from "./groupLayout";
+import { carriedStep, markParentStep } from "./carriedSteps";
+import { holdFor } from "./dialogs";
+import { NODE_GAP, overlap } from "./groupLayout";
 import { agentsMessages } from "./messages";
 import { nameForNewAgent, pantheonForNewGroup } from "./naming";
 import { sceneAccess } from "./sceneAccess";
+import { adHocLimit, costlyModel, fullCap, whoWaits } from "./seats";
 import { fullRect } from "./selectionGroup";
-import { spawnModel, unroutedText, type SpawnModel } from "./spawnModel";
-import { MAX_SPAWN_DEPTH, markLaunching, spawnDepth, spawnedAtWork } from "./spawnFamily";
+import { COSTLY_LEVELS, readWorkKind, routineLevel, spawnModel, unroutedText, type SpawnModel } from "./spawnModel";
+import { MAX_SPAWN_DEPTH, markLaunching, spawnDepth } from "./spawnFamily";
 import { withFamilyGroup, type FamilyOptions } from "./spawnGroup";
-import { reflowSpawnTree, spawnedBy } from "./spawnTree";
+import { reflowSpawnTree, spawnedBy, spawnLayoutOf } from "./spawnTree";
 import { clip, taskSummary } from "./taskSummary";
 import { addTerminal, placeTerminal, type PlaceTerminal } from "./terminals";
+import { laneCovers } from "./laneCover";
 import { withWire } from "./wires";
 
 /**
@@ -55,12 +59,20 @@ export interface SpawnArgs {
   model?: unknown;
   /** The task's difficulty, as `@/mcp/protocol` hands it (`faible`…): under a model router, it picks the model. */
   niveau?: unknown;
-  /** The skills, MCP servers and plugins the sub-agent gets (`@/ipc/subagentExtras`): each a list of names, left out for its CLI's defaults. */
+  /**
+   * The skills, MCP servers and plugins the sub-agent gets (`@/ipc/subagentExtras`): each a list of names, `[]` for none.
+   * The tool's handler refuses a call that leaves one out (`REQUIRED_EXTRA_KINDS`); `spawnAgent` itself still reads a
+   * kind left out as its CLI's defaults.
+   */
   skills?: unknown;
   mcp_servers?: unknown;
   plugins?: unknown;
   /** `manager`: the sub-agent runs its task with sub-agents of its own (`coordinator`); left out, it does the work. */
   role?: unknown;
+  /** What the work is (`./spawnModel` WorkKind): `write` and `verify`, routine, open at medium at most; `plan`, or none, at the level given. */
+  kind?: unknown;
+  /** The title of one of the spawner's own steps that this sub-agent carries: it follows the sub-agent's report (`./carriedSteps`). */
+  step?: unknown;
 }
 
 /** What spawn_agent answers: a text for the agent, an error when it refused. */
@@ -87,6 +99,24 @@ const refuse = (text: string): SpawnResult => ({ text, error: true });
  * session's name: the one given, else its task said in a line (taskSummary),
  * not the raw start of a brief.
  */
+/**
+ * Whether the sub-agent `childId` must stay where its placement put it: the tree's flowchart sets a first child right
+ * of its parent, and with the Agents panel or the Edit panel in the lane that may be under it (sub-agents-and-outputs
+ * 09-11: Flash beside Batman, under the panel), while its placement kept it clear (laneCovers, freeCellClear). It is
+ * then pinned there, as a node moved by hand: later layouts leave it, and lay out its own children from it. Not when
+ * the lane is free, nor when its placement could not keep it clear either: the layout decides then, as before.
+ */
+function keptOffLane(workspaceId: string, childId: string): boolean {
+  const covers = laneCovers(workspaceId);
+  const elements = sceneAccess(workspaceId)?.elements();
+  const placed = elements?.find((e) => e.id === childId && !e.isDeleted);
+  if (covers.length === 0 || !elements || !placed) return false;
+  const underLane = (e: { x: number; y: number; width: number; height: number }) => covers.some((cover) => overlap(e, cover) > 0);
+  if (underLane(placed)) return false;
+  const laid = spawnLayoutOf(elements, childId)?.find((e) => e.id === childId);
+  return laid !== undefined && underLane(laid);
+}
+
 function titleOf(title: unknown, task: string): string {
   const given = typeof title === "string" ? oneLine(title) : "";
   return clip(given || taskSummary(task) || oneLine(task), MAX_TITLE);
@@ -112,7 +142,7 @@ export function spawnerOf(record: NodeRecord | undefined, nodeId: string): Termi
 export const childAgentOf = (parent: TerminalPayload): AgentId => (FLEET_CAPABLE.includes(parent.agent) ? parent.agent : "claude");
 
 /**
- * The sub-agent's terminal: its parent's folder, shell, account, skills and plugins (its Edit tab's choice, and the
+ * The sub-agent's terminal: its parent's folder, shell, account, skills and plugins (its Edit panel's choice, and the
  * kinds its own spawner picked for it) and mission permissions, its own conversation.
  */
 export function childPayload(parent: TerminalPayload, parentId: string, name: string, title: string, model?: string, task?: string): TerminalPayload {
@@ -163,7 +193,24 @@ async function inTime<T>(work: Promise<T>, ms = EXTRAS_BUDGET_MS): Promise<T | t
 }
 
 /** spawn_agent's argument for each kind of a pick. */
-const EXTRA_ARGS: Record<ExtraKind, keyof SpawnArgs> = { skills: "skills", mcpServers: "mcp_servers", plugins: "plugins" };
+export const EXTRA_ARGS: Record<ExtraKind, keyof SpawnArgs> = { skills: "skills", mcpServers: "mcp_servers", plugins: "plugins" };
+
+/**
+ * The kinds a spawn_agent call must pick (`[]` for none): a kind left out would be its CLI's defaults, i.e. every skill,
+ * plugin and server it loads. All three, so the spawner chooses what each sub-agent needs. The tool's schema lists them
+ * as required (`@/mcp/agentTools`) and its handler refuses a call without them (`missingExtras`); nothing else that
+ * starts an agent goes through that call (a mission's team, hand_off, the interface's own spawns).
+ */
+export const REQUIRED_EXTRA_KINDS: readonly ExtraKind[] = ["skills", "mcpServers", "plugins"];
+
+/**
+ * The refusal of a spawn_agent call that leaves out a kind it must pick (a missing or null argument), or undefined when
+ * every required kind is there. Nothing is read or opened: it is the call's own shape, checked first.
+ */
+export function missingExtras(args: SpawnArgs): string | undefined {
+  const names = REQUIRED_EXTRA_KINDS.map((kind) => EXTRA_ARGS[kind]).filter((arg) => args[arg] === undefined || args[arg] === null);
+  return names.length ? t().extrasRequired(names) : undefined;
+}
 
 /** The kinds spawn_agent picks, as named (null is left out, as for the model), or the argument that is no list of names. */
 function askedExtras(args: SpawnArgs): SubagentExtras | { bad: string } {
@@ -177,7 +224,7 @@ function askedExtras(args: SpawnArgs): SubagentExtras | { bad: string } {
   return asked;
 }
 
-/** The Edit tab's switches of each kind (`ExtensionChoice`), which a pick of that kind replaces for the sub-agent. */
+/** The Edit panel's switches of each kind (`ExtensionChoice`), which a pick of that kind replaces for the sub-agent. */
 const CHOICE_OF: Record<ExtraKind, keyof ExtensionChoice> = { skills: "skillsOff", mcpServers: "mcpOff", plugins: "plugins" };
 
 /** The profile folder a Claude sub-agent of `parent` starts with: its account's. */
@@ -185,7 +232,7 @@ const configDirOf = (parent: TerminalPayload, agent: AgentId) => (agent === "cla
 
 /**
  * What restricts `parent` for a sub-agent on `agent`: its own pick (names in the same CLI's words) and the switches it set
- * off in its Edit tab (Claude). Nothing, for a spawner nothing restricts: its sub-agent may get whatever its CLI lists.
+ * off in its Edit panel (Claude). Nothing, for a spawner nothing restricts: its sub-agent may get whatever its CLI lists.
  */
 function limitsOf(parent: TerminalPayload, agent: AgentId): Spawner | undefined {
   const picked = agent === parent.agent ? readSubagentExtras(parent.extras) : undefined;
@@ -216,7 +263,7 @@ async function checkedExtras(parent: TerminalPayload, asked: SubagentExtras, bud
   }
 }
 
-/** The sub-agent's payload with the kinds picked: each replaces what it inherited of that kind, its parent's pick and Edit tab's switches. */
+/** The sub-agent's payload with the kinds picked: each replaces what it inherited of that kind, its parent's pick and Edit panel's switches. */
 export function withExtras(payload: TerminalPayload, picked: SubagentExtras): TerminalPayload {
   const kinds = EXTRA_KINDS.filter((kind) => picked[kind] !== undefined);
   if (kinds.length === 0) return payload;
@@ -309,6 +356,18 @@ function modelNote(parentId: string, child: AgentId, routed: SpawnModel): { why?
   return { after: t().levelUnused(outLevel(level), unroutedText(reason, level, parentId), runs) };
 }
 
+/**
+ * What a sub-agent the router opened on a costly model (a high or extreme level) reads before its task: the model it
+ * runs on is kept for planning and the hard decisions, and its routine work goes to sub-agents of its own at low or
+ * medium. Nothing for one the router did not route, one at medium or below, or one that can open no sub-agent of its
+ * own (the depth limit): it would be sent to delegate into a refusal. A manager's own brief already hands everything down.
+ */
+function costlyBrief(parentId: string, routed: SpawnModel): string {
+  if (!routed.model || !routed.level || !COSTLY_LEVELS.includes(routed.level)) return "";
+  if (spawnDepth(parentId) + 2 > MAX_SPAWN_DEPTH) return "";
+  return t().costlyBrief(modelLabel(routed.model), outLevel(routed.level));
+}
+
 async function spawnNow(parentId: string, args: SpawnArgs, arrived = Date.now()): Promise<SpawnResult> {
   /** What is left of the time this call may take, from when it arrived: it waited its turn in the queue too. */
   const left = () => CALL_DEADLINE_MS - (Date.now() - arrived);
@@ -320,17 +379,33 @@ async function spawnNow(parentId: string, args: SpawnArgs, arrived = Date.now())
   if (model && !MODEL_ID.test(model)) return refuse(t().model(model));
   // No level, or an empty one, is none, as for the model.
   const asked = args.niveau == null || args.niveau === "" ? undefined : args.niveau;
-  const level = asked === undefined ? undefined : readLevel(asked);
-  if (asked !== undefined && !level) return refuse(t().level(String(asked)));
+  const rated = asked === undefined ? undefined : readLevel(asked);
+  if (asked !== undefined && !rated) return refuse(t().level(String(asked)));
+  // No kind, or an empty one, is none: the level as given, as before kinds.
+  const kindAsked = args.kind == null || args.kind === "" ? undefined : args.kind;
+  const kind = kindAsked === undefined ? undefined : readWorkKind(kindAsked);
+  if (kindAsked !== undefined && !kind) return refuse(t().kind(String(kindAsked)));
+  // Routine work (write, verify) rated high or extreme opens at medium: the ad-hoc gate and the router both read the
+  // level it opens at, so routine work is never refused for a level it does not run at (`./spawnModel` routineLevel).
+  const { level, lowered } = routineLevel(rated, kind);
   // No role, or an empty one, is none: a sub-agent that does the work, as before roles.
   const role = args.role == null || args.role === "" ? undefined : args.role;
   if (role !== undefined && role !== "manager") return refuse(t().role(String(role)));
   const manager = role === "manager";
   const extras = askedExtras(args);
-  if ("bad" in extras) return refuse(t().extrasShape(extras.bad));
+  if ("bad" in extras) return refuse(t().extrasShape(extras.bad, REQUIRED_EXTRA_KINDS.some((kind) => EXTRA_ARGS[kind] === extras.bad)));
   const record = nodesStore.getState().nodes[parentId];
   const parent = spawnerOf(record, parentId);
   if (!record || !parent) return refuse(t().gone);
+  // A Fleet's ad-hoc agents run beside its mission, outside its plan and its queue, and spend the user's usage there, and
+  // so do the agents opened under them: the costly levels go into the mission (add_tasks), or the user decides. A
+  // mission's own members, and what they open, are not affected.
+  const limit = adHocLimit(parentId);
+  if (limit) {
+    if (level === "eleve" || level === "extreme") return refuse(t().adHocLevel(outLevel(level), limit));
+    // With the router off, a model named by hand spends as the level that picks it: the gate is not read around.
+    if (costlyModel(model)) return refuse(t().adHocModel(model, limit));
+  }
   // Another agent already works on this task: it is theirs to message or read, not to start again (`@/mission/duplicateTask`).
   const given = typeof args.title === "string" ? oneLine(args.title) : "";
   const holder = duplicateWork({ title: given, brief: task }, record.workspaceId, [parentId]);
@@ -339,9 +414,8 @@ async function spawnNow(parentId: string, args: SpawnArgs, arrived = Date.now())
   // A manager hands its work to sub-agents of its own: it needs a level below it, and none runs another manager.
   if (manager && parent.coordinator) return refuse(t().managerOfManager);
   if (manager && spawnDepth(parentId) + 2 > MAX_SPAWN_DEPTH) return refuse(t().managerTooDeep(MAX_SPAWN_DEPTH));
-  const max =subagentSettingsStore.getState().maxSpawned;
-  const running = spawnedAtWork();
-  if (running.length >= max) return refuse(t().tooMany(running.length, max, seatHolders(running)));
+  const full = fullCap();
+  if (full) return refuse(t().tooMany(full, whoWaits(parentId)));
   // Its skills, MCP servers and plugins, as picked: checked before the scene is read, nothing opens on a refusal.
   const picked = await checkedExtras(parent, extras, left());
   if (typeof picked === "string") return refuse(picked);
@@ -364,6 +438,10 @@ async function spawnNow(parentId: string, args: SpawnArgs, arrived = Date.now())
   const payload = withExtras(childPayload(parent, parentId, name, titleOf(args.title, task), undefined, task), picked);
   // Its marker, not a mission Manager's role: an ordinary sub-agent, whose brief alone makes it a manager.
   if (manager) payload.coordinator = true;
+  const carried = carriedStep(parentId, args.step);
+  if (carried) payload.forStep = carried;
+  // Named but declared by nobody: the call goes through and says the link was not made.
+  const stepNote = !carried && typeof args.step === "string" && args.step.trim() ? t().stepUnknown(args.step.trim()) : "";
   // A model router over the spawner chooses the model from the task's level, and refuses a model with no level (`./spawnModel`).
   const routed = spawnModel(parentId, payload.agent, { model, level });
   if (routed.needsLevel) return refuse(t().levelNotModel(routed.needsLevel));
@@ -374,45 +452,44 @@ async function spawnNow(parentId: string, args: SpawnArgs, arrived = Date.now())
   // scrolled to nor named: the group arrives quietly, as its agent does.
   const place: PlaceTerminal = (elements, child) => {
     const family = familyPantheon ? withFamilyGroup(elements, parentId, spawnedBy, familyOptions(familyPantheon)) : null;
-    const placed = placeTerminal(family?.elements ?? elements, child, group?.id ?? family?.frameId ?? null);
+    // Out from under an occupied lane: it arrives without moving the view (agents/laneCover.ts).
+    const placed = placeTerminal(family?.elements ?? elements, child, group?.id ?? family?.frameId ?? null, laneCovers(workspaceId));
     return withWire(placed, parentId, child.id, undefined, true);
   };
   // It arrives on its own: the user may be typing, so it neither scrolls the view nor takes the keyboard.
   const childId = await addTerminal(workspaceId, payload, center, group?.id ?? null, quietly("spawn"), place);
   if (!childId) return refuse(t().failed);
+  if (carried) markParentStep(parentId, carried, "en_cours");
   markLaunching(childId, true);
-  // Element, spawnedBy and wire all there: the tree takes its flowchart layout, the wire rerouted.
-  reflowSpawnTree(workspaceId, childId);
+  // Beside a running mission, outside its plan: its board shows it too, its card moving with its reports.
+  cardAdHocAgent(parentId, { nodeId: childId, name, title: payload.title, task });
+  // Element, spawnedBy and wire all there: the tree takes its flowchart layout, the wire rerouted. Unless that layout
+  // would take it under the occupied lane, where its placement kept it from: it then stays there, pinned.
+  if (keptOffLane(workspaceId, childId)) reflowSpawnTree(workspaceId, childId, [childId]);
+  else reflowSpawnTree(workspaceId, childId);
   // A manager's brief goes before its task, in the text typed only: its terminal keeps the task (`payload.task`).
+  // So does what a sub-agent the router put on a costly model is told of it (`costlyBrief`).
   const spawner = parent.name || "your parent agent";
-  void deliver(parentId, childId, name, t().brief(spawner, manager ? `${t().managerBrief(spawner)}${task}` : task));
+  const lead = manager ? t().managerBrief(spawner) : costlyBrief(parentId, routed);
+  void deliver(parentId, childId, name, t().brief(spawner, `${lead}${task}`));
   const note = modelNote(parentId, payload.agent, routed);
-  const after = [note.after, extrasNote(payload.extras)].filter(Boolean).join(" ") || undefined;
-  return { text: t().spawned(name, routed.model && modelLabel(routed.model), { ...note, after }) };
-}
-
-/**
- * Who holds the seats, by folder, every project's: `Superman, Aquaman (BOS-Mono); Shazam (upload-plans-hulk)`.
- * A cap held in another project is otherwise read as one's own closed terminals.
- */
-function seatHolders(ids: readonly string[]): string {
-  const nodes = nodesStore.getState().nodes;
-  const byFolder = new Map<string, string[]>();
-  for (const id of ids) {
-    const folder = terminalOf(nodes[id])?.cwd.split(/[\\/]/).filter(Boolean).pop() ?? "?";
-    byFolder.set(folder, [...(byFolder.get(folder) ?? []), nodeNameOf(nodes[id]) || "a sub-agent"]);
-  }
-  return [...byFolder].map(([folder, names]) => `${names.join(", ")} (${folder})`).join("; ");
+  const loweredNote = lowered && kind ? t().levelLowered(outLevel(lowered), outLevel(level!), kind) : undefined;
+  const after = [loweredNote, note.after, extrasNote(payload.extras)].filter(Boolean).join(" ") || undefined;
+  return { text: [t().spawned(name, routed.model && modelLabel(routed.model), { ...note, after }), stepNote].filter(Boolean).join(" ") };
 }
 
 /**
  * Types the task into the sub-agent once its Claude is up, as a mission's `assign` does; its parent hears of a
- * failure. A question only the user answers may hold its Claude past the minute: the parent hears so, and the task
- * still goes when the session opens (its parent cannot message it meanwhile: it is launching).
+ * failure. A question only the user answers may hold its Claude past the minute: the parent hears what it is as soon
+ * as it shows (`holdFor`: its agent waits for the user, `@/mission/events` tells the parent), or at the minute that a
+ * question may be waiting; the task still goes when the session opens, once, and the parent hears it went (its
+ * parent cannot message it meanwhile: it is launching).
  */
 async function deliver(parentId: string, childId: string, name: string, text: string) {
   try {
     const agent = terminalOf(nodesStore.getState().nodes[childId])?.agent;
+    // Its parent was told it is held, or slow: it hears when the task goes.
+    let late = false;
     const ready = await whenReady({
       running: () => isRunning(childId),
       quietMs: () => quietFor(childId),
@@ -420,7 +497,14 @@ async function deliver(parentId: string, childId: string, name: string, text: st
       press: (keys) => ptyWrite(childId, keys),
       agent,
       waitLonger: () => isRunning(childId),
-      slow: () => notify(parentId, t().slow(name)),
+      slow: () => {
+        // A dialog shown: its parent already heard what it is.
+        if (!late) notify(parentId, t().slow(name));
+        late = true;
+      },
+      held: holdFor(childId, (dialog) => {
+        if (dialog) late = true;
+      }),
     });
     if (!isRunning(childId)) {
       notify(parentId, t().notStarted(name));
@@ -433,6 +517,7 @@ async function deliver(parentId: string, childId: string, name: string, text: st
     }
     await ptySendText(childId, text);
     signalWire(childId, "toAgent", parentId);
+    if (late) notify(parentId, t().sentLate(name));
   } catch (error) {
     notify(parentId, t().notSent(name, error instanceof Error ? error.message : String(error)));
   } finally {

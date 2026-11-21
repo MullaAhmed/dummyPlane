@@ -1,9 +1,10 @@
 import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { LABEL_ROOM, ZONE_OFFSETS } from "@/canvas/canvasFocus";
+import { LABEL_ROOM, zoneOffsets } from "@/canvas/canvasFocus";
 import { canvasStore, type CanvasView } from "@/canvas/canvasStore";
 import { createGroupFrame, groupInfoOf, type Rect } from "@/canvas/groups";
 import { NODE_SIZE, nodeKindOf } from "@/canvas/nodeElement";
+import { cameraMotion, type CameraInput } from "@/canvas/viewActions";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
@@ -46,10 +47,14 @@ export function fullRect(terminal: ExcalidrawElement): Rect {
  *   its group would leave that group's frame empty or overlapped by the new one);
  * - a node or frame that is not one of the terminals stands inside their box
  *   (Shift+click on either side of a terminal: the frame would show it in the
- *   group, and a drag of the group would leave it behind). A quick note of one
- *   of the terminals is not in the way: its own watch keeps it beside its host
- *   (src/nodes/note), so it goes where the group goes, and Arrange puts it right
- *   of its host, between two terminals. See `groupBox`.
+ *   group, and a drag of the group would leave it behind). What the terminals
+ *   carry is not in the way: a quick note of one of them, which its own watch
+ *   keeps beside its host (src/nodes/note), so it goes where the group goes, and
+ *   Arrange puts it right of its host, between two terminals; and an output one
+ *   of them showed (src/nodes/output), which belongs in its agent's group and
+ *   becomes a member of it. See `groupBox`.
+ * The box is checked for a single terminal too: linking two agents may make a
+ * group around one of them (./linkGroup.ts).
  */
 export function groupingOf(elements: readonly ExcalidrawElement[], ids: readonly string[]): Grouping {
   const chosen = new Set(ids);
@@ -58,7 +63,7 @@ export function groupingOf(elements: readonly ExcalidrawElement[], ids: readonly
   const terminals = selected.filter((e) => nodeKindOf(e) === "terminal");
   if (selected.some((e) => e.type === "frame")) return { terminals, blocked: "groupSelected" };
   if (terminals.some((e) => e.frameId)) return { terminals, blocked: "alreadyGrouped" };
-  if (terminals.length >= 2) {
+  if (terminals.length > 0) {
     const { box, carried } = groupBox(live, terminals);
     const members = new Set(terminals.map((t) => t.id));
     const inTheWay = live.some((e) => !members.has(e.id) && !carried.has(e.id) && (e.type === "frame" || nodeKindOf(e) !== null) && overlap(e, box) > 0);
@@ -68,31 +73,37 @@ export function groupingOf(elements: readonly ExcalidrawElement[], ids: readonly
 }
 
 /**
- * What a group of `terminals` holds on the canvas: their box, grown around the
- * quick notes they carry that stand in it (a stack of notes may run past the
- * terminals' bottom), and `carried`, every note kept beside one of them. The
- * frame goes around this box, so this box is the one nothing else may stand
- * in. A carried note outside the box stays outside the frame, as it did.
+ * What a group of `terminals` holds on the canvas: their box, grown around what
+ * they carry that stands in it (a stack of notes may run past the terminals'
+ * bottom, an output too), and `carried`, every quick note kept beside one of
+ * them and every output one of them showed. The frame goes around this box, so
+ * this box is the one nothing else may stand in. `outputs` are the carried
+ * outputs it holds: they become members of the group. A carried note stays in
+ * no frame (its watch keeps it beside its host); a carried item outside the box
+ * stays outside the frame, as it did.
  */
-function groupBox(live: readonly ExcalidrawElement[], terminals: readonly ExcalidrawElement[]): { box: Rect; carried: Set<string> } {
+function groupBox(live: readonly ExcalidrawElement[], terminals: readonly ExcalidrawElement[]): { box: Rect; carried: Set<string>; outputs: Set<string> } {
   const members = new Set(terminals.map((t) => t.id));
   const anchorOf = anchorsOf(live);
-  const notes = live.filter((e) => {
+  const items = live.filter((e) => {
     const attachment = anchorOf(e);
-    return attachment?.beside === true && members.has(attachment.anchor);
+    if (!attachment || !members.has(attachment.anchor)) return false;
+    return attachment.beside === true || nodeKindOf(e) === "output";
   });
   const held: Rect[] = terminals.map(fullRect);
+  const outputs = new Set<string>();
   let box = boundsOf(held);
-  // A note taken in grows the box, which may reach the next note of the stack.
-  let waiting = notes;
+  // An item taken in grows the box, which may reach the next one (a stack of notes).
+  let waiting = items;
   for (;;) {
     const reached = waiting.filter((n) => overlap(n, box) > 0);
     if (reached.length === 0) break;
     held.push(...reached);
+    for (const item of reached) if (nodeKindOf(item) === "output") outputs.add(item.id);
     box = boundsOf(held);
     waiting = waiting.filter((n) => !reached.includes(n));
   }
-  return { box, carried: new Set(notes.map((n) => n.id)) };
+  return { box, carried: new Set(items.map((n) => n.id)), outputs };
 }
 
 /** Why a selection's Ungroup is greyed: see `ungroupingOf`. */
@@ -162,41 +173,53 @@ export function ungroupingOf(elements: readonly ExcalidrawElement[], ids: readon
   return groupIds.length > 0 ? { kind: "shapes", groupIds, blocked: null } : null;
 }
 
-/** The label sits `LABEL_ROOM` above its frame (GroupLabels), under the glass bars that cover the canvas edges. */
+/** The label sits `LABEL_ROOM` above its frame (GroupLabels), in the work area: under the glass bars, clear of the rails and of an occupied lane. */
 function labelShows(frame: Rect, view: CanvasView): boolean {
   const { x, y } = screenRectOf(frame, view);
   const top = y - LABEL_ROOM;
-  return x >= 0 && x < view.width && top >= ZONE_OFFSETS.top && top + LABEL_ROOM <= view.height - ZONE_OFFSETS.bottom;
+  const area = zoneOffsets();
+  return x >= area.left && x < view.width - area.right && top >= area.top && top + LABEL_ROOM <= view.height - area.bottom;
 }
 
 /**
- * Wraps the selected terminals in a new group and starts naming it: the frame
- * and the members' `frameId` are one scene update, so one undo takes the group
- * back. The frame fits the terminals and the quick notes they carry between
- * them; a note stays in no frame, as beside any grouped terminal (a frame would
- * clip it, and the note watch takes it out again). The group is selected, so a drag moves it whole; Excalidraw moves a
- * frame's children with it. Returns the frame's id, or null when there is
- * nothing to group.
+ * `elements` with `terminals` (a grouping `groupingOf` lets through) wrapped in a
+ * new general group of `pantheon`, named after it, and that group's frame. The
+ * frame fits the terminals and what they carry between them: the outputs they
+ * showed there join the group with them; a quick note stays in no frame, as
+ * beside any grouped terminal (a frame would clip it, and the note watch takes
+ * it out again). The frame comes last: Excalidraw keeps a frame above its
+ * children. Nothing moves.
  */
-export function groupSelection(ids: readonly string[]): string | null {
+export function withNewGroup(elements: readonly ExcalidrawElement[], terminals: readonly ExcalidrawElement[], pantheon: string): { elements: ExcalidrawElement[]; frame: ExcalidrawElement } {
+  // The pantheon is unused by the other groups, so its label is a name no other group has; the agents keep theirs.
+  const name = PANTHEONS.find((p) => p.id === pantheon)?.label ?? pantheon;
+  const { box, outputs } = groupBox(
+    elements.filter((e) => !e.isDeleted),
+    terminals,
+  );
+  const frame = createGroupFrame(frameAround([box]), name, { role: "general", pantheon });
+  const members = new Set([...terminals.map((t) => t.id), ...outputs]);
+  return { elements: [...elements.map((e) => (members.has(e.id) ? newElementWith(e, { frameId: frame.id }) : e)), frame], frame };
+}
+
+/**
+ * Wraps the selected terminals in a new group (`withNewGroup`) and starts naming
+ * it: the frame and the members' `frameId` are one scene update, so one undo
+ * takes the group back. The group is selected, so a drag moves it whole;
+ * Excalidraw moves a frame's children with it. The view, when it must move to
+ * show the label, moves as `input` asked (cameraMotion). Returns the frame's id,
+ * or null when there is nothing to group.
+ */
+export function groupSelection(ids: readonly string[], input: CameraInput): string | null {
   const { api } = canvasStore.getState();
   const workspaceId = workspacesStore.getState().activeId;
   if (!api || !workspaceId) return null;
   const elements = api.getSceneElementsIncludingDeleted();
   const { terminals, blocked } = groupingOf(elements, ids);
   if (blocked || terminals.length < 2) return null;
-  // The pantheon is unused by the other groups, so its label is a name no other group has; the agents keep theirs.
-  const pantheon = pantheonForNewGroup(workspaceId);
-  const name = PANTHEONS.find((p) => p.id === pantheon)?.label ?? pantheon;
-  const { box } = groupBox(
-    elements.filter((e) => !e.isDeleted),
-    terminals,
-  );
-  const frame = createGroupFrame(frameAround([box]), name, { role: "general", pantheon });
-  const members = new Set(terminals.map((t) => t.id));
+  const { elements: next, frame } = withNewGroup(elements, terminals, pantheonForNewGroup(workspaceId));
   api.updateScene({
-    // The frame last: Excalidraw keeps a frame above its children.
-    elements: [...elements.map((e) => (members.has(e.id) ? newElementWith(e, { frameId: frame.id }) : e)), frame],
+    elements: next,
     appState: { selectedElementIds: { [frame.id]: true }, selectedGroupIds: {}, activeEmbeddable: null },
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
@@ -204,7 +227,8 @@ export function groupSelection(ids: readonly string[]): string | null {
     // Its label's field takes the name, so the label must show: scrolled to, without `focusGroup`, whose
     // hand-back to the canvas would clear the selection and blur the field.
     if (!labelShows(frame, canvasStore.getState().view)) {
-      api.scrollToContent(frame, { fitToViewport: true, viewportZoomFactor: 0.9, animate: true, maxZoom: 1, canvasOffsets: { ...ZONE_OFFSETS, top: ZONE_OFFSETS.top + LABEL_ROOM } });
+      const offsets = zoneOffsets();
+      api.scrollToContent(frame, { fitToViewport: true, viewportZoomFactor: 0.9, ...cameraMotion(input), maxZoom: 1, canvasOffsets: { ...offsets, top: offsets.top + LABEL_ROOM } });
     }
     uiStore.getState().setRenamingGroup(frame.id);
   });

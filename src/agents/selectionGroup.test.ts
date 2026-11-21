@@ -18,6 +18,7 @@ import { PANTHEONS } from "./names";
 import { groupingOf, groupSelection, ungroupingOf } from "./selectionGroup";
 import { isSpawnWire, orphanWires, withWire } from "./wires";
 import { wirePaths } from "@/canvas/overlay/wirePaths";
+import { CAMERA_MS } from "@/canvas/viewActions";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "i" }, newElementWith: (e: object, patch: object) => ({ ...e, ...patch }) }));
 
@@ -145,17 +146,25 @@ describe("grouping terminals that carry quick notes", () => {
     expect(groupingOf(arranged, ["a", "b", "c"]).blocked).toBeNull();
   });
 
-  it("still refuses what the terminals do not carry: another terminal's note, an agent's output, a note whose host is gone", async () => {
+  it("carries what the terminals showed (show_output) between them: an agent's output belongs in its group", async () => {
+    const a = terminal("a", 0, 0);
+    const b = terminal("b", 1120, 0);
+    await nodesStore.getState().create("o", { workspaceId: "w1", kind: "output", payload: { title: "", source: "a", ui: "", updatedAt: 0 } });
+    const shown = output("o", 736, 0);
+    expect(anchorsOf([a, b, shown])(shown)).toEqual({ anchor: "a" });
+    expect(groupingOf([a, b, shown], ["a", "b"]).blocked).toBeNull();
+    // Another agent's output there is in the way: a drag of the group would leave it behind.
+    const c = terminal("c", 0, 3000);
+    await nodesStore.getState().create("o2", { workspaceId: "w1", kind: "output", payload: { title: "", source: "c", ui: "", updatedAt: 0 } });
+    expect(groupingOf([a, b, c, output("o2", 736, 0)], ["a", "b"])).toMatchObject({ blocked: "inTheWay" });
+  });
+
+  it("still refuses what the terminals do not carry: another terminal's note, a note whose host is gone", async () => {
     const a = terminal("a", 0, 0);
     const b = terminal("b", 1120, 0);
     const far = terminal("far", 0, 3000);
     // Another terminal's note, moved by hand between the two: a drag of the group would leave it behind.
     expect(groupingOf([a, b, far, noteAt("n", far, 736, 0)], ["a", "b"])).toMatchObject({ blocked: "inTheWay" });
-    // What A showed (show_output) is attached to it, but nothing keeps it beside A.
-    await nodesStore.getState().create("o", { workspaceId: "w1", kind: "output", payload: { title: "", source: "a", ui: "", updatedAt: 0 } });
-    const shown = output("o", 736, 0);
-    expect(anchorsOf([a, b, shown])(shown)).toEqual({ anchor: "a" });
-    expect(groupingOf([a, b, shown], ["a", "b"])).toMatchObject({ blocked: "inTheWay" });
     // Its host closed: the note stays where it is, no terminal's any more.
     const gone = terminal("gone", 0, 3000, { isDeleted: true });
     expect(groupingOf([a, b, gone, noteAt("n", gone, 736, 0)], ["a", "b"])).toMatchObject({ blocked: "inTheWay" });
@@ -180,13 +189,32 @@ describe("grouping terminals that carry quick notes", () => {
     // B's own note, right of the box: the frame is not stretched to it, as before.
     const right = noteAt("r", b, 1120 + 720 + 16, 0);
     scene = [a, b, ...notes, right];
-    const id = groupSelection(["a", "b"])!;
+    const id = groupSelection(["a", "b"], "keyboard")!;
     const made = scene.find((e) => e.id === id)!;
     // The terminals end at 440, the third note at 632.
     expect([made.x, made.y, made.width, made.height]).toEqual([-PADDING, -PADDING_TOP, 1840 + 2 * PADDING, 632 + PADDING_TOP + PADDING_BOTTOM]);
     expect(framesFromScene(scene).find((f) => f.id === id)).toMatchObject({ memberIds: ["a", "b"] });
     // The notes are untouched: the note watch keeps each beside its host, and takes any note out of a frame.
     for (const note of [...notes, right]) expect(scene).toContain(note);
+  });
+
+  it("takes an output the terminals showed in their box into the group, a member of its frame; one outside stays where it is", async () => {
+    const a = terminal("a", 0, 0);
+    const b = terminal("b", 1120, 0);
+    await nodesStore.getState().create("o", { workspaceId: "w1", kind: "output", payload: { title: "", source: "a", ui: "", updatedAt: 0 } });
+    await nodesStore.getState().create("far", { workspaceId: "w1", kind: "output", payload: { title: "", source: "b", ui: "", updatedAt: 0 } });
+    // 560 x 520: it runs 80 under the terminals' 440, and the frame grows to hold it.
+    const shown = output("o", 736, 0);
+    const away = output("far", 6000, 0);
+    scene = [a, b, shown, away];
+    const id = groupSelection(["a", "b"], "keyboard")!;
+    const made = scene.find((e) => e.id === id)!;
+    expect([made.x, made.y, made.width, made.height]).toEqual([-PADDING, -PADDING_TOP, 1840 + 2 * PADDING, 520 + PADDING_TOP + PADDING_BOTTOM]);
+    expect(scene.find((e) => e.id === "o")!.frameId).toBe(id);
+    expect(scene.find((e) => e.id === "far")!.frameId).toBeNull();
+    expect(scene.find((e) => e.id === "far")!.x).toBe(6000);
+    // Excalidraw keeps a frame above its children.
+    expect(scene.findIndex((e) => e.id === "o")).toBeLessThan(scene.findIndex((e) => e.id === id));
   });
 });
 
@@ -217,7 +245,7 @@ describe("grouping the selection", () => {
 
   it("wraps the terminals in a new group frame, padded, with the label's room on top", () => {
     scene = [terminal("a", rect.x, rect.y), terminal("b", 1000, 900)];
-    const id = groupSelection(["a", "b"]);
+    const id = groupSelection(["a", "b"], "keyboard");
     const made = scene.find((e) => e.id === id)!;
     expect(made.type).toBe("frame");
     // 720 x 440 terminals: the box runs from (100, 200) to (1720, 1340).
@@ -226,7 +254,7 @@ describe("grouping the selection", () => {
 
   it("makes a general group of a fresh pantheon, named after it", () => {
     scene = [terminal("a", 0, 0), terminal("b", 800, 0)];
-    const id = groupSelection(["a", "b"]);
+    const id = groupSelection(["a", "b"], "keyboard");
     const made = scene.find((e) => e.id === id)!;
     expect(groupInfoOf(made)).toMatchObject({ role: "general", pantheon: PANTHEONS[0].id });
     expect((made as ExcalidrawElement & { name: string }).name).toBe(PANTHEONS[0].label);
@@ -234,9 +262,9 @@ describe("grouping the selection", () => {
 
   it("gives the next group another name, not the first one's", () => {
     scene = [terminal("a", 0, 0), terminal("b", 800, 0), terminal("c", 0, 2000), terminal("d", 800, 2000)];
-    groupSelection(["a", "b"]);
+    groupSelection(["a", "b"], "keyboard");
     canvasStore.setState({ frames: framesFromScene(scene) });
-    const id = groupSelection(["c", "d"]);
+    const id = groupSelection(["c", "d"], "keyboard");
     const second = scene.find((e) => e.id === id)! as ExcalidrawElement & { name: string };
     expect(second.name).toBe(PANTHEONS[1].label);
   });
@@ -245,7 +273,7 @@ describe("grouping the selection", () => {
     const outside = terminal("out", 5000, 0);
     const note = rectangle("r");
     scene = [terminal("a", 0, 0), note, terminal("b", 800, 0), outside];
-    const id = groupSelection(["a", "b", "r"])!;
+    const id = groupSelection(["a", "b", "r"], "keyboard")!;
     const frames = framesFromScene(scene);
     expect(frames.find((f) => f.id === id)).toMatchObject({ memberIds: ["a", "b"] });
     expect(groupOf(frames, "a")?.id).toBe(id);
@@ -256,7 +284,7 @@ describe("grouping the selection", () => {
 
   it("is one scene update that history captures at once, the frame above its children, the group selected", () => {
     scene = [terminal("a", 0, 0), terminal("b", 800, 0)];
-    const id = groupSelection(["a", "b"]);
+    const id = groupSelection(["a", "b"], "keyboard");
     expect(updates).toHaveLength(1);
     expect(updates[0].captureUpdate).toBe("i");
     expect(updates[0].elements.map((e) => e.id)).toEqual(["a", "b", id]);
@@ -265,7 +293,7 @@ describe("grouping the selection", () => {
 
   it("starts naming the group on the next frame, in its label, without moving a view that shows it", async () => {
     scene = [terminal("a", 200, 200), terminal("b", 1000, 200)];
-    const id = groupSelection(["a", "b"]);
+    const id = groupSelection(["a", "b"], "keyboard");
     expect(uiStore.getState().renamingGroup).toBeNull();
     await new Promise((resolve) => requestAnimationFrame(resolve));
     expect(uiStore.getState().renamingGroup).toBe(id);
@@ -275,12 +303,21 @@ describe("grouping the selection", () => {
   it("brings a label that falls under the top bar into view first, the keyboard left where it is", async () => {
     // The frame's top edge is 48 above the terminals, its label 24 above that: out of the canvas, then under the bars.
     scene = [terminal("a", 0, 40), terminal("b", 800, 40)];
-    const id = groupSelection(["a", "b"]);
+    const id = groupSelection(["a", "b"], "keyboard");
     await new Promise((resolve) => requestAnimationFrame(resolve));
     expect(scrollToContent).toHaveBeenCalledTimes(1);
     expect((scrollToContent.mock.calls[0][0] as { id: string }).id).toBe(id);
+    // The keyboard asked (the palette): the view lands at once.
+    expect(scrollToContent.mock.calls[0][1]).toMatchObject({ animate: false });
     expect(uiStore.getState().renamingGroup).toBe(id);
     expect(updates).toHaveLength(1);
+  });
+
+  it("glides there for CAMERA_MS when the radial ring asked", async () => {
+    scene = [terminal("a", 0, 40), terminal("b", 800, 40)];
+    groupSelection(["a", "b"], "pointer");
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(scrollToContent.mock.calls[0][1]).toMatchObject({ animate: true, duration: CAMERA_MS });
   });
 
   it("makes room for a minimized terminal's open height, so it does not poke out when expanded", async () => {
@@ -290,7 +327,7 @@ describe("grouping the selection", () => {
       payload: { title: "M", name: "M", agent: "claude", cwd: "C:/code", shell: "default", command: "", minimized: true, expandedHeight: 440 },
     });
     scene = [terminal("m", 0, 0, { height: 36 }), terminal("b", 800, 0)];
-    const id = groupSelection(["m", "b"]);
+    const id = groupSelection(["m", "b"], "keyboard");
     // 440 tall, not the card's 36.
     expect(scene.find((e) => e.id === id)!.height).toBe(440 + PADDING_TOP + PADDING_BOTTOM);
   });
@@ -301,7 +338,7 @@ describe("grouping the selection", () => {
     const wire = spawned[spawned.length - 1];
     scene = spawned;
     // A box selection holds the wire too.
-    const id = groupSelection(["parent", "child", wire.id])!;
+    const id = groupSelection(["parent", "child", wire.id], "keyboard")!;
     const kept = scene.find((e) => e.id === wire.id)!;
     expect(kept).toBe(wire);
     expect(kept).toMatchObject({ isDeleted: false, frameId: null, startBinding: { elementId: "parent" }, endBinding: { elementId: "child" } });
@@ -314,9 +351,9 @@ describe("grouping the selection", () => {
 
   it("does nothing for less than two terminals, or a selection that cannot be grouped", () => {
     scene = [frame("g1"), terminal("a", 0, 0, { frameId: "g1" }), terminal("b", 800, 0), terminal("c", 1600, 0)];
-    expect(groupSelection(["b"])).toBeNull();
-    expect(groupSelection(["a", "b"])).toBeNull();
-    expect(groupSelection([])).toBeNull();
+    expect(groupSelection(["b"], "keyboard")).toBeNull();
+    expect(groupSelection(["a", "b"], "keyboard")).toBeNull();
+    expect(groupSelection([], "keyboard")).toBeNull();
     expect(updates).toHaveLength(0);
   });
 });

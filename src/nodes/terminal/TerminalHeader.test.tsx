@@ -14,6 +14,7 @@ import { quickNote } from "@/nodes/note/quickNote";
 import { relaunchTerminal, stopTerminal } from "./registry";
 import { TerminalHeader } from "./TerminalHeader";
 import { modelRouterStore } from "@/app/modelRouterSetting";
+import { tabTo } from "@/components/ui/tabTo";
 
 // The model router switch reads the mission store, which reaches the canvas.
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -164,36 +165,26 @@ it("names the model in its menu too, and clears it there: a narrow header hides 
   await view.unmount();
 });
 
-describe("the model router's sticky switch", () => {
-  const router = (host: HTMLElement) => host.querySelector<HTMLButtonElement>('button[aria-label="Model router"]');
+describe("the model router's switch", () => {
   const shown = (payload: object) => <TerminalHeader nodeId="batman" payload={{ ...claude, ...payload } as TerminalPayload} status={{ state: "running" }} />;
+  const payloadOf = () => nodesStore.getState().nodes.batman?.payload as TerminalPayload;
+  const entry = () => document.querySelector<HTMLElement>('[role="menuitemcheckbox"]');
 
-  it("is on every terminal, keeps to the wide header with the chips, and acts on a Claude terminal", async () => {
+  it("is not in the header: an agent's is in its foot, beside Link (AgentFoot.test), every terminal's in its ⋯ menu", async () => {
     const view = await mount(shown({}));
-    expect(router(view.host)?.getAttribute("data-router")).toBe("off");
-    // One name, its state in aria-pressed: "Model router, toggle button, not pressed".
-    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("false");
-    expect(router(view.host)?.hasAttribute("aria-disabled")).toBe(false);
-    expect(router(view.host)?.parentElement?.className).toContain("@md/head:flex");
-    // On every other terminal too, with the same name and place: greyed out there (below).
-    for (const agent of ["shell", "gemini", "custom"]) {
-      await act(async () => view.root.render(shown({ agent })));
-      expect(router(view.host), agent).not.toBeNull();
-      expect(router(view.host)?.parentElement?.className, agent).toContain("@md/head:flex");
+    for (const payload of [{}, { agent: "codex" }, { agent: "shell" }, { agent: "gemini" }, { agent: "custom" }, { role: "manager", fleet: "chef" }]) {
+      await act(async () => view.root.render(shown(payload)));
+      expect(view.host.querySelector('button[aria-label="Model router"]'), JSON.stringify(payload)).toBeNull();
+      expect(view.host.querySelector("[data-router]"), JSON.stringify(payload)).toBeNull();
     }
-    await act(async () => view.root.render(shown({ role: "manager", fleet: "chef" })));
-    expect(router(view.host)).not.toBeNull();
     await view.unmount();
   });
 
-  const payloadOf = () => nodesStore.getState().nodes.batman?.payload as TerminalPayload;
-
-  it("is in its ⋯ menu too, at any width: a checked entry that writes the same switch", async () => {
+  it("is in its ⋯ menu, at any width: a checked entry that writes the same switch", async () => {
     mockIPC(() => undefined);
     await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: claude });
     const view = await mount(shown({}));
     await openMore(view.host);
-    const entry = () => document.querySelector<HTMLElement>('[role="menuitemcheckbox"]');
     expect(entry()?.textContent).toBe("Model router");
     expect(entry()?.getAttribute("aria-checked")).toBe("false");
     expect(entry()?.hasAttribute("aria-disabled")).toBe(false);
@@ -203,12 +194,6 @@ describe("the model router's sticky switch", () => {
   });
 
   describe("where it has nothing to route (a CLI without dummyPlane's tools, a Manager)", () => {
-    const hintOf = async (button: HTMLElement) => {
-      await act(async () => button.focus());
-      await act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
-      return document.querySelector('[role="tooltip"]')?.textContent;
-    };
-    const describedBy = (button: HTMLElement) => document.getElementById(button.getAttribute("aria-describedby")!)?.textContent;
     const CASES = [
       { name: "Gemini", payload: { agent: "gemini" }, why: "Gemini can't open sub-agents, so the router has nothing to route here" },
       { name: "Qwen Code", payload: { agent: "qwen" }, why: "Qwen Code can't open sub-agents, so the router has nothing to route here" },
@@ -216,52 +201,6 @@ describe("the model router's sticky switch", () => {
       { name: "a custom command", payload: { agent: "custom" }, why: "A custom command can't open sub-agents, so the router has nothing to route here" },
       { name: "a Manager", payload: { role: "manager", fleet: "chef" }, why: "A Manager opens no sub-agents; its Fleet's switch routes the mission" },
     ] as const;
-
-    it.each(CASES)("shows $name's switch greyed out, off, and says why in its hint and its description", async ({ payload, why }) => {
-      mockIPC(() => undefined);
-      await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, ...payload } as TerminalPayload });
-      const view = await mount(shown(payload));
-      const button = router(view.host)!;
-      expect(button).not.toBeNull();
-      // aria-disabled, not disabled: it stays in the tab order, and the pointer reaches its hint.
-      expect(button.getAttribute("aria-disabled")).toBe("true");
-      expect(button.disabled).toBe(false);
-      expect(button.getAttribute("aria-pressed")).toBe("false");
-      expect(button.getAttribute("data-router")).toBe("off");
-      expect(button.className).toContain("opacity-50");
-      expect(button.hasAttribute("title")).toBe(false);
-      expect(describedBy(button)).toBe(why);
-      expect(await hintOf(button)).toBe(why);
-      await view.unmount();
-    });
-
-    it.each(CASES)("changes nothing when $name's switch is pressed, nor reads Settings' router as its own", async ({ payload }) => {
-      mockIPC(() => undefined);
-      modelRouterStore.setState({ on: true });
-      await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, ...payload } as TerminalPayload });
-      const before = JSON.stringify(nodesStore.getState().nodes);
-      const view = await mount(shown(payload));
-      const button = router(view.host)!;
-      // Settings' router is on, which a switch that acts would show: here nothing is routed.
-      expect(button.getAttribute("aria-pressed")).toBe("false");
-      await act(async () => button.click());
-      await act(async () => button.click());
-      expect(JSON.stringify(nodesStore.getState().nodes)).toBe(before);
-      expect(payloadOf().router).toBeUndefined();
-      expect(modelRouterStore.getState().on).toBe(true);
-      expect(button.getAttribute("aria-pressed")).toBe("false");
-      await view.unmount();
-    });
-
-    it("reads off on a stale switch too, and a click never writes over it", async () => {
-      mockIPC(() => undefined);
-      await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, agent: "gemini", router: true } });
-      const view = await mount(shown({ agent: "gemini", router: true }));
-      expect(router(view.host)?.getAttribute("aria-pressed")).toBe("false");
-      await act(async () => router(view.host)!.click());
-      expect(payloadOf().router).toBe(true);
-      await view.unmount();
-    });
 
     it.each(CASES)("is in $name's ⋯ menu, greyed out and unchecked, with its reason as its title, and does nothing", async ({ payload, why }) => {
       mockIPC(() => undefined);
@@ -278,7 +217,9 @@ describe("the model router's sticky switch", () => {
       expect(entry.hasAttribute("data-disabled")).toBe(false);
       expect(entry.getAttribute("title")).toBe(why);
       expect(entry.getAttribute("aria-description")).toBe(why);
-      expect(entry.className).toContain("opacity-50");
+      // Greyed by its ink, kept on keyboard focus too (the item lights up on focus otherwise), never by opacity.
+      expect(entry.className.split(/\s+/)).toEqual(expect.arrayContaining(["text-dp-text-3", "focus:text-dp-text-3"]));
+      expect(entry.className.split(/\s+/)).not.toContain("opacity-50");
       await act(async () => entry.click());
       expect(JSON.stringify(nodesStore.getState().nodes)).toBe(before);
       // The menu stays open, with its entry unchecked and no Follow offered, however the switch is stored.
@@ -287,23 +228,6 @@ describe("the model router's sticky switch", () => {
       expect([...document.querySelectorAll('[role="menuitem"]')].some((item) => item.textContent?.startsWith("Follow"))).toBe(false);
       await view.unmount();
     });
-  });
-
-  it("is on a Codex terminal too, and shows Settings' router while its own switch is unset; each click stores its state", async () => {
-    mockIPC(() => undefined);
-    modelRouterStore.setState({ on: true });
-    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, agent: "codex" } });
-    const view = await mount(shown({ agent: "codex" }));
-    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("true");
-    await act(async () => router(view.host)!.click());
-    expect(payloadOf().router).toBe(false);
-    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("false");
-    // On again is stored as set too, the state Settings gives: it holds when Settings is turned off.
-    await act(async () => router(view.host)!.click());
-    expect(payloadOf().router).toBe(true);
-    await act(async () => modelRouterStore.setState({ on: false }));
-    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("true");
-    await view.unmount();
   });
 
   it("offers Follow Settings in its ⋯ menu only while it is set, and that unsets it", async () => {
@@ -331,24 +255,8 @@ describe("the model router's sticky switch", () => {
     await act(async () => follow.click());
     expect(payloadOf().router).toBeUndefined();
     // It follows Pam's off now.
-    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("false");
-    await view.unmount();
-  });
-
-  it("stays on until it is turned off, saved in the terminal's payload, and never asks for a restart", async () => {
-    mockIPC(() => undefined);
-    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, model: "claude-haiku-5-5" } });
-    const view = await mount(shown({ model: "claude-haiku-5-5" }));
-    await act(async () => router(view.host)!.click());
-    expect(payloadOf().router).toBe(true);
-    // The model it chose stays: the router only speaks when a sub-task with a level comes.
-    expect(payloadOf().model).toBe("claude-haiku-5-5");
-    await act(async () => view.root.render(shown({ router: true, model: "claude-haiku-5-5" })));
-    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("true");
-    expect(router(view.host)?.getAttribute("data-router")).toBe("on");
-    expect(relaunchTerminal).not.toHaveBeenCalled();
-    await act(async () => router(view.host)!.click());
-    expect(payloadOf().router).toBe(false);
+    await openMore(view.host);
+    expect(entry()?.getAttribute("aria-checked")).toBe("false");
     await view.unmount();
   });
 });
@@ -358,8 +266,8 @@ it("keeps the essentials on its row and the rest behind « ⋯ »: Review, Resta
   const onClose = vi.fn();
   const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} onDuplicate={onDuplicate} onClose={onClose} />);
   const labels = [...view.host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
-  // The agent, the model router (wide nodes only: `WIDE_ONLY`), Remote Control, the menu, Close: no more.
-  expect(labels).toEqual(["Agent", "Model router", expect.stringContaining("Remote Control"), "More actions", "Close"]);
+  // The agent, Remote Control, Edit (its panel, in the right lane), the menu, Close: no more. The model router is in the foot, beside Link.
+  expect(labels).toEqual(["Agent", expect.stringContaining("Remote Control"), expect.stringMatching(/^Edit /), "More actions", "Close"]);
   const items = await openMore(view.host);
   expect(textOf(items())).toEqual(["Review changes", "Minimize", "Duplicate", "Quick note", "Resume the session", "New session", "Latest in the folder", "Stop the process"]);
   await act(async () => items()[2]!.click());
@@ -463,7 +371,7 @@ it("names its menu « More actions », with the same tooltip as the header's oth
   expect(more.hasAttribute("title")).toBe(false);
   const tooltip = () => document.querySelector('[role="tooltip"]')?.textContent ?? null;
   const later = () => act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
-  await act(async () => more.focus());
+  await act(async () => tabTo(more));
   await later();
   expect(tooltip()).toBe("More actions");
   // The menu opens: the tooltip goes.
@@ -498,7 +406,7 @@ it("says under a sub-agent's name what it was asked, legibly, its task in a tool
   expect(line.className).not.toMatch(/opacity/);
   // Its tooltip says the title: no native one beside it.
   expect(header.hasAttribute("title")).toBe(false);
-  await act(async () => line.focus());
+  await act(async () => tabTo(line));
   await act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
   const tip = document.querySelector('[role="tooltip"]')?.textContent ?? "";
   expect(tip).toContain("Header fix");
@@ -556,7 +464,7 @@ it("keeps native titles off the header and its buttons: the terminal's title is 
   expect(name.textContent).toBe("Batman");
   expect(name.getAttribute("title")).toBe("Fixing the header\nDouble-click to rename");
   const chip = header.querySelector<HTMLButtonElement>("[data-model]")!;
-  await act(async () => chip.focus());
+  await act(async () => tabTo(chip));
   await act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
   expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Model chosen by the router: claude-haiku-5-5");
   await view.unmount();

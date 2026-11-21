@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { TITLE_BAR_HEIGHT } from "@/shell/layout";
+import { OVERLAY_TOP } from "@/shell/overlayBounds";
 import {
   ARC_HIT,
   ARC_INNER,
@@ -20,6 +22,7 @@ import {
   isSlide,
   OUTER_RADIUS,
   popOffset,
+  ringArea,
   ringCenter,
   slideSlot,
   slotAt,
@@ -145,6 +148,18 @@ describe("the wheel's geometry", () => {
     expect(ringCenter({ x: 10, y: 10 }, window)).toEqual({ x: 152, y: 152 });
     expect(ringCenter({ x: 995, y: 795 }, window)).toEqual({ x: 848, y: 648 });
   });
+
+  it("keeps the wheel under the title bar at the 960x600 minimum: its top one gap below the bar, wherever the click was", () => {
+    const area = ringArea({ innerWidth: 960, innerHeight: 600 });
+    expect(area).toEqual({ width: 960, height: 600, top: TITLE_BAR_HEIGHT });
+    // The ring-on-canvas frame: a click at y 152 put the wheel's top at y 6, over the title bar.
+    const center = ringCenter({ x: 480, y: 152 }, area);
+    expect(center).toEqual({ x: 480, y: TITLE_BAR_HEIGHT + 8 + OUTER_RADIUS + POP });
+    expect(center.y - OUTER_RADIUS - POP).toBe(OVERLAY_TOP);
+    // Still whole at the bottom, and a click in the middle stays where it was.
+    expect(ringCenter({ x: 480, y: 599 }, area).y + OUTER_RADIUS + POP).toBe(600 - 8);
+    expect(ringCenter({ x: 480, y: 300 }, area)).toEqual({ x: 480, y: 300 });
+  });
 });
 
 describe("the More arc's geometry (nested More)", () => {
@@ -195,6 +210,16 @@ describe("the More arc's geometry (nested More)", () => {
     const arc = arcLayout(center, 7, 8, 5, window);
     expect(whole(center, arc)).toBe(true);
     expect(Math.abs(turnOf(arc))).toBeGreaterThan((5 * 28) / 2 + 45 / 2);
+  });
+
+  it("never fans out over the title bar: at 960x600 it turns until every wedge is one gap below the bar", () => {
+    const area = ringArea({ innerWidth: 960, innerHeight: 600 });
+    const center = ringCenter({ x: 480, y: 10 }, area);
+    // Centred on More (↖), the arc would rise over the bar.
+    const below = (arc: ArcLayout) =>
+      Array.from({ length: arc.count }, (_, i) => i).every((i) => points(arcWedgePath(arc, i)).every((p) => center.y + p.y >= OVERLAY_TOP - 0.5));
+    expect(below({ middle: (-135 * Math.PI) / 180, count: 5 })).toBe(false);
+    expect(below(arcLayout(center, 7, 8, 5, area))).toBe(true);
   });
 
   it("stays centred on More when nowhere fits (a window smaller than the arc)", () => {

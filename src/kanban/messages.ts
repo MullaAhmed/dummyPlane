@@ -12,8 +12,12 @@ export const kanbanMessages = defineMessages({
   placeFailed: "Could not create the Kanban board",
   agent: "the agent",
   inProgress: "In progress",
+  /** The notes of the card of an agent its Fleet opened beside the mission's plan (`spawn_agent`): what marks it as not the plan's. */
+  adHoc: (spawner: string, task: string) => `Ad hoc, outside the plan: opened by ${spawner} with spawn_agent. ${task}`,
   /** The column a mission's card goes to when its agent reports blocked or failed (its chip tells which). */
   blocked: "Blocked",
+  /** The column a mission's card waits in once its agent reported done and its branch is not merged yet: Done is the merge's. */
+  reported: "Reported, not merged",
   plan: {
     // The cards come last: nothing of ours follows what a stranger may have written.
     request: (column: string, count: number, cards: string) =>

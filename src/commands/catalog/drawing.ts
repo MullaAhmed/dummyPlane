@@ -7,7 +7,7 @@ import { groupingOf, groupSelection, ungroupingOf } from "@/agents/selectionGrou
 import type { Point } from "@/agents/terminals";
 import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt, ungroupDrawings } from "@/radial/bridges";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "@/shell/sceneActions";
-import type { Command, CommandContext } from "../command";
+import { inputOf, type Command, type CommandContext } from "../command";
 import { askArrangeLayout } from "./arrangeMenu";
 import { command, derived, sectionNamed } from "./define";
 import { catalog } from "./messages";
@@ -109,7 +109,7 @@ export const DRAWING: readonly Command[] = [
       return blocked ? catalog().reasons[blocked] : null;
     },
     run: (ctx) => {
-      groupSelection(selectionOf(ctx));
+      groupSelection(selectionOf(ctx), inputOf(ctx));
     },
   }),
   // A dummyPlane group's frame or members, or Excalidraw's groups of drawings (see `ungroupingOf`). Unavailable
@@ -147,7 +147,8 @@ export const SCENE: readonly Command[] = [
   command("scene.export", { section: scene, available: inProject, run: () => exportCurrentScene() }),
   command("scene.import", { section: scene, available: inProject, run: () => importIntoScene() }),
   command("scene.png", { section: scene, available: inProject, run: () => exportCurrentPng() }),
-  // The selection when it holds two blocks or more (or one group: tidied inside), else the whole canvas; one undo takes it back.
+  // The selection when it holds several elements, never the whole canvas then (one group: tidied inside); nothing or a single
+  // element selected, the whole canvas. One undo takes it back.
   command("scene.arrange", {
     section: scene,
     available: inProject,
@@ -156,7 +157,7 @@ export const SCENE: readonly Command[] = [
     },
   }),
   // The same, in a layout picked from a list at the ring's point (the canvas's middle from the palette): the selection when it
-  // holds two blocks or one group, else the canvas; picked for the whole canvas, it is the Arrange layout setting too (src/agents/arrangeAs.ts).
+  // holds several elements or lies in one group, else the canvas; picked for the whole canvas, it is the Arrange layout setting too (src/agents/arrangeAs.ts).
   command("scene.arrangeAs", {
     section: scene,
     available: inProject,

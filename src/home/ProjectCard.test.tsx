@@ -32,6 +32,20 @@ it("offers Rename for a project that exists, not for a missing one", async () =>
   expect(await menuOf(true)).not.toContain("Rename");
 });
 
+it("shows its running agents with an agent's own status dot, never a dot of its own", async () => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<ProjectCard project={{ ...project(false), liveAgents: 2 }} />));
+  const dot = host.querySelector<HTMLElement>("[data-status]")!;
+  // A running process whose activity Home does not know: the ring a terminal's header shows it.
+  expect(dot.getAttribute("data-status")).toBe("idle");
+  expect(dot.parentElement!.textContent).toBe("2 active agents");
+  expect(host.querySelectorAll(".rounded-full:not([data-status])")).toHaveLength(0);
+  await act(async () => root.unmount());
+  document.body.replaceChildren();
+});
+
 it("asks in the app's own dialog before removing a project, and keeps it on Cancel", async () => {
   const remove = vi.spyOn(projectsStore.getState(), "remove").mockResolvedValue();
   const host = document.createElement("div");

@@ -38,7 +38,6 @@
   --color-dp-danger-on-soft: var(--dp-danger-on-soft);
   --color-dp-terminal: var(--dp-terminal);
   --color-dp-terminal-head: var(--dp-terminal-head);
-  --color-dp-working: var(--dp-working);
   --color-dp-waiting: var(--dp-waiting);
   --color-dp-idle: var(--dp-idle);
   --color-dp-done: var(--dp-done);
@@ -97,7 +96,7 @@
   --foreground: var(--dp-text);
   --card: var(--dp-surface);
   --card-foreground: var(--dp-text);
-  --popover: var(--dp-surface-2);
+  --popover: var(--dp-surface);
   --popover-foreground: var(--dp-text);
   --primary: var(--dp-accent);
   --primary-foreground: var(--dp-on-accent);
@@ -229,6 +228,17 @@
   box-shadow: var(--dp-shadow);
 }
 
+/* A floating surface stacked on another (a menu or a popover over a panel, a dialog over its veil, a toast) has no
+   shadow in the dark palettes, and its fill is the fill beneath it: only its edge sets it apart. The hairline reads
+   1.0:1 to 1.4:1 there; the edge is the control's boundary token instead, 2.9:1 to 4.4:1 against the fill and the
+   grounds beneath. Dividers, panels and the nodes keep the hairline. Calm keeps it too: its float shadow does this
+   there. legibility.test.ts measures the pairs. The two toasts the app draws itself (a decision, the resume offer) are not
+   Sonner's styled ones, so each carries its own mark. */
+:root[data-theme="dark"] :is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="popover-content"], [data-slot="select-content"], [data-slot="dialog-content"], [data-decision-toast], [data-resume-toast]),
+:root[data-theme="dark"] [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
+  border-color: var(--dp-line-strong);
+}
+
 /* The app's type in the toasts: sonner sets the system font on its toaster. */
 [data-sonner-toaster][data-sonner-theme] {
   font-family: var(--font-sans);
@@ -264,6 +274,14 @@
 [data-sonner-toaster] [data-sonner-toast]:not([data-swiping="true"]) {
   transition-property: transform, opacity, height;
   transition-duration: var(--dp-dur);
+  transition-timing-function: var(--dp-ease-out);
+}
+
+/* A toast removed from behind the front one leaves on sonner's own five-attribute rule (500 ms on ease), which the
+   rule above does not out-rank: the toaster and the same five attributes do, and it leaves quicker than it came. */
+[data-sonner-toaster] [data-sonner-toast][data-removed="true"][data-front="false"][data-swipe-out="false"][data-expanded="false"] {
+  transition-property: transform, opacity;
+  transition-duration: var(--dp-dur-fast);
   transition-timing-function: var(--dp-ease-out);
 }
 

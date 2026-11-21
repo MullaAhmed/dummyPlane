@@ -414,6 +414,89 @@ describe("arrange scope", () => {
   });
 });
 
+describe("an Arrange of a multi-selection (no scope given: the palette's Arrange, Arrange as…, a ring's)", () => {
+  const parents: Record<string, string> = { b: "a" };
+  const parentOf = (id: string) => parents[id] ?? null;
+  /**
+   * A spawn tree a → b as its flowchart lays it, c with an output attached to it, d out of place, and two drawings
+   * outside frames. Arranged whole, the canvas moves c, o and d.
+   */
+  const scene = (rootFields: Record<string, unknown> = {}) => [
+    node("a", 0, 0, rootFields),
+    node("b", W + GROUP_GAP, 0),
+    node("c", 0, 5000),
+    node("o", W + 16, 5000, { width: 560, height: 520, link: "dummyplane://output/o", customData: { kind: "output", attachedTo: "c" } }),
+    node("d", 7000, 6000),
+    shape("s", 9000, 9000),
+    shape("s2", 9100, 9100),
+  ];
+  const arrange = (elements: ExcalidrawElement[], rest: Partial<ArrangeInput>) => arrangedElements(input(elements, { parentOf, attachedTo: anchorsOf(elements), ...rest }));
+  /** Each of `ids` stands exactly as it did: the very element, or nothing moved at all. */
+  const untouched = (result: ReturnType<typeof arrangedElements>, elements: readonly ExcalidrawElement[], ids: readonly string[], label: string) => {
+    for (const id of ids) {
+      if (result) expect(result.elements.find((e) => e.id === id), `${label}: ${id}`).toBe(elements.find((e) => e.id === id));
+    }
+  };
+
+  it("moves what the canvas Arrange would move when nothing is selected (the scene is out of place)", () => {
+    const elements = scene();
+    const all = arrange(elements, { only: [] });
+    expect(at(all, "c").y).toBeLessThan(5000);
+    expect(at(all, "d")).not.toMatchObject({ x: 7000, y: 6000 });
+  });
+
+  // Two blocks or more are not needed: a selection of several ids is the selection, whatever it holds.
+  const cases: { only: string[]; what: string; outside: string[] }[] = [
+    { only: ["a", "b"], what: "two terminals of one spawn tree", outside: ["c", "o", "d"] },
+    { only: ["c", "s"], what: "a terminal and a drawing", outside: ["a", "b", "d"] },
+    { only: ["c", "o"], what: "a terminal and the output attached to it", outside: ["a", "b", "d"] },
+    { only: ["a", "b", "s"], what: "a spawn tree's terminals and a drawing", outside: ["c", "o", "d"] },
+  ];
+  for (const { only, what, outside } of cases) {
+    it(`never arranges the whole canvas for ${what}: what lies outside the selection stays exactly where it is`, () => {
+      for (const layout of ARRANGE_LAYOUTS) {
+        for (const clearTreeMarks of [false, true]) {
+          for (const rootFields of [{}, { customData: { kind: "terminal", downTree: true } }]) {
+            const elements = scene(rootFields);
+            const label = `${layout}${clearTreeMarks ? ", the user's" : ""}${"customData" in rootFields ? ", a tree laid downward" : ""}`;
+            untouched(arrange(elements, { only, layout, clearTreeMarks }), elements, [...outside, "s", "s2"], label);
+            expect(arrangesWholeCanvas(input(elements, { parentOf, attachedTo: anchorsOf(elements), only, layout })), label).toBe(false);
+          }
+        }
+      }
+    });
+  }
+
+  it("leaves one block selected where it stands in the grid: nothing moves", () => {
+    for (const { only } of cases) expect(arrange(scene(), { only, layout: "grid", clearTreeMarks: true }), only.join()).toBeNull();
+  });
+
+  it("moves nothing for drawings alone, outside any frame", () => {
+    const elements = scene();
+    expect(arrange(elements, { only: ["s", "s2"] })).toBeNull();
+    expect(arrangesWholeCanvas(input(elements, { parentOf, only: ["s", "s2"] }))).toBe(false);
+  });
+
+  it("still arranges the two blocks of a selection, and nothing else", () => {
+    const elements = scene();
+    const result = arrange(elements, { only: ["a", "d"] });
+    // The tree a → b, then d under it.
+    expect(at(result, "d")).toMatchObject({ x: 0, y: H + GROUP_GAP });
+    untouched(result, elements, ["c", "o", "s", "s2"], "a and d");
+  });
+
+  it("keeps the canvas fallback for a single id selected (a stray selection), and the whole canvas when asked for", () => {
+    const elements = scene();
+    const all = geometry(arrange(elements, { only: [] }));
+    expect(geometry(arrange(elements, { only: ["a"] }))).toEqual(all);
+    expect(geometry(arrange(elements, { only: ["a", "b"], scope: "canvas" }))).toEqual(all);
+    expect(arrangesWholeCanvas(input(elements, { parentOf, only: ["a"] }))).toBe(true);
+    // An id no longer in the scene does not make a selection of two.
+    expect(geometry(arrange(elements, { only: ["a", "gone"] }))).toEqual(all);
+    expect(geometry(arrange([...elements, shape("x", 0, 0, { isDeleted: true })], { only: ["a", "x"] }))).toEqual(geometry(arrange([...elements, shape("x", 0, 0, { isDeleted: true })], { only: [] })));
+  });
+});
+
 describe("a group's Arrange makes room", () => {
   /** A group of four terminals in the grid's one column, as the grid leaves it, its corner at (0, 0). */
   const columnWidth = 2 * PADDING + W;
@@ -633,9 +716,9 @@ describe("arrangesWholeCanvas", () => {
     expect(arrangesWholeCanvas(input(loose(), { only: ["a"], scope: "selection" }))).toBe(false);
   });
 
-  it("counts blocks, not elements: a spawn tree's two terminals are one block, so selecting both is the whole canvas", () => {
+  it("counts what is selected, not blocks: a spawn tree's two terminals are one block, yet selecting both is the selection, never the whole canvas", () => {
     const elements = loose();
-    expect(arrangesWholeCanvas(input(elements, { only: ["a", "b"], parentOf: (id) => (id === "b" ? "a" : null) }))).toBe(true);
+    expect(arrangesWholeCanvas(input(elements, { only: ["a", "b"], parentOf: (id) => (id === "b" ? "a" : null) }))).toBe(false);
     expect(arrangesWholeCanvas(input(elements, { only: ["a", "c"], parentOf: (id) => (id === "b" ? "a" : null) }))).toBe(false);
   });
 

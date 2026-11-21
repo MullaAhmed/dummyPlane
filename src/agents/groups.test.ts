@@ -13,14 +13,14 @@ import { cachedElements, forgetScene, rememberScene } from "@/canvas/sceneCache"
 import { startUnseen } from "@/nodes/terminal/registry";
 import { addAgentToGroup, closeGroup, closeStoredGroup, launchGroup, leaveGroup, leftGroup, setGroupFolded, setGroupPantheon, setGroupSpeciality, showGroups, ungroup } from "./groups";
 import { PADDING, PADDING_BOTTOM, PADDING_TOP } from "./groupLayout";
-import { announceArrival, quietly } from "./arrivals";
+import { announceArrival, arriveLaunched, quietly } from "./arrivals";
 import { launchFolderStore } from "./launchFolder";
 import { addTerminal, removeFromStoredScene } from "./terminals";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "i" }, newElementWith: (e: object, patch: object) => ({ ...e, ...patch }) }));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 vi.mock("@/nodes/terminal/registry", () => ({ markForAutostart: vi.fn(), startUnseen: vi.fn(), disposeTerminal: vi.fn() }));
-vi.mock("./arrivals", async (importOriginal) => ({ ...(await importOriginal<typeof import("./arrivals")>()), announceArrival: vi.fn() }));
+vi.mock("./arrivals", async (importOriginal) => ({ ...(await importOriginal<typeof import("./arrivals")>()), announceArrival: vi.fn(), arriveLaunched: vi.fn() }));
 vi.mock("./naming", async (importOriginal) => ({ ...(await importOriginal<typeof import("./naming")>()), nameForNewAgent: vi.fn(() => Promise.resolve("Batman")) }));
 vi.mock("./terminals", async (importOriginal) => ({ ...(await importOriginal<typeof import("./terminals")>()), addTerminal: vi.fn(() => Promise.resolve()) }));
 
@@ -277,6 +277,32 @@ it("closes a group with the wires that led to it (final review H2)", () => {
   expect(scene.filter((e) => e.isDeleted).map((e) => e.id)).toEqual(["f1", "t1", "w1", "w2"]);
 });
 
+it("leaves the outputs its agents showed when it closes a group, in no frame, as closing their agent alone does", async () => {
+  const wire: Element = { id: "w", type: "arrow", customData: { dummyplane: { kind: "wire" } }, startBinding: { elementId: "t1" }, endBinding: { elementId: "o1" } };
+  const group = () => [
+    { id: "t1", type: "embeddable", isDeleted: false, frameId: "f1", customData: { kind: "terminal" } },
+    { id: "o1", type: "embeddable", isDeleted: false, frameId: "f1", customData: { kind: "output" } },
+    { id: "f1", type: "frame", isDeleted: false, frameId: null, customData: { dummyplane: { kind: "group", role: "general", pantheon: "egyptian" } } },
+    wire,
+  ];
+  scene = group() as never;
+  closeGroup("f1");
+  expect(scene.filter((e) => e.isDeleted).map((e) => e.id)).toEqual(["t1", "f1", "w"]);
+  expect(scene.find((e) => e.id === "o1")).toMatchObject({ frameId: null });
+  expect(scene.find((e) => e.id === "o1")?.isDeleted).toBeFalsy();
+  // In a scene not on screen too.
+  workspacesStore.setState({ activeId: "other" });
+  rememberScene("w1", group() as never, {} as never, {}, []);
+  try {
+    closeStoredGroup("w1", "f1");
+    const stored = cachedElements("w1")!;
+    expect(stored.filter((e) => e.isDeleted).map((e) => e.id)).toEqual(["t1", "f1", "w"]);
+    expect(stored.find((e) => e.id === "o1")).toMatchObject({ isDeleted: false, frameId: null });
+  } finally {
+    forgetScene("w1");
+  }
+});
+
 it("folds and unfolds a group as one undoable step, keeping everything else", () => {
   const data = { kind: "group", role: "general", pantheon: "egyptian", speciality: "API" };
   scene = [{ id: "f1", type: "frame", customData: { dummyplane: data } }, { id: "plain", type: "frame" }, { id: "t1", type: "embeddable", customData: { kind: "terminal" }, frameId: "f1" } as never];
@@ -291,13 +317,46 @@ it("folds and unfolds a group as one undoable step, keeping everything else", ()
   expect((scene[2] as { locked?: boolean }).locked).toBe(false);
 });
 
-it("unfolds a folded group before adding an agent to it, so the agent shows and starts", async () => {
+it("adds an agent to a folded group in one scene write, its own: the group unfolds, its hidden agents are unlocked and the new one takes a cell, one undo", async () => {
   const data = { kind: "group", role: "general", pantheon: "egyptian", folded: true };
-  scene = [{ id: "f1", type: "frame", customData: { dummyplane: data } }];
-  canvasStore.setState({ frames: [{ id: "f1", name: "G", x: 0, y: 0, width: 800, height: 500, group: { role: "general", pantheon: "egyptian", folded: true }, memberIds: [] }] as never });
+  const geometry = { x: 0, y: 0, width: 800, height: 500 };
+  const terminal = { id: "t1", type: "embeddable", customData: { kind: "terminal" }, frameId: "f1", locked: true, x: 30, y: 60, width: 300, height: 200 };
+  scene = [{ id: "f1", type: "frame", ...geometry, customData: { dummyplane: data } }, terminal] as never;
+  canvasStore.setState({ frames: [{ id: "f1", name: "G", ...geometry, group: { role: "general", pantheon: "egyptian", folded: true }, memberIds: ["t1"] }] as never });
   workspacesStore.setState({ activeId: "w1" });
+  const written = vi.spyOn(canvasStore.getState().api!, "updateScene");
   await addAgentToGroup("f1", "shell");
-  expect(scene[0].customData?.dummyplane).not.toHaveProperty("folded");
+  // The scene is written by addTerminal alone, from the `place` it is handed: no unfolding step of its own before it, which a second undo would undo apart.
+  expect(written).not.toHaveBeenCalled();
+  const place = vi.mocked(addTerminal).mock.lastCall![5]!;
+  const added = { id: "n1", type: "embeddable", customData: { kind: "terminal" }, x: 0, y: 0, width: 300, height: 200 };
+  const after = place(scene as never, added as never) as unknown as (Element & { locked?: boolean; x: number; y: number })[];
+  expect(after.find((e) => e.id === "f1")!.customData?.dummyplane).not.toHaveProperty("folded");
+  expect(after.find((e) => e.id === "t1")!.locked).toBe(false);
+  expect(after.find((e) => e.id === "n1")).toMatchObject({ frameId: "f1" });
+});
+
+it("adds an agent to an unfolded group where it stands: its members are left as they are", async () => {
+  const geometry = { x: 0, y: 0, width: 800, height: 500 };
+  const terminal = { id: "t1", type: "embeddable", customData: { kind: "terminal" }, frameId: "f1", x: 30, y: 60, width: 300, height: 200 };
+  scene = [{ id: "f1", type: "frame", ...geometry, customData: { dummyplane: { kind: "group", role: "general", pantheon: "egyptian" } } }, terminal] as never;
+  canvasStore.setState({ frames: [{ id: "f1", name: "G", ...geometry, group: { role: "general", pantheon: "egyptian" }, memberIds: ["t1"] }] as never });
+  await addAgentToGroup("f1", "shell");
+  const place = vi.mocked(addTerminal).mock.lastCall![5]!;
+  const added = { id: "n1", type: "embeddable", customData: { kind: "terminal" }, x: 0, y: 0, width: 300, height: 200 };
+  const after = place(scene as never, added as never) as unknown as (Element & { locked?: boolean })[];
+  expect(after.find((e) => e.id === "t1")).toBe(scene.find((e) => e.id === "t1"));
+  expect(after.find((e) => e.id === "n1")).toMatchObject({ frameId: "f1" });
+});
+
+it("gives the agent added to a group the keyboard: the user asked for it", async () => {
+  const geometry = { x: 0, y: 0, width: 800, height: 500 };
+  scene = [{ id: "f1", type: "frame", ...geometry, customData: { dummyplane: { kind: "group", role: "general", pantheon: "egyptian" } } }] as never;
+  canvasStore.setState({ frames: [{ id: "f1", name: "G", ...geometry, group: { role: "general", pantheon: "egyptian" }, memberIds: [] }] as never });
+  vi.mocked(addTerminal).mockResolvedValueOnce("n1");
+  vi.mocked(arriveLaunched).mockClear();
+  await addAgentToGroup("f1", "shell");
+  expect(arriveLaunched).toHaveBeenCalledExactlyOnceWith("n1");
 });
 
 it("does not fold a group whose agents have not started yet: a hidden agent never starts", () => {

@@ -439,7 +439,10 @@ pub async fn list_ollama_models() -> AppResult<Vec<String>> {
 
 #[tauri::command]
 pub async fn list_shells() -> AppResult<Vec<ShellKind>> {
-    Ok(catalog::list_shells(&which_locate))
+    Ok(catalog::list_shells(
+        &which_locate,
+        &crate::pty::shell::wsl_distro_installed,
+    ))
 }
 
 /// Writes scrollbacks to SQLite: only the changed ones, or all of them at exit.

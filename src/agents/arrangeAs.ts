@@ -2,7 +2,7 @@ import { setArrangeLayout } from "@/app/arrangeLayoutSetting";
 import { arrangeCoversCanvas, arrangeWorkspace } from "./arrangeCanvas";
 import type { ArrangeLayout } from "./arrangeLayout";
 
-/** What an "Arrange as…" is asked of: the scene (the selection `only` from two blocks or one group, else the canvas), or one group. */
+/** What an "Arrange as…" is asked of: the scene (the selection `only` when it holds several elements or lies in one group, else the canvas), or one group. */
 export type ArrangeTarget = { kind: "scene"; only: readonly string[] } | { kind: "group"; id: string };
 
 /**
