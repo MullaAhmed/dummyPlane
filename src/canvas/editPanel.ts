@@ -2,8 +2,8 @@ import { createStore, useStore } from "zustand";
 import { canvasStore } from "./canvasStore";
 
 /**
- * The terminal (or Fleet) whose Edit panel is open, null while it is folded. The panel stands in the right
- * lane (shell/layout.ts), so the lane's rule reads it: one occupant at a time (agents/panelFold.ts).
+ * The terminal (or Fleet) whose Edit panel is open, null while it is folded. The panel stands beside its node
+ * (SelectionPanel), and a work window that opens folds it (agents/panelFold.ts).
  */
 export const editPanelStore = createStore<{ openFor: string | null }>()(() => ({ openFor: null }));
 

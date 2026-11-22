@@ -5,17 +5,15 @@ import { reviewStore } from "@/review/reviewStore";
 import { coversCorner, workArea, workWindowPlace, type Insets, type WorkWindowPlace } from "./layout";
 
 /*
- * Who stands in the right lane now (shell/layout.ts): the Agents panel or a terminal's Edit panel, one at a time
- * (agents/panelFold.ts). Each says so while it is mounted, so the lane is reserved only while one is on screen;
- * the work area then ends at its left edge.
+ * Who stands in the right lane now (shell/layout.ts): the Agents panel, its one occupant. It says so while it is
+ * mounted, so the lane is reserved only while it is on screen; the work area then ends at its left edge.
  */
 
 export const laneStore = createStore<{ occupants: readonly string[] }>()(() => ({ occupants: [] }));
 
-/** `name` stands in the lane while this is mounted and `present`. */
-export function useLaneOccupant(name: string, present = true) {
+/** `name` stands in the lane while this is mounted. */
+export function useLaneOccupant(name: string) {
   useLayoutEffect(() => {
-    if (!present) return;
     laneStore.setState((s) => ({ occupants: [...s.occupants, name] }));
     return () => {
       laneStore.setState((s) => {
@@ -23,7 +21,7 @@ export function useLaneOccupant(name: string, present = true) {
         return { occupants: at < 0 ? s.occupants : [...s.occupants.slice(0, at), ...s.occupants.slice(at + 1)] };
       });
     };
-  }, [name, present]);
+  }, [name]);
 }
 
 /** Whether the lane has an occupant, read outside React (the camera, placement). */

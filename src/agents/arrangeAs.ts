@@ -2,8 +2,11 @@ import { setArrangeLayout } from "@/app/arrangeLayoutSetting";
 import { arrangeCoversCanvas, arrangeWorkspace } from "./arrangeCanvas";
 import type { ArrangeLayout } from "./arrangeLayout";
 
-/** What an "Arrange as…" is asked of: the scene (the selection `only` when it holds several elements or lies in one group, else the canvas), or one group. */
-export type ArrangeTarget = { kind: "scene"; only: readonly string[] } | { kind: "group"; id: string };
+/**
+ * What an "Arrange as…" is asked of: the scene (the selection `only` when it holds several elements or lies in one group,
+ * else the canvas), one group, or the selection `only` alone and never the whole canvas (the selection ring's Arrange).
+ */
+export type ArrangeTarget = { kind: "scene"; only: readonly string[] } | { kind: "group"; id: string } | { kind: "selection"; only: readonly string[] };
 
 /**
  * Arranges `target` in `layout`, one undoable step. Picked for the whole canvas, the layout is also the "Arrange layout"
@@ -13,6 +16,10 @@ export type ArrangeTarget = { kind: "scene"; only: readonly string[] } | { kind:
 export function arrangeAs(workspaceId: string, target: ArrangeTarget, layout: ArrangeLayout) {
   if (target.kind === "group") {
     arrangeWorkspace(workspaceId, { only: [target.id], layout, undoable: true });
+    return;
+  }
+  if (target.kind === "selection") {
+    arrangeWorkspace(workspaceId, { only: target.only, scope: "selection", layout, undoable: true });
     return;
   }
   // Before the arrange reads it: the store has the choice at once (its saving is awaited, and reports its own failure).

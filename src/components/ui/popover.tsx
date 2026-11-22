@@ -17,11 +17,6 @@ function PopoverTrigger(props: React.ComponentProps<typeof PopoverPrimitive.Trig
   return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />;
 }
 
-/** What the content hangs from instead of the trigger: an element, or a box (`virtualRef`) such as the right lane's corner. */
-function PopoverAnchor(props: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
-  return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />;
-}
-
 function PopoverContent({
   className,
   align = "center",
@@ -47,4 +42,4 @@ function PopoverContent({
   );
 }
 
-export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger };
+export { Popover, PopoverContent, PopoverTrigger };

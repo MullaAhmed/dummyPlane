@@ -45,7 +45,7 @@ const CHEVRON = "size-3.5 text-dp-text-2 transition-[rotate] duration-(--dp-dur-
 
 /**
  * The agents of the workspace on screen, by group. It stands in the right lane (shell/layout.ts), on its edge and its
- * top, the lane's width: the lane's occupant, which a work window or the Edit panel folds (panelFold.ts).
+ * top, the lane's width: the lane's occupant, which a work window folds (panelFold.ts).
  */
 export function AgentsPanel() {
   const t = useMessages(agentsMessages).panel;

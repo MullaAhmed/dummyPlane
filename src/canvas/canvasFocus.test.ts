@@ -101,7 +101,7 @@ describe("overview", () => {
     expect(document.activeElement).toBe(container);
   });
 
-  it("fits them in the work area: left of the lane while the Agents panel or the Edit panel stands in it", () => {
+  it("fits them in the work area: left of the lane while the Agents panel stands in it", () => {
     const scene = [node("batman", "terminal")];
     withScene(scene);
     laneStore.setState({ occupants: ["agents"] });

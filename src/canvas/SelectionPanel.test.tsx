@@ -19,11 +19,12 @@ import { agentActivityStore } from "@/store/agentActivity";
 import type { SessionUsage } from "@/usage/usage";
 import { markLaunch, usageStore } from "@/usage/usageStore";
 import { laneStore } from "@/shell/lane";
-import { LANE_BOTTOM, LANE_RIGHT, LANE_TOP } from "@/shell/layout";
+import { BOTTOM_BAR_HEIGHT, FLOAT_INSET, LANE_ROOM, LANE_TOP } from "@/shell/layout";
 import { canvasStore, EMPTY_VIEW } from "./canvasStore";
 import { editPanelStore } from "./editPanel";
 import { SelectionPanel } from "./SelectionPanel";
 import { EditButton } from "@/nodes/terminal/EditButton";
+import { NODE_HEADER_HEIGHT } from "@/nodes/terminal/NodeHeader";
 import { useNodes } from "@/store/nodes";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 import { tabTo } from "@/components/ui/tabTo";
@@ -439,7 +440,7 @@ it("copies and deletes the terminal from the buttons beside its name", async () 
   expect(requestClose).toHaveBeenCalledWith("t1");
 });
 
-it("stands in the right lane, on its edge and its top, over no node, wherever the view goes", async () => {
+it("stands beside its node, on its right, its top on the node's, and follows it as the view pans and zooms", async () => {
   await mountTerminal(terminal());
   await act(async () =>
     canvasStore.setState({
@@ -448,20 +449,76 @@ it("stands in the right lane, on its edge and its top, over no node, wherever th
     }),
   );
   const panel = host.firstElementChild as HTMLElement;
-  expect([panel.style.right, panel.style.top, panel.style.left]).toEqual([`${LANE_RIGHT}px`, `${LANE_TOP}px`, ""]);
-  expect(panel.style.maxHeight).toBe(`calc(100% - ${LANE_TOP + LANE_BOTTOM}px)`);
-  // The lane's layer and width: the Agents panel's.
-  expect(panel.className).toContain("z-30");
+  // 12 px right of the node (100 + 400), its top on the node's, its foot one inset above the command band.
+  expect([panel.style.left, panel.style.top, panel.style.right]).toEqual(["512px", "100px", ""]);
+  expect(panel.style.maxHeight).toBe(`${800 - BOTTOM_BAR_HEIGHT - FLOAT_INSET - 100}px`);
+  // The canvas's layer, as a drawing's panel; the width of its five tabs.
+  expect(panel.className).toContain("z-10");
+  expect(panel.className).not.toContain("z-30");
   expect(panel.className).toContain("w-84");
   expect(panel.className).not.toContain("left-[70px]");
   expect(editPanelStore.getState().openFor).toBe("t1");
-  // It holds the lane while it shows.
-  expect(laneStore.getState().occupants).toEqual(["edit"]);
+  // It is no occupant of the lane.
+  expect(laneStore.getState().occupants).toEqual([]);
   await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, scrollX: 100, scrollY: 20 } }));
-  expect([panel.style.right, panel.style.top]).toEqual([`${LANE_RIGHT}px`, `${LANE_TOP}px`]);
+  expect([panel.style.left, panel.style.top]).toEqual(["612px", "120px"]);
+  // Zoomed out, the node at (50, 50) and 200 wide: beside it, and one inset under the bars, never under them.
+  await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, scrollX: 0, scrollY: 0, zoom: 0.5 } }));
+  expect([panel.style.left, panel.style.top]).toEqual(["262px", `${LANE_TOP}px`]);
 });
 
-it("leaves the lane when it folds, when another node is selected, and in reading mode", async () => {
+it("is placed from its node's rect, not from the lane: left of the Agents panel while it stands in the lane", async () => {
+  await mountTerminal(terminal());
+  await act(async () =>
+    canvasStore.setState({
+      nodeRects: { t1: { x: 450, y: 150, width: 300, height: 300 } },
+      view: { ...canvasStore.getState().view, width: 1200, height: 800, scrollX: 0, scrollY: 0, zoom: 1 },
+    }),
+  );
+  const panel = host.firstElementChild as HTMLElement;
+  // The lane free: on the node's right.
+  expect([panel.style.left, panel.style.top]).toEqual(["762px", "150px"]);
+  // The Agents panel opens in the lane: the node's right would stand under it, so the panel takes the node's left.
+  await act(async () => laneStore.setState({ occupants: ["agents"] }));
+  expect([panel.style.left, panel.style.top, panel.style.right]).toEqual([`${450 - 12 - 336}px`, "150px", ""]);
+  expect(450 - 12 - 336 + 336).toBeLessThanOrEqual(1200 - LANE_ROOM);
+  // A node under the lane leaves its panel left of the lane, in the work area.
+  await act(async () => canvasStore.setState({ nodeRects: { t1: { x: 900, y: 150, width: 400, height: 300 } } }));
+  expect(panel.style.left).toBe(`${1200 - LANE_ROOM - 336}px`);
+  // The Agents panel gone, the node's left still: the work area's right edge is the rail's again.
+  await act(async () => laneStore.setState({ occupants: [] }));
+  expect(panel.style.left).toBe(`${900 - 12 - 336}px`);
+});
+
+it("opens under the header of a terminal too wide for either side, never over the pencil that opened it", async () => {
+  await mountTerminal(terminal(), ["t1"], null, false);
+  await act(async () =>
+    canvasStore.setState({
+      nodeRects: { t1: { x: 240, y: 150, width: 720, height: 440 } },
+      view: { ...canvasStore.getState().view, width: 1200, height: 800, scrollX: 0, scrollY: 0, zoom: 1 },
+    }),
+  );
+  await act(async () => pointerClick(editTab()!));
+  const panel = host.firstElementChild as HTMLElement;
+  // Its right edge on the terminal's (240 + 720), one gap under the 36 px header.
+  expect([panel.style.left, panel.style.top, panel.style.bottom]).toEqual([`${960 - 336}px`, `${150 + NODE_HEADER_HEIGHT + 12}px`, ""]);
+  // The header's pencil is still there to fold it.
+  await act(async () => pointerClick(editButton("t1")!));
+  expect(host.innerHTML).toBe("");
+  await act(async () => pointerClick(editTab()!));
+  // The Agents panel in the lane: its right edge held left of the lane, still under the header.
+  await act(async () => laneStore.setState({ occupants: ["agents"] }));
+  const open = host.firstElementChild as HTMLElement;
+  expect([open.style.left, open.style.top]).toEqual([`${1200 - LANE_ROOM - 336}px`, `${150 + NODE_HEADER_HEIGHT + 12}px`]);
+  // Zoomed out, the terminal 360 wide at (120, 75): still no side left of the lane, and its header 18 px high on screen.
+  await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, zoom: 0.5 } }));
+  expect([open.style.left, open.style.top]).toEqual([`${120 + 360 - 336}px`, `${75 + NODE_HEADER_HEIGHT / 2 + 12}px`]);
+  // The lane free again: beside it, on its right, one inset under the bars.
+  await act(async () => laneStore.setState({ occupants: [] }));
+  expect([open.style.left, open.style.top]).toEqual([`${120 + 360 + 12}px`, `${LANE_TOP}px`]);
+});
+
+it("folds when it folds itself, when another node is selected, and in reading mode, and never takes the lane", async () => {
   await mountTerminal(terminal());
   expect(editPanelStore.getState().openFor).toBe("t1");
   await act(async () => button("Fold the panel")!.click());
@@ -472,9 +529,9 @@ it("leaves the lane when it folds, when another node is selected, and in reading
   expect(editPanelStore.getState().openFor).toBeNull();
   await act(async () => editTab()!.click());
   expect(editPanelStore.getState().openFor).toBe("t2");
+  expect(laneStore.getState().occupants).toEqual([]);
   await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, mode: "reading" } }));
   expect(editPanelStore.getState().openFor).toBeNull();
-  expect(laneStore.getState().occupants).toEqual([]);
 });
 
 it("stays hidden for several selected nodes, and in reading mode", async () => {
@@ -697,7 +754,7 @@ it("offers a running terminal a restart once its effort changes, and gives a fle
   expect("effort" in fleetOf()).toBe(false);
 });
 
-it("shows nothing beside a terminal selected alone, and opens the panel into the lane from its header's Edit", async () => {
+it("shows nothing beside a terminal selected alone, and opens the panel beside it from its header's Edit", async () => {
   await mountTerminal(terminal(), ["t1"], null, false);
   await act(async () =>
     canvasStore.setState({
@@ -712,11 +769,11 @@ it("shows nothing beside a terminal selected alone, and opens the panel into the
   await act(async () => pointerClick(edit));
   expect(edit.getAttribute("aria-expanded")).toBe("true");
   expect(field("Name")!.value).toBe("Batman");
-  // Into the lane, from its edge.
+  // Beside its node, on its right, its top on the node's.
   const panel = host.firstElementChild as HTMLElement;
-  expect([panel.style.right, panel.style.top]).toEqual([`${LANE_RIGHT}px`, `${LANE_TOP}px`]);
+  expect([panel.style.left, panel.style.top]).toEqual(["512px", "100px"]);
   expect(panel.className).toContain("animate-in");
-  expect(panel.className).toContain("slide-in-from-right-1");
+  expect(panel.className).toContain("slide-in-from-left-1");
   // Pressed again, it folds.
   await act(async () => pointerClick(edit));
   expect(edit.getAttribute("aria-expanded")).toBe("false");

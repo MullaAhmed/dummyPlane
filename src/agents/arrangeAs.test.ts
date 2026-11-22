@@ -52,4 +52,13 @@ describe("arrangeAs", () => {
     expect(layout()).toBe("column");
     expect(setSetting).not.toHaveBeenCalled();
   });
+
+  it("arranges the selection ring's selection alone, never the whole canvas, once, and leaves the setting alone", () => {
+    // One element, a frame drawn by hand: the scene's Arrange would take the whole canvas for it.
+    arrangeAs("w1", { kind: "selection", only: ["frame"] }, "tree");
+    expect(arrangeWorkspace).toHaveBeenCalledWith("w1", { only: ["frame"], scope: "selection", layout: "tree", undoable: true });
+    expect(arrangeCoversCanvas).not.toHaveBeenCalled();
+    expect(layout()).toBe("grid");
+    expect(setSetting).not.toHaveBeenCalled();
+  });
 });

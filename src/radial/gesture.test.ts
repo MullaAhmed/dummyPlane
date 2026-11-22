@@ -10,6 +10,9 @@ import {
   arcItemAt,
   arcLayout,
   arcPosition,
+  arcToward,
+  MIN_ARC_STEP,
+  slotDirection,
   arcWedgePath,
   pointingAt,
   POP,
@@ -248,5 +251,66 @@ describe("the More arc's geometry (nested More)", () => {
     expect(pointingAt(center, at(center, Math.PI, 100), 8, arc)).toEqual({ slot: 6, item: null });
     // A slide's jitter near the press points at nothing.
     expect(slidePointing(center, center, at(center, -Math.PI / 2, 10), 8, arc)).toEqual({ slot: null, item: null });
+  });
+});
+
+describe("an arc of many wedges (Arrange's seven layouts, Other agent's agents)", () => {
+  const degrees = (radians: number) => Math.round((radians * 180) / Math.PI);
+  /** Every corner of every wedge of the arc inside the area, 8 px from its edges, under the title bar. */
+  const inside = (center: { x: number; y: number }, arc: ArcLayout, area: { width: number; height: number; top?: number }) =>
+    Array.from({ length: arc.count }, (_, i) => i).every((i) =>
+      points(arcWedgePath(arc, i)).every(
+        (p) => center.x + p.x >= 8 - 0.5 && center.x + p.x <= area.width - 8 + 0.5 && center.y + p.y >= (area.top ?? 0) + 8 - 0.5 && center.y + p.y <= area.height - 8 + 0.5,
+      ),
+    );
+  /** Where a ring can stand in the area: its centre moved off the edges, from the corners to the middle. */
+  const centres = (area: { width: number; height: number; top?: number }) =>
+    [0, 0.25, 0.5, 0.75, 1].flatMap((fx) => [0, 0.25, 0.5, 0.75, 1].map((fy) => ringCenter({ x: fx * area.width, y: fy * area.height }, area)));
+
+  it("fans out from its wedge, centred on it, one step apart, where the window has room", () => {
+    // The canvas ring's Arrange, ↙ on a ring of eight, in the middle of a wide window.
+    const arc = arcToward({ x: 720, y: 450 }, slotDirection(5, 8), 7, { width: 1440, height: 900 });
+    expect([arc.count, arc.step]).toEqual([7, undefined]);
+    expect(arc.middle).toBeCloseTo(slotDirection(5, 8), 9);
+    expect([0, 3, 6].map((i) => degrees(arcAngle(arc, i)))).toEqual([51, 135, 219]);
+  });
+
+  it("stays whole inside the window wherever the ring stands, at 960x600 and 1280x800, its wedges narrowed only where it must", () => {
+    for (const [width, height] of [
+      [960, 600],
+      [1280, 800],
+    ]) {
+      const area = ringArea({ innerWidth: width, innerHeight: height });
+      for (const center of centres(area)) {
+        for (const count of [7, 9]) {
+          for (let slot = 0; slot < 8; slot++) {
+            const arc = arcToward(center, slotDirection(slot, 8), count, area);
+            expect(inside(center, arc, area), `${width}x${height} ${count} at ${center.x},${center.y} from ${slot}`).toBe(true);
+            expect(arc.step ?? ARC_STEP).toBeGreaterThanOrEqual(MIN_ARC_STEP - 1e-9);
+          }
+        }
+      }
+    }
+  });
+
+  it("keeps More's arc as it was: never narrowed, wherever the ring stands at 960x600", () => {
+    const area = ringArea({ innerWidth: 960, innerHeight: 600 });
+    for (const center of centres(area)) {
+      for (const count of [2, 3, 5]) expect(arcLayout(center, 7, 8, count, area).step).toBeUndefined();
+    }
+  });
+
+  it("narrows in a corner, where seven wedges at ARC_STEP fit nowhere, and points at its wedges by their narrower step", () => {
+    const area = ringArea({ innerWidth: 960, innerHeight: 600 });
+    const corner = ringCenter({ x: 0, y: 0 }, area);
+    const arc = arcToward(corner, slotDirection(7, 8), 7, area);
+    expect(arc.step).toBeDefined();
+    expect(arc.step!).toBeLessThan(ARC_STEP);
+    expect(inside(corner, arc, area)).toBe(true);
+    const center = { x: 500, y: 500 };
+    const narrow = { middle: 0, count: 7, step: (20 * Math.PI) / 180 };
+    const toward = (angle: number) => ({ x: center.x + 190 * Math.cos(angle), y: center.y + 190 * Math.sin(angle) });
+    expect([0, 3, 6].map((i) => arcItemAt(center, toward(arcAngle(narrow, i)), narrow))).toEqual([0, 3, 6]);
+    expect(arcItemAt(center, toward(arcAngle(narrow, 6) + (20 * Math.PI) / 180), narrow)).toBeNull();
   });
 });

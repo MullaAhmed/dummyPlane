@@ -4,6 +4,9 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
+import { agentsStore } from "@/agents/agentsStore";
+import { arrangeAs } from "@/agents/arrangeAs";
+import { launchAt } from "@/agents/quickActions";
 import { requestClose } from "@/agents/terminals";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
@@ -16,6 +19,11 @@ import { arcAngle } from "./gesture";
 import { reviewStore } from "@/review/reviewStore";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
+vi.mock("@/agents/arrangeAs", () => ({ arrangeAs: vi.fn() }));
+vi.mock("@/agents/quickActions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/agents/quickActions")>()),
+  launchAt: vi.fn(),
+}));
 vi.mock("@/agents/terminals", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/agents/terminals")>()),
   requestClose: vi.fn(),
@@ -25,8 +33,18 @@ const rect = { id: "r1", type: "rectangle", x: 100, y: 100, width: 100, height: 
 const updateScene = vi.fn();
 let uninstall: () => void;
 
+/** The agents a look finds on this machine. */
+const FOUND = [
+  { id: "claude", available: true },
+  { id: "codex", available: true },
+  { id: "shell", available: true },
+];
+
 beforeAll(async () => {
-  mockIPC(() => undefined);
+  mockIPC((cmd) => {
+    if (cmd === "list_agents") return FOUND;
+    if (cmd === "list_shells") return [];
+  });
   await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
@@ -371,5 +389,122 @@ describe("the More arc, from the keyboard and by a slide", () => {
     pointer(text(), "pointermove", 300, 300 + 260);
     pointer(text(), "pointerup", 300, 300 + 260);
     expect(radialStore.getState().ring).toBeNull();
+  });
+});
+
+describe("the arcs of Arrange and Other agent, from the keyboard and by a slide", () => {
+  /** A point `radius` from the ring's center (300, 300), toward `degrees` (0 at the right, clockwise). */
+  const toward = (degrees: number, radius: number) => ({ x: 300 + radius * Math.cos((degrees * Math.PI) / 180), y: 300 + radius * Math.sin((degrees * Math.PI) / 180) });
+  const degreesOf = (radians: number) => (radians * 180) / Math.PI;
+  const key = (name: string) => {
+    const event = new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true });
+    text().dispatchEvent(event);
+    return event;
+  };
+  const ring = () => radialStore.getState().ring!;
+  const click = (target: Element, x: number, y: number) => {
+    pointer(target, "pointerdown", x, y);
+    pointer(target, "pointerup", x, y);
+  };
+  beforeEach(() => {
+    vi.mocked(arrangeAs).mockClear();
+    vi.mocked(launchAt).mockClear();
+    agentsStore.setState({ agents: FOUND, loaded: true } as never);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("opens the canvas ring's Arrange on Enter, its first layout pointed; the arrows move along it; Enter arranges once the menu has gone", async () => {
+    click(canvas(), 300, 300);
+    expect(ring().kind).toBe("canvas");
+    key("ArrowLeft");
+    key("ArrowLeft");
+    key("ArrowLeft");
+    expect(ring().hovered).toBe(5);
+    expect(key("Enter").defaultPrevented).toBe(true);
+    expect([ring().arc?.label, ring().arc?.count, ring().item, ring().arcInstant]).toEqual(["Arrange", 7, 0, true]);
+    key("ArrowDown");
+    key("ArrowDown");
+    key("ArrowUp");
+    expect(ring().item).toBe(1);
+    expect(key("Enter").defaultPrevented).toBe(true);
+    expect(radialStore.getState().ring).toBeNull();
+    expect(arrangeAs).not.toHaveBeenCalled();
+    await nextFrame();
+    expect(arrangeAs).toHaveBeenLastCalledWith("w1", { kind: "scene", only: [] }, "row");
+  });
+
+  it("goes back one step on each Escape: from a terminal's layouts to More's arc at Arrange, to the ring at More, then closes", () => {
+    click(text(), 300, 300);
+    key("ArrowLeft");
+    key("Enter");
+    // From « Stop the process », round to « Arrange », More's last.
+    key("ArrowUp");
+    expect([ring().arc?.label, ring().item]).toEqual(["More", 4]);
+    key("Enter");
+    expect([ring().arc?.label, ring().arc?.count, ring().item, ring().arc?.parent?.item, ring().hovered]).toEqual(["Arrange", 7, 0, 4, 7]);
+    expect(key("Escape").defaultPrevented).toBe(true);
+    expect([ring().arc?.label, ring().item, ring().hovered]).toEqual(["More", 4, 7]);
+    key("Escape");
+    expect([ring().arc ?? null, ring().item ?? null, ring().hovered]).toEqual([null, null, 7]);
+    key("Escape");
+    expect(radialStore.getState().ring).toBeNull();
+    expect(arrangeAs).not.toHaveBeenCalled();
+  });
+
+  it("keeps Enter on the selection's greyed Arrange: no arc of layouts opens for drawings alone", () => {
+    click(canvas(), 150, 140);
+    expect(ring().kind).toBe("selection");
+    key("ArrowLeft");
+    key("ArrowLeft");
+    expect(ring().hovered).toBe(6);
+    expect(key("Enter").defaultPrevented).toBe(true);
+    expect([radialStore.getState().ring !== null, ring().arc ?? null]).toEqual([true, null]);
+  });
+
+  it("opens Other agent's arc on Enter and starts the agent picked at the ring's press point", async () => {
+    click(canvas(), 300, 300);
+    const at = ring().context.at;
+    key("ArrowLeft");
+    key("ArrowLeft");
+    expect(ring().hovered).toBe(6);
+    key("Enter");
+    expect([ring().arc?.label, ring().arc?.count, ring().item]).toEqual(["Other agent…", 2, 0]);
+    key("ArrowRight");
+    key("Enter");
+    await nextFrame();
+    expect(launchAt).toHaveBeenCalledTimes(1);
+    expect(launchAt).toHaveBeenLastCalledWith("codex", at);
+  });
+
+  it("goes on into a terminal's layouts under a slide, chooses nothing released where they came under it, and arranges in the one the slide moves on to", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const slideToLayouts = () => {
+      pointer(text(), "pointerdown", 300, 300);
+      const more = toward(-135, 100);
+      pointer(text(), "pointermove", more.x, more.y);
+      vi.advanceTimersByTime(ARC_INTENT_MS);
+      const arrange = toward(degreesOf(arcAngle(ring().arc!, 4)), 190);
+      pointer(text(), "pointermove", arrange.x, arrange.y);
+      expect(ring().item).toBe(4);
+      vi.advanceTimersByTime(ARC_INTENT_MS);
+      expect([ring().arc?.label, ring().arc?.parent?.item, ring().item ?? null]).toEqual(["Arrange", 4, null]);
+      return arrange;
+    };
+    const arrange = slideToLayouts();
+    // Released where the layouts came under it: nothing chosen, the ring stays for a click.
+    pointer(text(), "pointerup", arrange.x + 1, arrange.y);
+    expect(ring()).toMatchObject({ pressed: false, sliding: false });
+    expect(ring().arc?.label).toBe("Arrange");
+    expect(arrangeAs).not.toHaveBeenCalled();
+    // A new slide, on to « Tree », the last layout: it arranges.
+    slideToLayouts();
+    const tree = toward(degreesOf(arcAngle(ring().arc!, 6)), 190);
+    pointer(text(), "pointermove", tree.x, tree.y);
+    expect(ring().item).toBe(6);
+    pointer(text(), "pointerup", tree.x, tree.y);
+    expect(radialStore.getState().ring).toBeNull();
+    vi.useRealTimers();
+    await nextFrame();
+    expect(arrangeAs).toHaveBeenLastCalledWith("w1", { kind: "scene", only: [] }, "tree");
   });
 });

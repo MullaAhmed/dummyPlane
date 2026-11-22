@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { CaptureUpdateAction, mutateElement } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
@@ -8,8 +8,10 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { LANE_BOTTOM, LANE_RIGHT, LANE_TOP } from "@/shell/layout";
-import { useLaneOccupant } from "@/shell/lane";
+import { NODE_HEADER_HEIGHT } from "@/nodes/terminal/NodeHeader";
+import { screenRectOf } from "@/agents/placement";
+import { useLaneOccupied } from "@/shell/lane";
+import { workArea } from "@/shell/layout";
 import { useNodes } from "@/store/nodes";
 import { PEN_COLORS } from "@/theme/penColors";
 import { displayColorFor } from "@/theme/sceneColors";
@@ -28,6 +30,7 @@ import {
 import { foldEditPanel, takeKeyboardOpen, useEditPanel } from "./editPanel";
 import { canvasMessages } from "./messages";
 import { keepCanvasFocus, PanelAction } from "./PanelAction";
+import { besideRect, type PanelPlace } from "./panelPlace";
 import { selectedEditId, TerminalEdit } from "./TerminalEdit";
 
 const TRANSPARENT = "transparent";
@@ -36,20 +39,17 @@ const SLOPPINESS = ["clean", "sketchy", "rough"] as const;
 const ROUGHNESS_LEVELS: readonly Roughness[] = [0, 1, 2];
 const ARROW_TYPES: readonly ArrowType[] = ["sharp", "round", "elbow"];
 
-/** The open Edit panel's place: in the right lane (shell/layout.ts), on its edge, under the bars, above the command band. */
-const IN_LANE: CSSProperties = { right: LANE_RIGHT, top: LANE_TOP, maxHeight: `calc(100% - ${LANE_TOP + LANE_BOTTOM}px)` };
-
 /**
  * The small panel that replaces Excalidraw's properties panel. A drawn element
  * gets its stroke and background colours, Duplicate and Delete, and a line or
  * an arrow also its sloppiness (and an arrow its type), at the canvas's left
  * edge. A terminal's or a Fleet's Edit, in its header (nodes/terminal/EditButton.tsx),
- * selects it alone and opens its edit panel (TerminalEdit) in the right lane, where
- * it covers no node: the lane's one occupant, in the Agents panel's place
- * (agents/panelFold.ts). It folds from its chevron or that Edit, and when another
- * selection comes: an open panel never stands in the lane unasked. Nothing shows
- * beside a node selected alone: its Edit is in its header. It does not show in
- * reading mode.
+ * selects it alone and opens its edit panel (TerminalEdit) beside it, on its right,
+ * else its left, its top on the node's, else under the node's header, never over that
+ * Edit, in the work area (panelPlace.ts): it follows the node as the view moves. It folds from its chevron or that Edit, when another
+ * selection comes and when a work window opens (agents/panelFold.ts): an open panel
+ * never stands beside a node unasked. Nothing shows beside a node selected alone
+ * until then: its Edit is in its header. It does not show in reading mode.
  */
 export function SelectionPanel() {
   const drawn = useCanvas((s) => s.drawnSelection);
@@ -58,15 +58,14 @@ export function SelectionPanel() {
   // The terminal or Fleet selected alone: the one with an edit panel (the names below say terminal, as the code does).
   const terminalId = useNodes((s) => selectedEditId(selectedIds, s.nodes));
   // The node whose panel was opened from its header's Edit; selecting another, or none, folds it. So does reading mode, which
-  // hides it, and the canvas's going: the lane is free again.
+  // hides it, and the canvas's going: no panel waits open for a canvas that is not there.
   const openFor = useEditPanel();
   useEffect(() => {
     if (openFor !== null && (openFor !== terminalId || readOnly)) foldEditPanel();
   }, [openFor, terminalId, readOnly]);
   useEffect(() => () => foldEditPanel(), []);
   const open = terminalId !== null && openFor === terminalId;
-  // Shown, it holds the lane: the work area, the work windows and the camera keep clear of it.
-  useLaneOccupant("edit", open && !readOnly);
+  const beside = useTerminalPlace(open ? terminalId : null);
   // The header's Edit and the panel hand the keyboard to each other (P2 #1).
   const panelRef = useRef<HTMLDivElement>(null);
   const foldingFrom = useKeyboardHandOff(open, terminalId, panelRef);
@@ -78,15 +77,15 @@ export function SelectionPanel() {
       ref={panelRef}
       className={cn(
         "dp-glass-strong absolute rounded-lg p-3",
-        // A terminal's panel (PANEL_WIDTH, the lane's width) keeps its title and tabs in place and scrolls the page under them;
+        // A terminal's panel (PANEL_WIDTH) keeps its title and tabs in place and scrolls the page under them;
         // a drawing's is one native scroller. Either way bounded by a max-height only, which a ScrollArea's viewport cannot follow.
-        // The terminal's stands in the lane, on the lane's layer; a drawing's on the canvas's, at its left edge.
-        terminalId ? "z-30 flex w-84 flex-col overflow-hidden" : "z-10 w-56 overflow-y-auto",
-        // Opened from its header's Edit, into the lane: it eases in (opacity and a 4 px slide from the lane's edge); folding is instant.
-        terminalId && "animate-in fade-in-0 slide-in-from-right-1 duration-(--dp-dur) ease-(--dp-ease-out) motion-reduce:animate-none",
-        !terminalId && "left-[70px] top-1/2 max-h-[calc(100%-120px)] -translate-y-1/2",
+        // Both stand on the canvas's layer (canvas furniture, shell/layout.ts): the terminal's beside its node, a drawing's at the left edge.
+        terminalId ? "z-10 flex w-84 flex-col overflow-hidden" : "z-10 w-56 overflow-y-auto",
+        // Opened from its header's Edit, beside its node: it eases in (opacity and a 4 px slide); folding is instant.
+        terminalId && "animate-in fade-in-0 slide-in-from-left-1 duration-(--dp-dur) ease-(--dp-ease-out) motion-reduce:animate-none",
+        !beside && "left-[70px] top-1/2 max-h-[calc(100%-120px)] -translate-y-1/2",
       )}
-      style={terminalId ? IN_LANE : undefined}
+      style={beside}
     >
       {terminalId && (
         <TerminalEdit
@@ -100,6 +99,24 @@ export function SelectionPanel() {
       {drawn.length > 0 && <DrawnControls drawn={drawn} />}
     </div>
   );
+}
+
+/**
+ * Where the open Edit panel of `terminalId` sits, beside the node on screen (else clear of its header, which zooms with
+ * it), in the work area as it is now (left of the lane while the Agents panel stands in it); none when no panel is open
+ * or the node's place is not known yet.
+ */
+function useTerminalPlace(terminalId: string | null): PanelPlace | undefined {
+  const rect = useCanvas((s) => (terminalId ? s.nodeRects[terminalId] : undefined));
+  const scrollX = useCanvas((s) => s.view.scrollX);
+  const scrollY = useCanvas((s) => s.view.scrollY);
+  const zoom = useCanvas((s) => s.view.zoom);
+  const width = useCanvas((s) => s.view.width);
+  const height = useCanvas((s) => s.view.height);
+  const area = workArea(useLaneOccupied());
+  if (!rect || width === 0 || height === 0) return undefined;
+  const screen = screenRectOf(rect, { scrollX, scrollY, zoom, offsetLeft: 0, offsetTop: 0 });
+  return besideRect(screen, NODE_HEADER_HEIGHT * zoom, { width, height }, area);
 }
 
 /** A node's Edit in its header (nodes/terminal/EditButton.tsx): what opens its panel, and where the keyboard goes back. */

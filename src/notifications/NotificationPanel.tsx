@@ -1,8 +1,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Bell, CircleCheck, Info, MessageSquareText, OctagonX, TriangleAlert, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { LANE_CORNER } from "@/shell/laneAnchor";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TOAST_TONES } from "@/components/ui/sonner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useMessages } from "@/i18n";
@@ -236,13 +235,12 @@ export function NotificationsButton() {
           )}
         </ToolButton>
       </PopoverTrigger>
-      {/* It opens in the right lane, on its edge and its top, over the lane's occupant (shell/layout.ts). */}
-      <PopoverAnchor virtualRef={LANE_CORNER} />
+      {/* It opens beside its bell, left of the activity rail, its top on the bell's. */}
       <PopoverContent
         ref={content}
-        side="bottom"
-        align="end"
-        sideOffset={0}
+        side="left"
+        align="start"
+        sideOffset={12}
         // The toasts lift clear of it (shell/toastLift.ts).
         data-rail-overlay=""
         aria-label={t.title}

@@ -5,6 +5,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/compon
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+/** The header's height (`h-9`), in the node's own pixels: an open Edit panel never covers it (canvas/panelPlace.ts). */
+export const NODE_HEADER_HEIGHT = 36;
+
 /**
  * The header of a node of the canvas, a terminal's or a Fleet's: one 36px row on
  * the terminal's head colour, so the two read as one system. It is a size

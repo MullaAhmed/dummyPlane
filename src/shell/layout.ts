@@ -74,9 +74,9 @@ export const CORNER_COLUMN_RIGHT = WAITING_NOTICE_LEFT + WAITING_NOTICE_WIDTH;
  * Layer zones. The window is cut in fixed zones, and each floating surface stands in one of them:
  * - the top row (the title bar and the tabs) and the bottom band (the command bar, the git chip, the zoom control);
  * - the two rails, a column each side: the tool rail on the left (canvas only), the activity rail on the right;
- * - the right lane, left of the activity rail, one gap from it: the Agents panel and a terminal's Edit panel stand in it,
- *   one at a time, and the notifications and usage popovers open over it, on its edge and its top;
- * - the work area, between them all: the canvas's nodes, the work windows (review, git) and the Code and Notes workspaces.
+ * - the right lane, left of the activity rail, one gap from it: the Agents panel stands in it, its one occupant;
+ * - the work area, between them all: the canvas's nodes, a terminal's Edit panel beside its node, the work windows
+ *   (review, git) and the Code and Notes workspaces.
  * The lane is reserved only while it has an occupant: then the work area ends at its left edge (`LANE_ROOM`), else at the
  * activity rail's (`RAIL_ROOM`). Arrivals, fits and launches reckon in the work area (`workArea`).
  */
@@ -84,7 +84,7 @@ export const CORNER_COLUMN_RIGHT = WAITING_NOTICE_LEFT + WAITING_NOTICE_WIDTH;
 /** The lane's right edge: one gap left of the activity rail. Every surface in the lane, and the toasts, share it. */
 export const LANE_RIGHT = RAIL_ROOM;
 
-/** The lane's width: the Edit panel's five tabs need 336 px (canvas/panelPlace.ts), and the Agents panel takes the same. */
+/** The lane's width: the Agents panel's (`w-84`), the toasts' too. */
 export const LANE_WIDTH = 336;
 
 /** The top of the lane and of the work windows: one gap under the bars. */
@@ -114,10 +114,10 @@ export const WORK_WINDOW_MIN = 400;
 
 /**
  * The z scale, one stacking context (the view's): nothing between it and these surfaces sets its own.
- * - `canvas` 10: what stands on the canvas, under every window: a drawing's panel, the loops pill and the waiting notice
- *   (the corner's stack).
+ * - `canvas` 10: what stands on the canvas, under every window: a drawing's panel, a terminal's Edit panel (a work
+ *   window that opens folds it, agents/panelFold.ts), the loops pill and the waiting notice (the corner's stack).
  * - `window` 20: the work windows (review, git).
- * - `lane` 30: the lane's occupant (the Agents panel, the Edit panel), with the bars and the rails, which it never meets.
+ * - `lane` 30: the lane's occupant (the Agents panel), with the bars and the rails, which it never meets.
  *   Where a work window cannot start beside it, the occupant stands above the window: it is always the newer of the two,
  *   since a window that opens folds it (agents/panelFold.ts). The most recent surface is on top.
  * - `mode` 40: placement and link layers, and a panel's crash notice.
@@ -135,7 +135,7 @@ export interface Insets {
 
 /**
  * The work area: the window less the top row, the bottom band, the rails and, while it has an occupant, the lane. Where
- * arrivals centre a node, fits frame it and launches drop it.
+ * arrivals centre a node, fits frame it, launches drop it and a terminal's Edit panel stands (canvas/panelPlace.ts).
  */
 export function workArea(laneOccupied: boolean): Insets {
   return { top: TOP_ROW_HEIGHT, right: laneOccupied ? LANE_ROOM : RAIL_ROOM, bottom: BOTTOM_BAR_HEIGHT, left: RAIL_ROOM };

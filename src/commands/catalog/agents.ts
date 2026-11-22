@@ -63,7 +63,8 @@ export const AGENT_COMMANDS: readonly Command[] = [
   command("agent.other", {
     section,
     available: inProject,
-    // The list of the agents found on this machine (src/agents/OtherAgentMenu.tsx), at the radial menu's point, else the middle of the canvas; the agent starts at the point.
+    // The list of the agents found on this machine (src/agents/OtherAgentMenu.tsx), in the middle of the canvas (at `at` when one is given:
+    // the agent starts there). The canvas ring's "Other agent" opens them as an arc of its own instead (src/radial/petals.ts).
     run: (ctx) => requestUi({ kind: "otherAgentMenu", at: windowPointOf(ctx), place: ctx.at }),
   }),
   command("agent.accounts", { section, available: inProject, run: () => openAccounts() }),

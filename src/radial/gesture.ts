@@ -170,9 +170,10 @@ function sectorPath(middle: number, half: number, inner: number, outer: number):
   ].join(" ");
 }
 
-/* The More arc (nested More): a second band of wedges outside the ring, the same width as its
-   own, past the pointed wedge's pop and a gap, fanned out along the ring's curve and centred on
-   the More wedge. It never reaches in toward the hub. */
+/* An arc (nested More, Arrange's layouts, Other agent's agents): a second band of wedges outside the
+   ring, the same width as its own, past the pointed wedge's pop and a gap, fanned out along the ring's
+   curve and centred on the wedge that opened it. It never reaches in toward the hub. An arc opened from
+   a wedge of an arc (More's Arrange) takes its place in the same band, centred on that wedge. */
 
 /** The arc's inner edge: the More wedge, pointed and moved out, still a gap away from it. */
 export const ARC_INNER = OUTER_RADIUS + POP + WEDGE_GAP;
@@ -182,20 +183,29 @@ export const ARC_OUTER = ARC_INNER + BAND;
  * (72 px wide at most) fits across it at the top and bottom, where it runs along the curve.
  */
 export const ARC_STEP = (28 * Math.PI) / 180;
+/**
+ * The narrowest place an arc of many wedges takes where the window has no room for it at ARC_STEP
+ * (seven layouts, nine agents, in a corner): one word of 8 letters under its icon still fits across it.
+ */
+export const MIN_ARC_STEP = (18 * Math.PI) / 180;
 /** Past the arc's outer edge, the pointer still points at the wedge in its direction, up to this far. */
 export const ARC_HIT = ARC_OUTER + HOVER_SLACK;
 /** The arc's reach from the center, its pointed wedge included. */
 const ARC_REACH = ARC_OUTER + POP;
 
-/** Where the More arc lies: the direction of its middle (radians, as `slotAngle`), and its wedges. */
+/** Where an arc lies: the direction of its middle (radians, as `slotAngle`), its wedges, and their place when narrower than ARC_STEP. */
 export interface ArcLayout {
   middle: number;
   count: number;
+  /** One wedge's place, in radians: ARC_STEP when absent. */
+  step?: number;
 }
+
+const stepOf = (arc: ArcLayout) => arc.step ?? ARC_STEP;
 
 /** The direction of arc wedge `item`'s middle: clockwise from its first, as the ring reads. */
 export function arcAngle(arc: ArcLayout, item: number): number {
-  return arc.middle + (item - (arc.count - 1) / 2) * ARC_STEP;
+  return arc.middle + (item - (arc.count - 1) / 2) * stepOf(arc);
 }
 
 /** How far out an arc wedge's icon and name sit: as on the ring (`labelRadius`), in the arc's band. */
@@ -218,12 +228,12 @@ export function arcPopOffset(arc: ArcLayout, item: number): Point {
 
 /** The outline of arc wedge `item`, centered on the ring's center. */
 export function arcWedgePath(arc: ArcLayout, item: number): string {
-  return sectorPath(arcAngle(arc, item), ARC_STEP / 2, ARC_INNER, ARC_OUTER);
+  return sectorPath(arcAngle(arc, item), stepOf(arc) / 2, ARC_INNER, ARC_OUTER);
 }
 
 /** The arc's side for the pointer: its band and the slack around it, from the ring's rim out (a plain sector). */
 export function arcHitPath(arc: ArcLayout): string {
-  const half = (arc.count * ARC_STEP) / 2;
+  const half = (arc.count * stepOf(arc)) / 2;
   const first = arc.middle - half;
   const second = arc.middle + half;
   const large = 2 * half > Math.PI ? 1 : 0;
@@ -250,11 +260,11 @@ export function arcItemAt(center: Point, pointer: Point, arc: ArcLayout): number
   const dy = pointer.y - center.y;
   const distance = Math.hypot(dx, dy);
   if (distance <= OUTER_RADIUS || distance > ARC_HIT) return null;
-  const item = Math.round(wrapped(Math.atan2(dy, dx) - arc.middle) / ARC_STEP + (arc.count - 1) / 2);
+  const item = Math.round(wrapped(Math.atan2(dy, dx) - arc.middle) / stepOf(arc) + (arc.count - 1) / 2);
   return item >= 0 && item < arc.count ? item : null;
 }
 
-/** What the pointer points at: a wedge of the ring (`slot`), or of the open More arc (`item`). */
+/** What the pointer points at: a wedge of the ring (`slot`), or of the open arc (`item`). */
 export interface Pointing {
   slot: number | null;
   item: number | null;
@@ -284,7 +294,7 @@ function arcFits(center: Point, arc: ArcLayout, area: RingArea): boolean {
     const middle = arcAngle(arc, item);
     for (const t of [-0.5, -0.25, 0, 0.25, 0.5]) {
       for (const radius of [ARC_INNER, ARC_REACH]) {
-        const p = at(radius, middle + t * ARC_STEP);
+        const p = at(radius, middle + t * stepOf(arc));
         const x = center.x + p.x;
         const y = center.y + p.y;
         if (x < MARGIN || x > area.width - MARGIN || y < top || y > area.height - MARGIN) return false;
@@ -304,17 +314,36 @@ function* turns(): Generator<number> {
 }
 
 /**
- * The More arc of a ring of `ringCount` wedges, More at `moreSlot`, for `count` commands:
- * centred on the More wedge, unless that runs past the window's edge. It then turns along the
- * ring's curve, the least it can: by the ring's top edge, about 77° for five wedges, its end
- * still meeting the More wedge (shift); in a corner where no such place fits, round to the side
- * the window has room for (flip). Nowhere whole (a window smaller than the arc): centred on More.
+ * The More arc of a ring of `ringCount` wedges, More at `moreSlot`, for `count` commands: `arcToward`
+ * the More wedge's middle.
  */
 export function arcLayout(center: Point, moreSlot: number, ringCount: number, count: number, area: RingArea): ArcLayout {
-  const base = slotAngle(moreSlot, ringCount);
-  for (const turn of turns()) {
-    const arc = { middle: wrapped(base + (turn * Math.PI) / 180), count };
-    if (arcFits(center, arc, area)) return arc;
+  return arcToward(center, slotAngle(moreSlot, ringCount), count, area);
+}
+
+/** The direction of wedge `slot`'s middle on a ring of `count` (radians, 0 at the right, clockwise): where its arc fans out from. */
+export const slotDirection = (slot: number, count: number): number => slotAngle(slot, count);
+
+/** The places tried for an arc's wedges, the widest first: ARC_STEP, then a degree less each time, down to MIN_ARC_STEP. */
+function* steps(): Generator<number> {
+  for (let degrees = 28; degrees >= 18; degrees--) yield (degrees * Math.PI) / 180;
+}
+
+/**
+ * An arc of `count` wedges fanned out from direction `base` (the middle of the wedge that opens it):
+ * centred on it, unless that runs past the window's edge. It then turns along the ring's curve, the
+ * least it can: by the ring's top edge, about 77° for five wedges, its end still meeting its wedge
+ * (shift); in a corner where no such place fits, round to the side the window has room for (flip).
+ * An arc of many wedges (seven layouts) that fits nowhere at ARC_STEP narrows its wedges, a degree at
+ * a time, to MIN_ARC_STEP at most: an arc that fits at ARC_STEP keeps it. Nowhere whole even then (a
+ * window smaller than the arc): centred on its wedge, at ARC_STEP.
+ */
+export function arcToward(center: Point, base: number, count: number, area: RingArea): ArcLayout {
+  for (const step of steps()) {
+    for (const turn of turns()) {
+      const arc: ArcLayout = { middle: wrapped(base + (turn * Math.PI) / 180), count, ...(step === ARC_STEP ? {} : { step }) };
+      if (arcFits(center, arc, area)) return arc;
+    }
   }
   return { middle: wrapped(base), count };
 }

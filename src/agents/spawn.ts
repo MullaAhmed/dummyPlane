@@ -101,7 +101,7 @@ const refuse = (text: string): SpawnResult => ({ text, error: true });
  */
 /**
  * Whether the sub-agent `childId` must stay where its placement put it: the tree's flowchart sets a first child right
- * of its parent, and with the Agents panel or the Edit panel in the lane that may be under it (sub-agents-and-outputs
+ * of its parent, and with the Agents panel in the lane that may be under it (sub-agents-and-outputs
  * 09-11: Flash beside Batman, under the panel), while its placement kept it clear (laneCovers, freeCellClear). It is
  * then pinned there, as a node moved by hand: later layouts leave it, and lay out its own children from it. Not when
  * the lane is free, nor when its placement could not keep it clear either: the layout decides then, as before.

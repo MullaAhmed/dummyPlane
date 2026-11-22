@@ -4,16 +4,25 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { pendingUiRequest } from "@/commands/uiRequests";
+import { agentsStore } from "@/agents/agentsStore";
+import { arrangeAs } from "@/agents/arrangeAs";
+import { launchAt } from "@/agents/quickActions";
+import { arrangeLayoutStore } from "@/app/arrangeLayoutSetting";
 import { nodesStore } from "@/store/nodes";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
-import { ARC_INNER, arcAngle, arcPosition, arcWedgePath, HIT_RADIUS, OUTER_RADIUS, POP, slotPosition, wedgePath } from "./gesture";
+import { ARC_INNER, arcAngle, arcPosition, arcWedgePath, HIT_RADIUS, OUTER_RADIUS, POP, slotDirection, slotPosition, wedgePath } from "./gesture";
 import { ARC_INTENT_MS, openArc } from "./arc";
 import { reviewStore } from "@/review/reviewStore";
 import { openRadial, radialStore, updateRadial } from "./radialState";
 import { RadialMenu } from "./RadialMenu";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
+vi.mock("@/agents/arrangeAs", () => ({ arrangeAs: vi.fn() }));
+vi.mock("@/agents/quickActions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/agents/quickActions")>()),
+  launchAt: vi.fn(),
+}));
 vi.mock("@/nodes/terminal/registry", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/nodes/terminal/registry")>()),
   terminalSelection: vi.fn(() => ""),
@@ -23,9 +32,20 @@ vi.mock("@/nodes/terminal/registry", async (importOriginal) => ({
 
 let host: HTMLDivElement;
 let root: Root;
+/** What the machine answers a look for its agents: null, the look fails. */
+let found: { id: string; available: boolean }[] | null = [{ id: "claude", available: true }];
+/** The looks made. */
+let looks = 0;
 
 beforeAll(async () => {
-  mockIPC(() => undefined);
+  mockIPC((cmd) => {
+    if (cmd === "list_agents") {
+      looks++;
+      if (!found) throw new Error("the PATH could not be read");
+      return found;
+    }
+    if (cmd === "list_shells") return [];
+  });
   await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
@@ -374,5 +394,189 @@ describe("the More arc", () => {
     await pointer(arcHit(), "pointermove", second.x, second.y);
     expect(radialStore.getState().ring!.keyboard).toBe(false);
     expect(document.querySelector("[data-radial-arc]")!.hasAttribute("data-instant")).toBe(true);
+  });
+});
+
+describe("the arcs of Arrange and Other agent", () => {
+  /** A point at `radius` from the ring's center (300, 300), in direction `angle` (radians, 0 at the right, clockwise). */
+  const toward = (angle: number, radius: number) => ({ x: 300 + radius * Math.cos(angle), y: 300 + radius * Math.sin(angle) });
+  const items = () => [...document.querySelectorAll<HTMLButtonElement>("[data-radial-item]")];
+  const arcOf = () => radialStore.getState().ring!.arc!;
+  const arcHit = () => document.querySelector<SVGPathElement>("[data-radial-arc-hit]")!;
+  const group = () => document.querySelector<HTMLElement>("[data-radial-arc]");
+  const nextFrame = () => act(async () => void (await new Promise((resolve) => requestAnimationFrame(resolve))));
+  /** The canvas ring: Arrange ↙ (5), Other agent ← (6). */
+  const ARRANGE = toward(slotDirection(5, 8), 100);
+  const OTHER = toward(slotDirection(6, 8), 100);
+  const openCanvas = () =>
+    act(async () =>
+      openRadial({
+        kind: "canvas",
+        client: { x: 300, y: 300 },
+        center: { x: 300, y: 300 },
+        context: { project: true, workspaceId: "w1", terminalCount: 1, terminalId: null, at: { x: 40, y: 60 } },
+        pressed: false,
+        sliding: false,
+        hovered: null,
+      }),
+    );
+  const LAYOUTS = ["Grid", "One row", "One column", "2 columns", "3 columns", "4 columns", "Tree"];
+  beforeEach(() => {
+    vi.mocked(arrangeAs).mockClear();
+    vi.mocked(launchAt).mockClear();
+    found = [{ id: "claude", available: true }];
+    agentsStore.setState({ agents: found, loaded: true } as never);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    arrangeLayoutStore.setState({ layout: "grid" });
+  });
+
+  it("opens the canvas ring's Arrange as an arc of the seven layouts, the saved one marked, as More's arc is drawn", async () => {
+    arrangeLayoutStore.setState({ layout: "tree" });
+    await openCanvas();
+    const arrange = buttons()[5];
+    expect([arrange.getAttribute("aria-label"), arrange.getAttribute("aria-expanded")]).toEqual(["Arrange", "false"]);
+    await pointer(hit(), "click", ARRANGE.x, ARRANGE.y);
+    expect(radialStore.getState().ring).toMatchObject({ hovered: 5 });
+    expect(arrange.getAttribute("aria-expanded")).toBe("true");
+    expect(group()!.getAttribute("aria-label")).toBe("Arrange");
+    expect(items().map((b) => b.getAttribute("aria-label"))).toEqual(LAYOUTS);
+    expect(items().map((b) => b.textContent)).toEqual(LAYOUTS);
+    // Fanned out from Arrange, the window having room; drawn as More's wedges are.
+    const arc = arcOf();
+    expect([arc.count, arc.step]).toEqual([7, undefined]);
+    expect(arc.middle).toBeCloseTo(slotDirection(5, 8), 9);
+    expect(items().map((b, i) => b.querySelector("path")!.getAttribute("d") === arcWedgePath(arc, i))).toEqual(Array(7).fill(true));
+    expect(items()[0].querySelector("path")!.getAttribute("class")).toBe(buttons()[0].querySelector("path")!.getAttribute("class"));
+    // The saved layout: a tick by its icon, as its list has, and the hub and assistive technology say so.
+    expect(items().map((b) => b.querySelector("[data-radial-marked]") !== null)).toEqual([false, false, false, false, false, false, true]);
+    expect(items()[6].getAttribute("aria-description")).toBe("the saved layout");
+    const tree = toward(arcAngle(arc, 6), 188);
+    await pointer(arcHit(), "pointermove", tree.x, tree.y);
+    expect(hub().textContent).toBe("TreeThe saved layout");
+    // Nothing was arranged while it opened.
+    expect(arrangeAs).not.toHaveBeenCalled();
+  });
+
+  it("arranges in the layout a click picks, once the menu has gone", async () => {
+    await openCanvas();
+    await pointer(hit(), "click", ARRANGE.x, ARRANGE.y);
+    const columns = toward(arcAngle(arcOf(), 4), 188);
+    await pointer(arcHit(), "click", columns.x, columns.y);
+    expect(radialStore.getState().ring).toBeNull();
+    await nextFrame();
+    expect(arrangeAs).toHaveBeenCalledTimes(1);
+    expect(arrangeAs).toHaveBeenLastCalledWith("w1", { kind: "scene", only: [] }, "columns-3");
+  });
+
+  it("opens Arrange's arc once the pointer rests on it, and Other agent's in its place once it rests there", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await openCanvas();
+    await pointer(hit(), "pointermove", ARRANGE.x, ARRANGE.y);
+    await act(async () => vi.advanceTimersByTime(ARC_INTENT_MS - 40));
+    expect(group()).toBeNull();
+    await act(async () => vi.advanceTimersByTime(40));
+    expect(group()!.getAttribute("aria-label")).toBe("Arrange");
+    await pointer(hit(), "pointermove", OTHER.x, OTHER.y);
+    await act(async () => vi.advanceTimersByTime(ARC_INTENT_MS));
+    expect(group()!.getAttribute("aria-label")).toBe("Other agent…");
+    expect(radialStore.getState().ring!.hovered).toBe(6);
+  });
+
+  it("opens Other agent as an arc of the agents found, the default one marked, and starts the one picked at the ring's press", async () => {
+    found = [
+      { id: "claude", available: true },
+      { id: "codex", available: true },
+      { id: "gemini", available: true },
+      { id: "aider", available: false },
+      { id: "shell", available: true },
+      { id: "custom", available: true },
+    ];
+    agentsStore.setState({ agents: found, loaded: true } as never);
+    await openCanvas();
+    await pointer(hit(), "click", OTHER.x, OTHER.y);
+    expect(items().map((b) => b.getAttribute("aria-label"))).toEqual(["Claude", "Codex", "Gemini", "Custom"]);
+    expect(items().map((b) => b.querySelector("[data-radial-marked]") !== null)).toEqual([true, false, false, false]);
+    // The list's word under Gemini, whose deletes nothing guards.
+    expect(items()[2].getAttribute("aria-description")).toMatch(/^Not guarded/);
+    const codex = toward(arcAngle(arcOf(), 1), 188);
+    await pointer(arcHit(), "click", codex.x, codex.y);
+    await nextFrame();
+    expect(launchAt).toHaveBeenCalledTimes(1);
+    expect(launchAt).toHaveBeenLastCalledWith("codex", { x: 40, y: 60 });
+  });
+
+  it("waits for the first look at the machine's agents before opening Other agent's arc, never saying none were found meanwhile", async () => {
+    agentsStore.setState({ agents: [], loaded: false } as never);
+    found = [
+      { id: "claude", available: true },
+      { id: "codex", available: true },
+    ];
+    await openCanvas();
+    await pointer(hit(), "click", OTHER.x, OTHER.y);
+    await act(async () => {
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(items().map((b) => b.getAttribute("aria-label"))).toEqual(["Claude", "Codex"]);
+  });
+
+  it("opens Other agent's arc all the same when the first look fails, saying no agent was found, and looks no more", async () => {
+    agentsStore.setState({ agents: [], loaded: false } as never);
+    found = null;
+    looks = 0;
+    await openCanvas();
+    await pointer(hit(), "click", OTHER.x, OTHER.y);
+    for (let i = 0; i < 3; i++) await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(items().map((b) => [b.getAttribute("aria-label"), b.getAttribute("aria-disabled")])).toEqual([["No agent found", "true"]]);
+    expect(looks).toBe(1);
+  });
+
+  describe("a terminal's More, then its Arrange", () => {
+    const MORE = toward((-135 * Math.PI) / 180, 100);
+
+    it("opens the layouts in the place of More's arc, fanned out from Arrange; resting on More brings More's arc back", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      await open();
+      await pointer(hit(), "click", MORE.x, MORE.y);
+      const more = arcOf();
+      const arrangeAt = toward(arcAngle(more, 4), 188);
+      await pointer(arcHit(), "pointermove", arrangeAt.x, arrangeAt.y);
+      expect(radialStore.getState().ring!.item).toBe(4);
+      await act(async () => vi.advanceTimersByTime(ARC_INTENT_MS));
+      const layouts = arcOf();
+      expect(layouts.parent).toEqual({ arc: more, item: 4 });
+      expect(layouts.middle).toBeCloseTo(arcAngle(more, 4), 9);
+      expect(group()!.getAttribute("aria-label")).toBe("Arrange");
+      expect(items().map((b) => b.getAttribute("aria-label"))).toEqual(LAYOUTS);
+      // More stays the ring's wedge pointed at, its arc taken over.
+      expect([radialStore.getState().ring!.hovered, document.querySelector("[data-radial-more]")!.getAttribute("aria-expanded")]).toEqual([7, "true"]);
+      await pointer(hit(), "pointermove", MORE.x, MORE.y);
+      await act(async () => vi.advanceTimersByTime(ARC_INTENT_MS));
+      expect(group()!.getAttribute("aria-label")).toBe("More");
+      expect(arcOf().parent ?? null).toBeNull();
+      expect(items()).toHaveLength(5);
+    });
+
+    it("chooses nothing for a click where the layouts came under the pointer, nor for a second one at once; it moves, then picks", async () => {
+      await open();
+      await pointer(hit(), "click", MORE.x, MORE.y);
+      const arrangeAt = toward(arcAngle(arcOf(), 4), 188);
+      await pointer(arcHit(), "click", arrangeAt.x, arrangeAt.y);
+      expect(items()).toHaveLength(7);
+      // Its middle layout lies under the pointer, unlit: the second click of a double click picks nothing.
+      expect(radialStore.getState().ring!.item ?? null).toBeNull();
+      await pointer(arcHit(), "click", arrangeAt.x + 2, arrangeAt.y);
+      await nextFrame();
+      expect([radialStore.getState().ring === null, vi.mocked(arrangeAs).mock.calls.length]).toEqual([false, 0]);
+      const row = toward(arcAngle(arcOf(), 1), 188);
+      await pointer(arcHit(), "pointermove", row.x, row.y);
+      expect(radialStore.getState().ring!.item).toBe(1);
+      await pointer(arcHit(), "click", row.x, row.y);
+      await nextFrame();
+      // Batman stands in no group: the whole canvas.
+      expect(arrangeAs).toHaveBeenLastCalledWith("w1", { kind: "scene", only: [] }, "row");
+    });
   });
 });

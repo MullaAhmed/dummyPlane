@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PANEL_WIDTH } from "@/canvas/panelPlace";
 import { readSource } from "@/theme/cssBlocks";
-import { laneCorner } from "./laneAnchor";
 import { OVERLAY_MARGIN, OVERLAY_TOP } from "./overlayBounds";
 import { TOAST_IN_BAND, TOAST_WIDTH } from "./toastLift";
 import {
@@ -41,7 +39,7 @@ interface Box {
   bottom: number;
 }
 const overlap = (a: Box, b: Box) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
-/** The lane's box in a window: where the Agents panel and the Edit panel stand, at their tallest. */
+/** The lane's box in a window: where the Agents panel stands, at its tallest. */
 const laneBox = (w: number, h: number): Box => ({ left: w - LANE_RIGHT - LANE_WIDTH, right: w - LANE_RIGHT, top: LANE_TOP, bottom: h - LANE_BOTTOM });
 /** A work window's box (review, git). */
 const windowBox = (w: number, h: number, occupied: boolean): Box => {
@@ -101,8 +99,8 @@ describe("the layer zones", () => {
     expect(LANE_RIGHT).toBe(RAIL_ROOM);
     expect(LANE_TOP).toBe(TOP_ROW_HEIGHT + FLOAT_INSET);
     expect(LANE_BOTTOM).toBe(BOTTOM_BAR_HEIGHT + FLOAT_INSET);
-    // One width: the Edit panel's five tabs need it, and the Agents panel takes it.
-    expect(LANE_WIDTH).toBe(PANEL_WIDTH);
+    // The Agents panel's width.
+    expect(LANE_WIDTH).toBe(336);
     expect(LANE_ROOM).toBe(LANE_RIGHT + LANE_WIDTH + FLOAT_INSET);
     expect(readSource("agents/AgentsPanel.tsx")).toContain("w-84");
   });
@@ -147,7 +145,8 @@ describe("the layer zones", () => {
     expect([Z.canvas, Z.window, Z.lane, Z.mode, Z.overlay]).toEqual([10, 20, 30, 40, 50]);
     const on = (file: string, classes: string) => expect(readSource(file), file).toContain(classes);
     on("agents/AgentsPanel.tsx", `"dp-glass-strong absolute z-${Z.lane} flex w-84`);
-    on("canvas/SelectionPanel.tsx", `"z-${Z.lane} flex w-84 flex-col`);
+    // A terminal's Edit panel stands beside its node, on the canvas's layer, as a drawing's panel.
+    on("canvas/SelectionPanel.tsx", `"z-${Z.canvas} flex w-84 flex-col`);
     on("canvas/SelectionPanel.tsx", `"z-${Z.canvas} w-56`);
     on("git/GitWindow.tsx", `"dp-glass-strong absolute z-${Z.window} flex`);
     on("review/ReviewPanel.tsx", `"dp-glass-strong absolute z-${Z.window} flex`);
@@ -157,24 +156,31 @@ describe("the layer zones", () => {
   });
 
   it("reads the lane's constants wherever a surface stands in it or beside it", () => {
-    for (const file of ["agents/AgentsPanel.tsx", "canvas/SelectionPanel.tsx", "shell/ProjectView.tsx"]) {
+    for (const file of ["agents/AgentsPanel.tsx", "shell/ProjectView.tsx"]) {
       expect(readSource(file), file).toContain("LANE_RIGHT");
     }
     for (const file of ["git/GitWindow.tsx", "review/ReviewPanel.tsx", "studio/CodeWorkspace.tsx", "notes/NotesWorkspace.tsx", "shell/PanelSkeleton.tsx"]) {
       expect(readSource(file), file).toContain("useWorkWindowPlace()");
       expect(readSource(file), file).not.toMatch(/pr-18|right-18/);
     }
+    // The Edit panel is no occupant: it stands beside its node, in the work area (canvas/panelPlace.ts).
+    expect(readSource("canvas/SelectionPanel.tsx")).not.toContain("useLaneOccupant");
+    expect(readSource("canvas/SelectionPanel.tsx")).toContain("workArea(useLaneOccupied())");
+  });
+
+  it("opens the notifications and usage popovers from their own buttons, not from the lane", () => {
+    const notifications = readSource("notifications/NotificationPanel.tsx");
+    expect(notifications).toMatch(/side="left"\s+align="start"\s+sideOffset=\{12\}/);
+    expect(readSource("shell/UsageMeter.tsx")).toContain(`<PopoverContent side="bottom" align="end" data-rail-overlay=""`);
     for (const file of ["notifications/NotificationPanel.tsx", "shell/UsageMeter.tsx"]) {
-      expect(readSource(file), file).toContain("<PopoverAnchor virtualRef={LANE_CORNER} />");
+      expect(readSource(file), file).not.toMatch(/PopoverAnchor|LANE_/);
+      // The toasts still keep clear of them.
+      expect(readSource(file), file).toContain(`data-rail-overlay=""`);
     }
   });
 });
 
 describe("what the lane gives the corner and the overlays", () => {
-  it("hangs the lane's popovers from its top right corner", () => {
-    expect(laneCorner(1440)).toMatchObject({ left: 1440 - LANE_RIGHT, right: 1440 - LANE_RIGHT, top: LANE_TOP, bottom: LANE_TOP, width: 0, height: 0 });
-  });
-
   it("makes the loops pill and the waiting notice inert while a work window covers them", () => {
     for (const file of ["loops/LoopsIndicator.tsx", "shell/WaitingNotice.tsx"]) {
       expect(readSource(file), file).toContain("useCornerCovered()");

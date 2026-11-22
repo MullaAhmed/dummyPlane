@@ -7,7 +7,7 @@ import { nodeNameOf, useNodes } from "@/store/nodes";
 import { HeaderButton } from "./NodeHeader";
 
 /**
- * A terminal's or a Fleet's Edit, in its header: its Edit panel (canvas/TerminalEdit.tsx) opens in the right lane,
+ * A terminal's or a Fleet's Edit, in its header: its Edit panel (canvas/TerminalEdit.tsx) opens beside the node,
  * the node selected alone; pressed again, it folds. Named after the node, as the panel's title. Not in reading
  * mode, where the panel does not show.
  */

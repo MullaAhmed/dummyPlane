@@ -13,13 +13,21 @@ import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { arrangeWorkspace } from "@/agents/arrangeCanvas";
+import { arrangeAs } from "@/agents/arrangeAs";
+import { launchAt } from "@/agents/quickActions";
+import { arrangeLayoutStore } from "@/app/arrangeLayoutSetting";
 import { pendingUiRequest } from "@/commands/uiRequests";
-import { ARCS, arcLines, lineOf, moreSlotOf, ringLines, RINGS, wedgeCountOf, type RingKind, type RingLine, type RingSlot } from "./rings";
+import { arcOf, lineOf, moreSlotOf, ringLines, RINGS, wedgeCountOf, type RingKind, type RingSlot } from "./rings";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/agents/arrangeCanvas", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/agents/arrangeCanvas")>()),
   arrangeWorkspace: vi.fn(),
+}));
+vi.mock("@/agents/arrangeAs", () => ({ arrangeAs: vi.fn() }));
+vi.mock("@/agents/quickActions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/agents/quickActions")>()),
+  launchAt: vi.fn(),
 }));
 vi.mock("@/nodes/terminal/registry", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/nodes/terminal/registry")>()),
@@ -28,10 +36,25 @@ vi.mock("@/nodes/terminal/registry", async (importOriginal) => ({
 
 const ctx: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "batman", at: { x: 0, y: 0 }, groupId: "g1", fleetId: "chef" };
 const KINDS = Object.keys(RINGS) as RingKind[];
+/** Each ring's More arc, clockwise: the wedges its More opens (none on the canvas ring, which has no More). */
+const ARCS = Object.fromEntries(KINDS.map((kind) => [kind, moreSlotOf(kind) < 0 ? [] : RINGS[kind][moreSlotOf(kind)]!.arc!(ctx)])) as Record<RingKind, readonly RingSlot[]>;
+const arcLines = (kind: RingKind, context: CommandContext) => ARCS[kind].map((slot) => lineOf(slot, context));
 /** The ring's wedges as they show, More last. */
 const labels = (kind: RingKind) => ringLines(kind, ctx).map((line) => line!.label);
 const arcLabels = (kind: RingKind, context: CommandContext = ctx) => arcLines(kind, context).map((line) => line!.label);
-const idOf = (slot: RingSlot, context: CommandContext = ctx) => (typeof slot.command === "function" ? slot.command(context) : slot.command);
+/** A slot's command id: the registry's, or its own (a petal's); null for More. */
+const idOf = (slot: RingSlot, context: CommandContext = ctx): string | null => {
+  const { command } = slot;
+  if (command === null) return null;
+  if (typeof command === "function") return command(context);
+  return typeof command === "string" ? command : command.id;
+};
+/** The wedges of the arc `slot` opens, as they show. */
+const petalLines = (slot: RingSlot, context: CommandContext = ctx) => {
+  const arc = arcOf(slot, context)!;
+  return arc.slots.map((petal) => lineOf(petal, arc.context)!);
+};
+const LAYOUTS = ["Grid", "One row", "One column", "2 columns", "3 columns", "4 columns", "Tree"];
 
 beforeAll(async () => {
   mockIPC(() => undefined);
@@ -58,7 +81,7 @@ describe("the rings", () => {
         expect(moreSlotOf(kind), kind).toBe(wedgeCountOf(kind) - 1);
         expect(ringLines(kind, ctx)[moreSlotOf(kind)]).toMatchObject({ more: true, command: null, label: "More", short: "More", enabled: true });
       }
-      const ids = [...RINGS[kind], ...ARCS[kind]].map((slot) => idOf(slot));
+      const ids = [...RINGS[kind], ...ARCS[kind]].filter((slot) => slot.command !== null).map((slot) => idOf(slot)!);
       expect(new Set(ids).size, kind).toBe(ids.length);
       for (const id of ids) expect(COMMANDS.some((c) => c.id === id), id).toBe(true);
     }
@@ -97,57 +120,66 @@ describe("the rings", () => {
     }
   });
 
-  it("makes every Arrange wedge arrange at once with the saved layout, no list, each in its place and still named Arrange", () => {
+  it("makes every Arrange wedge open an arc of the seven layouts, in its place and still named Arrange", () => {
     // No ring gains or loses a slot: the wedge keeps its place and its name.
     expect(RINGS.canvas[5]).toMatchObject({ command: "scene.arrange", short: "arrange" });
     expect(RINGS.group[5]).toMatchObject({ command: "group.arrange", short: "arrange" });
     expect(RINGS.selection[6]).toMatchObject({ command: "scene.arrangeSelection", short: "arrange" });
     expect(ARCS.terminal.filter((slot) => slot.short === "arrange")).toHaveLength(1);
     expect(ARCS.fleet.filter((slot) => slot.short === "arrange")).toHaveLength(1);
-    // Whatever the ring, the command of an Arrange wedge arranges directly; the layout list stays in the palette's Arrange as….
     const arranging = [...Object.values(RINGS), ...Object.values(ARCS)].flat().filter((slot) => slot.short === "arrange");
     expect(arranging).toHaveLength(5);
+    const selected = { ...ctx, selectionIds: ["a", "b"] };
     for (const slot of arranging) {
-      for (const context of [ctx, { ...ctx, terminalId: "nobody", groupId: undefined }]) {
-        const id = typeof slot.command === "function" ? slot.command(context) : slot.command;
-        expect(id).toMatch(/^(scene\.arrange|scene\.arrangeSelection|group\.arrange)$/);
-      }
+      expect(lineOf(slot, selected)!.opens).toBe(true);
+      expect(petalLines(slot, selected).map((line) => line.label)).toEqual(LAYOUTS);
     }
   });
 
   it("never puts the list of layouts on a ring: no slot of any ring or arc resolves to an Arrange as… command, in any context", () => {
     const contexts: CommandContext[] = [ctx, { ...ctx, terminalId: "nobody", groupId: undefined }, { ...ctx, selectionIds: ["a", "b"] }, { ...ctx, selectionIds: [] }];
-    for (const slot of [...Object.values(RINGS), ...Object.values(ARCS)].flat()) {
+    for (const slot of [...Object.values(RINGS), ...Object.values(ARCS)].flat().filter((slot) => slot.command !== null)) {
       for (const context of contexts) expect(idOf(slot, context), String(slot.short)).not.toMatch(/arrangeAs$/);
     }
   });
 
-  it("arranges at once from every ring's Arrange wedge, in the saved layout: the canvas's, the group's, the selection's, and More's of a terminal and a Fleet", async () => {
+  it("arranges in the layout picked what the wedge arranges: the canvas, the group, the selection, a node's group or else the whole canvas", async () => {
     const loose = { ...ctx, terminalId: "nobody", groupId: undefined };
-    const wedge = (slot: RingSlot, context: CommandContext) => lineOf(slot, context)!;
     const arrangeSlot = (kind: RingKind) => ARCS[kind].find((slot) => slot.short === "arrange")!;
-    const cases: [string, RingLine, object][] = [
-      // The whole canvas, or what Excalidraw has selected (nothing here).
-      ["canvas", wedge(RINGS.canvas[5]!, ctx), { only: [], undoable: true }],
-      ["group", wedge(RINGS.group[5]!, ctx), { only: ["g1"], undoable: true }],
-      // The selection alone, never the whole canvas: no `layout`, so the saved one.
-      ["selection", wedge(RINGS.selection[6]!, { ...ctx, selectionIds: ["a", "b"] }), { only: ["a", "b"], scope: "selection", undoable: true }],
+    const cases: [string, RingSlot, CommandContext, object][] = [
+      // The palette's Arrange as… target: the selection when it holds several elements (nothing here), else the canvas.
+      ["canvas", RINGS.canvas[5]!, ctx, { kind: "scene", only: [] }],
+      ["group", RINGS.group[5]!, ctx, { kind: "group", id: "g1" }],
+      // The selection alone, never the whole canvas.
+      ["selection", RINGS.selection[6]!, { ...ctx, selectionIds: ["a", "b"] }, { kind: "selection", only: ["a", "b"] }],
       // A terminal in a group arranges its group; a loose one, and the Fleet, the whole canvas.
-      ["terminal in a group", wedge(arrangeSlot("terminal"), ctx), { only: ["g1"], undoable: true }],
-      ["loose terminal", wedge(arrangeSlot("terminal"), loose), { only: [], undoable: true }],
-      ["fleet", wedge(arrangeSlot("fleet"), ctx), { only: [], undoable: true }],
+      ["terminal in a group", arrangeSlot("terminal"), ctx, { kind: "group", id: "g1" }],
+      ["loose terminal", arrangeSlot("terminal"), loose, { kind: "scene", only: [] }],
+      ["fleet", arrangeSlot("fleet"), ctx, { kind: "scene", only: [] }],
     ];
-    expect(cases).toHaveLength(6);
-    for (const [name, line, options] of cases) {
-      expect(line.enabled, name).toBe(true);
+    for (const [name, slot, context, target] of cases) {
+      const row = petalLines(slot, context)[1]!;
+      expect([row.label, row.enabled], name).toEqual(["One row", true]);
+      vi.mocked(arrangeAs).mockClear();
       vi.mocked(arrangeWorkspace).mockClear();
-      await line.command!.run(line.context);
-      expect(arrangeWorkspace, name).toHaveBeenCalledTimes(1);
-      expect(arrangeWorkspace, name).toHaveBeenLastCalledWith("w1", options);
-      // The wedge never asks for a layout, and sets none: the saved one decides.
+      await row.command!.run(row.context);
+      expect(arrangeAs, name).toHaveBeenCalledTimes(1);
+      expect(arrangeAs, name).toHaveBeenLastCalledWith("w1", target, "row");
+      // Never the wedge's own Arrange, at once in the saved layout, and never the list.
+      expect(arrangeWorkspace, name).not.toHaveBeenCalled();
       expect(pendingUiRequest()?.kind, name).not.toBe("arrangeMenu");
-      expect(vi.mocked(arrangeWorkspace).mock.calls[0]![1], name).not.toHaveProperty("layout");
     }
+  });
+
+  it("marks the saved layout among the seven, which says so in the hub, and names each in a word or two", () => {
+    arrangeLayoutStore.setState({ layout: "columns-3" });
+    const lines = petalLines(RINGS.canvas[5]!);
+    expect(lines.filter((line) => line.marked).map((line) => line.label)).toEqual(["3 columns"]);
+    expect(lines.map((line) => line.note)).toEqual([null, null, null, null, "the saved layout", null, null]);
+    expect(lines.map((line) => line.short)).toEqual(LAYOUTS);
+    expect(lines.every((line) => line.enabled && !line.opens && line.reason === null)).toBe(true);
+    arrangeLayoutStore.setState({ layout: "grid" });
+    expect(petalLines(RINGS.group[5]!).filter((line) => line.marked).map((line) => line.label)).toEqual(["Grid"]);
   });
 
   it("keeps the list of layouts for the palette's Arrange as… and Arrange the group as…, which ask and arrange nothing", async () => {
@@ -181,6 +213,11 @@ describe("the rings", () => {
     agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never);
   });
 
+  it("opens no arc from a greyed wedge: the selection's Arrange with nothing selected", () => {
+    const empty = { ...ctx, selectionIds: [] };
+    expect([lineOf(RINGS.selection[6]!, empty)!.enabled, arcOf(RINGS.selection[6]!, empty)]).toEqual([false, null]);
+  });
+
   it("greys what cannot run, with its reason, and marks what ends something", () => {
     const copy = lineOf(RINGS.terminal[0]!, ctx)!;
     expect([copy.enabled, copy.reason]).toEqual([false, "nothing selected"]);
@@ -193,6 +230,12 @@ describe("the rings", () => {
 describe("the wedges' short names", () => {
   const shorts = (kind: RingKind) => ringLines(kind, ctx).map((line) => line!.short);
   const arcShorts = (kind: RingKind) => arcLines(kind, ctx).map((line) => line!.short);
+  const petalShorts = () => {
+    agentsStore.setState({ agents: (["claude", "codex", "gemini", "qwen", "cursor", "opencode", "aider", "ollama", "shell", "custom"] as const).map((id) => ({ id, available: true })) } as never);
+    const names = [...petalLines(RINGS.canvas[5]!), ...petalLines(RINGS.canvas[6]!)].map((line) => line.short);
+    agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never);
+    return names;
+  };
 
   it("names each wedge in a word or two, clockwise from the top", () => {
     expect(shorts("canvas")).toEqual(["Claude", "Shell", "In folder", "Fleet", "Paste", "Arrange", "Other agent", "Kanban"]);
@@ -212,7 +255,7 @@ describe("the wedges' short names", () => {
 
   it("keeps every name short enough for its wedge: at most 11 letters, no ellipsis", () => {
     for (const kind of KINDS) {
-      for (const name of [...shorts(kind), ...arcShorts(kind)]) {
+      for (const name of [...shorts(kind), ...arcShorts(kind), ...petalShorts()]) {
         expect(name.length, name).toBeLessThanOrEqual(11);
         expect(name, name).not.toMatch(/…|\.\.\./);
       }
@@ -336,6 +379,9 @@ describe("the selection ring's Ungroup", () => {
     expect([arrange("r1", "r2").short, arrange("r1", "r2").enabled, arrange("r1", "r2").reason]).toEqual(["Arrange", false, "drawings stay where they are"]);
     expect([arrange("loose", "free").enabled, arrange("loose", "free").reason]).toEqual([true, null]);
     expect(arrange("note", "a").enabled).toBe(true);
+    // Greyed, it opens no arc of layouts either.
+    expect(arcOf(RINGS.selection[6]!, { ...ctx, selectionIds: ["r1", "r2"] })).toBeNull();
+    expect(arcOf(RINGS.selection[6]!, { ...ctx, selectionIds: ["loose", "free"] })!.slots).toHaveLength(7);
   });
 
   it("greys Ungroup, and says why, for a selection across two groups or past the group's frame", () => {
@@ -401,5 +447,50 @@ describe("the canvas ring's « In folder » (plan folders)", () => {
     const line = lineOf(RINGS.canvas[place]!, ctx)!;
     expect([line.label, line.short, line.enabled]).toEqual(["New terminal in folder…", "In folder", true]);
     expect(RINGS.canvas.length).toBeLessThanOrEqual(8);
+  });
+});
+
+describe("the canvas ring's Other agent", () => {
+  const other = () => RINGS.canvas[6]!;
+  const agents = (...ids: string[]) => agentsStore.setState({ loaded: true, agents: ids.map((id) => ({ id, available: true })) } as never);
+  afterAll(() => agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never));
+
+  it("opens an arc of the agents its list offers, in its order, the Shell left out, the default one marked", () => {
+    agents("shell", "custom", "gemini", "codex", "claude", "qwen");
+    expect(lineOf(other(), ctx)).toMatchObject({ label: "Other agent…", short: "Other agent", opens: true, enabled: true });
+    const lines = petalLines(other());
+    expect(lines.map((line) => line.label)).toEqual(["Claude", "Codex", "Gemini", "Qwen Code", "Custom"]);
+    expect(lines.map((line) => line.short)).toEqual(["Claude", "Codex", "Gemini", "Qwen", "Custom"]);
+    expect(lines.map((line) => line.Icon)).toEqual([AGENTS.claude.Icon, AGENTS.codex.Icon, AGENTS.gemini.Icon, AGENTS.qwen.Icon, AGENTS.custom.Icon]);
+    expect(lines.filter((line) => line.marked).map((line) => line.label)).toEqual(["Claude"]);
+    // The list's word under Gemini, whose deletes nothing guards, and the default agent's.
+    expect(lines.map((line) => line.note)).toEqual(["the default agent", null, "Not guarded: recursive deletes outside the worktree are not blocked", null, null]);
+    expect(lines.every((line) => line.enabled && !line.opens)).toBe(true);
+  });
+
+  it("starts the agent picked at the ring's press point, by the list's routine: Custom and Ollama open the ＋ menu's view for them", async () => {
+    agents("claude", "codex", "ollama", "custom");
+    const at = { ...ctx, at: { x: 40, y: 60 } };
+    const lines = petalLines(other(), at);
+    expect(lines.map((line) => line.label)).toEqual(["Claude", "Codex", "Ollama", "Custom"]);
+    vi.mocked(launchAt).mockClear();
+    await lines[1]!.command!.run(lines[1]!.context);
+    expect(launchAt).toHaveBeenLastCalledWith("codex", { x: 40, y: 60 });
+    await lines[2]!.command!.run(lines[2]!.context);
+    expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: "ollama", at: { x: 40, y: 60 } });
+    await lines[3]!.command!.run(lines[3]!.context);
+    expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: "options", at: { x: 40, y: 60 } });
+    expect(launchAt).toHaveBeenCalledTimes(1);
+  });
+
+  it("says so when no agent of a program was found: a greyed wedge first, with where to install one; alone when the look found nothing", () => {
+    agents("shell", "custom");
+    const lines = petalLines(other());
+    expect(lines.map((line) => [line.label, line.short, line.enabled, line.reason])).toEqual([
+      ["No agent found", "No agent", false, "Install one from Add to canvas"],
+      ["Custom", "Custom", true, null],
+    ]);
+    agents();
+    expect(petalLines(other()).map((line) => line.label)).toEqual(["No agent found"]);
   });
 });

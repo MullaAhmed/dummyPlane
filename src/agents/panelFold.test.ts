@@ -202,56 +202,48 @@ describe("the Agents panel while a work window is open", () => {
   });
 });
 
-describe("the right lane's one occupant: the Agents panel or a terminal's Edit panel", () => {
+describe("a terminal's Edit panel, which stands beside its node, not in the lane", () => {
   const edit = () => editPanelStore.getState().openFor;
 
-  it("folds the Agents panel while the Edit panel stands in the lane, and brings it back with the Edit panel's fold", () => {
+  it("leaves the Agents panel open when the Edit panel opens and folds", () => {
     start(true);
     openEditPanel("t1");
-    expect([panel(), edit()]).toEqual([false, "t1"]);
+    expect([panel(), edit()]).toEqual([true, "t1"]);
     foldEditPanel();
     expect([panel(), edit()]).toEqual([true, null]);
     expect(saved).toEqual([]);
   });
 
-  it("folds the Edit panel when the person opens the Agents panel: the newest surface takes the lane", async () => {
+  it("leaves the Edit panel open when the person opens the Agents panel", () => {
     start(false);
     openEditPanel("t1");
     setAgentsPanel(true);
+    expect([panel(), edit()]).toEqual([true, "t1"]);
+  });
+
+  it.each([
+    ["the review panel", () => reviewStore.getState().open("t1"), () => reviewStore.getState().close()],
+    ["the git window", () => gitWindowStore.getState().open("D:/code/api"), () => gitWindowStore.getState().close()],
+    ["Code Studio", () => goTo("code"), () => goTo("canvas")],
+    ["Notes", () => goTo("notes"), () => goTo("canvas")],
+  ])("folds the Edit panel when %s opens, which would hide it, and leaves it folded when it closes", (_name, open, close) => {
+    start(true);
+    openEditPanel("t1");
+    open();
+    expect([panel(), edit()]).toEqual([false, null]);
+    close();
+    // The Agents panel comes back with the window; the Edit panel waits for its node's pencil.
     expect([panel(), edit()]).toEqual([true, null]);
   });
 
-  it("folds the Edit panel when a work window opens, and the Agents panel comes back with the window, not before", () => {
-    start(true);
-    openEditPanel("t1");
-    reviewStore.getState().open("t1");
-    expect([panel(), edit()]).toEqual([false, null]);
-    reviewStore.getState().close();
-    expect(panel()).toBe(true);
-  });
-
-  it("leaves the Agents panel folded when the Edit panel opened over a work window folds", () => {
+  it("leaves an Edit panel opened over a work window open, and the Agents panel folded until the window closes", () => {
     start(true);
     gitWindowStore.getState().open("D:/code/api");
     openEditPanel("t1");
+    expect([panel(), edit()]).toEqual([false, "t1"]);
     foldEditPanel();
     expect(panel()).toBe(false);
     gitWindowStore.getState().close();
     expect(panel()).toBe(true);
-  });
-
-  it("never holds both: the lane has one occupant whatever the order", () => {
-    start(true);
-    const both = () => panel() && edit() !== null;
-    openEditPanel("t1");
-    expect(both()).toBe(false);
-    setAgentsPanel(true);
-    expect(both()).toBe(false);
-    openEditPanel("t2");
-    expect(both()).toBe(false);
-    goTo("code");
-    expect(both()).toBe(false);
-    goTo("canvas");
-    expect(both()).toBe(false);
   });
 });

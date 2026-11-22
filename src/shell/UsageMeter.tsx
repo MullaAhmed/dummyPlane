@@ -4,7 +4,7 @@ import { useStore } from "zustand";
 import { loadDiagnostics } from "@/app/diagnostics";
 import { BUDGET_COLOR } from "@/canvas/overlay/timeline";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AGENTS } from "@/agents/catalog";
 import { useMessages } from "@/i18n";
 import { formatClock, formatDecimal } from "@/i18n/format";
@@ -15,7 +15,6 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { currentLimit, formatTokens, formatUsd, limitTone, liveCacheSessions, totals, type Limit, type Limits } from "@/usage/usage";
 import { useUsage } from "@/usage/usageStore";
 import { HintedButton } from "./buttons";
-import { LANE_CORNER } from "./laneAnchor";
 import { shellMessages } from "./messages";
 import { TokensView } from "./TokensView";
 
@@ -117,9 +116,8 @@ export function UsageMeter() {
           )}
         </HintedButton>
       </PopoverTrigger>
-      {/* It opens in the right lane, on its edge and its top, over the lane's occupant (shell/layout.ts); the toasts keep clear of it. */}
-      <PopoverAnchor virtualRef={LANE_CORNER} />
-      <PopoverContent side="bottom" align="end" sideOffset={0} data-rail-overlay="" className="w-[380px]">
+      {/* It opens under the meter, its right edge on the meter's, inside the window; the toasts keep clear of it. */}
+      <PopoverContent side="bottom" align="end" data-rail-overlay="" className="w-[380px]">
         <UsageContent />
       </PopoverContent>
     </Popover>

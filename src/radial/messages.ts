@@ -11,6 +11,10 @@ export const radialMessages = defineMessages(
     more: "More",
     /** Why the selection ring's Arrange is greyed for drawings alone. */
     drawingsStay: "drawings stay where they are",
+    /** Under the name of the layout marked in Arrange's arc, in the hub: the one of Settings → Arrange layout. */
+    savedLayout: "the saved layout",
+    /** Under the name of the agent marked in Other agent's arc, in the hub: the one of the canvas ring's first wedge. */
+    defaultAgent: "the default agent",
     /** The name under a wedge's icon: a word or two, the room is small. The hub tells the full name. */
     short: {
       copy: "Copy",
@@ -51,6 +55,8 @@ export const radialMessages = defineMessages(
       import: "Import",
       png: "PNG",
       options: "Options",
+      /** Other agent's arc when no agent of a program was found. */
+      noAgent: "No agent",
     },
   },
 );

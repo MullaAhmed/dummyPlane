@@ -1,8 +1,8 @@
-import { editPanelStore, foldEditPanel } from "@/canvas/editPanel";
+import { foldEditPanel } from "@/canvas/editPanel";
 import { gitWindowStore } from "@/git/gitWindowStore";
 import { reviewStore } from "@/review/reviewStore";
 import { isCode, isNotes, workspacesStore } from "@/store/workspaces";
-import { agentsPanelStore, holdAgentsPanel, releaseAgentsPanel } from "./agentsPanelState";
+import { holdAgentsPanel, releaseAgentsPanel } from "./agentsPanelState";
 
 const WINDOWS = ["review", "git", "code", "notes"] as const;
 
@@ -18,22 +18,15 @@ export function openWorkWindows(): Record<(typeof WINDOWS)[number], boolean> {
   };
 }
 
-/** Whether a work window is on screen. */
-function anyWorkWindow(): boolean {
-  const now = openWorkWindows();
-  return WINDOWS.some((w) => now[w]);
-}
-
 /**
- * The right lane has one occupant (shell/layout.ts): the Agents panel or a terminal's Edit panel.
+ * What a work window that opens folds: the right lane's occupant (shell/layout.ts), the Agents panel, and an open Edit panel.
  * - A work window that opens folds the Agents panel to its rail badge, and it comes back when the last one goes if it
  *   was open before. A panel the person reopened over a window is folded again by the next one that opens (a review to
- *   the git window, Code Studio to Notes): their choice holds until the window it was made over closes. The window
- *   folds an open Edit panel as well.
- * - The Edit panel that opens folds the Agents panel the same way, which comes back with the Edit panel's fold unless a
- *   work window is still open (that window's close brings it back).
- * - The Agents panel that the person opens folds the Edit panel.
- * So the occupant is always newer than any open window, and stands above it where the window cannot start beside it.
+ *   the git window, Code Studio to Notes): their choice holds until the window it was made over closes. So the
+ *   occupant is always newer than any open window, and stands above it where the window cannot start beside it.
+ * - The window folds an open Edit panel too, back to the pencil in its node's header: the panel stands on the canvas,
+ *   under the windows, and the window would hide it. The Edit panel stands beside its node, not in the lane: it and the
+ *   Agents panel never fold each other.
  * Returns the stop.
  */
 export function installPanelFold(): () => void {
@@ -50,19 +43,6 @@ export function installPanelFold(): () => void {
       foldEditPanel();
     } else if (anyBefore && !anyNow) releaseAgentsPanel();
   };
-  const onEdit = (state: { openFor: string | null }, previous: { openFor: string | null }) => {
-    if (state.openFor !== null && previous.openFor === null) holdAgentsPanel();
-    else if (state.openFor === null && previous.openFor !== null && !anyWorkWindow()) releaseAgentsPanel();
-  };
-  const onAgents = (state: { open: boolean }, previous: { open: boolean }) => {
-    if (state.open && !previous.open) foldEditPanel();
-  };
-  const stops = [
-    reviewStore.subscribe(check),
-    gitWindowStore.subscribe(check),
-    workspacesStore.subscribe(check),
-    editPanelStore.subscribe(onEdit),
-    agentsPanelStore.subscribe(onAgents),
-  ];
+  const stops = [reviewStore.subscribe(check), gitWindowStore.subscribe(check), workspacesStore.subscribe(check)];
   return () => stops.forEach((stop) => stop());
 }

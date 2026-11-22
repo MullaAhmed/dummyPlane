@@ -6,6 +6,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
 import { nodesStore } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
+import { openArc } from "./arc";
 import { readClipboardText } from "./bridges";
 import { openRadial, radialStore, updateRadial } from "./radialState";
 import { RadialMenu } from "./RadialMenu";
@@ -62,7 +63,7 @@ it("names the ring's buttons, their wedges, the reason and the close button", as
   expect(buttons().map((b) => b.getAttribute("aria-label"))).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Quick note on this terminal", "Pause", "More"]);
   expect(buttons().map((b) => b.textContent)).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Note", "Pause", "More"]);
   // Its arc: the group's name, its wedges' full names and short ones.
-  await act(async () => updateRadial({ arc: { middle: -2.356, count: 5 } }));
+  await act(async () => openArc({ from: { slot: 7 } }));
   expect(document.querySelector("[data-radial-arc]")!.getAttribute("aria-label")).toBe("More");
   expect([...document.querySelectorAll("[data-radial-item]")].map((b) => b.getAttribute("aria-label"))).toEqual(["Stop the process", "Duplicate", "Review changes", "Remove from group", "Arrange"]);
   expect([...document.querySelectorAll("[data-radial-item]")].map((b) => b.textContent)).toEqual(["Stop", "Duplicate", "Review", "Leave group", "Arrange"]);

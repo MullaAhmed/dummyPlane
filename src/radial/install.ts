@@ -5,12 +5,12 @@ import { closeOpenMenus } from "@/commands/openMenus";
 import { commandContext } from "@/commands/registry";
 import { sceneOf } from "@/agents/placement";
 import type { Point } from "@/agents/terminals";
-import { cancelArcIntent, closeArc, openArc, pointTo } from "./arc";
+import { cancelArcIntent, closeArc, openArc, opensArc, pointItemByKeyboard, pointTo } from "./arc";
 import { isNativeMenu } from "./bridges";
 import { chooseItem, chooseSlot } from "./choose";
 import { isSlide, ringArea, ringCenter, slidePointing } from "./gesture";
 import { closeRadial, openRadial, radialStore, updateRadial } from "./radialState";
-import { ARCS, lineOf, moreSlotOf, RINGS, wedgeCountOf, type RingKind } from "./rings";
+import { lineOf, RINGS, wedgeCountOf, type RingKind } from "./rings";
 import { domTarget, frameNameTarget, isTextField, sceneTarget, type RadialTarget } from "./target";
 
 /** The arrows turn the wedge pointed at: clockwise right and down, the other way left and up. */
@@ -92,7 +92,7 @@ export function installRadial(win: Window): () => void {
     }
     if (ring && !element?.closest("[data-radial]")) closeRadial();
   };
-  /** Where a slide points: a wedge of the ring, or of the open More arc. */
+  /** Where a slide points: a wedge of the ring, or of the open arc. */
   const slidingTo = (event: PointerEvent) => {
     const { ring } = radialStore.getState();
     const pointer = { x: event.clientX, y: event.clientY };
@@ -104,9 +104,9 @@ export function installRadial(win: Window): () => void {
     const pointer = { x: event.clientX, y: event.clientY };
     if (!ring.sliding && !isSlide(ring.client, pointer)) return;
     if (!ring.sliding) updateRadial({ sliding: true });
-    // Resting on More opens its arc, as with the mouse after a click; the slide goes on into it.
+    // Resting on a wedge with an arc (More, Arrange, Other agent) opens it, as with the mouse after a click; the slide goes on into it.
     const { slot, item } = slidingTo(event);
-    pointTo(slot, item);
+    pointTo(slot, item, pointer);
   };
   const onPointerUp = (event: PointerEvent) => {
     const { ring } = radialStore.getState();
@@ -118,9 +118,9 @@ export function installRadial(win: Window): () => void {
       updateRadial({ pressed: false });
       return;
     }
-    // Released on More, its arc opens and the ring stays, for a click; on nothing, it closes.
+    // Released on a wedge with an arc, its arc opens and the ring stays, for a click; on nothing, it closes.
     const { slot, item } = slidingTo(event);
-    if (item !== null) chooseItem(item);
+    if (item !== null) chooseItem(item, { at: { x: event.clientX, y: event.clientY } });
     else if (slot !== null) chooseSlot(slot);
     else closeRadial();
   };
@@ -135,20 +135,24 @@ export function installRadial(win: Window): () => void {
     }
   };
   // While the ring is open its keys are its own, ahead of the terminal or the canvas that keeps the
-  // keyboard: Escape closes it, the arrows turn the wedge pointed at, Enter runs it (on More, opens its arc).
-  // In the arc: Left or Escape goes back to the ring, the other arrows move along it, Enter runs.
+  // keyboard: Escape closes it, the arrows turn the wedge pointed at, Enter runs it (on More, Arrange or
+  // Other agent, opens its arc). In an arc: Left or Escape goes back a step (to the arc it took the place
+  // of, else to the ring), the other arrows move along it, Enter runs (or opens the wedge's own arc).
   const onKeyDown = (event: KeyboardEvent) => {
     const { ring } = radialStore.getState();
     if (!ring) return;
     if (ring.arc) {
-      const count = ARCS[ring.kind].length;
+      const arc = ring.arc;
+      const count = arc.count;
       const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
       const item = ring.item ?? null;
       if (event.key === "Escape" || event.key === "ArrowLeft") closeArc({ keyboard: true });
-      else if (step) updateRadial({ item: item === null ? (step > 0 ? 0 : count - 1) : (item + step + count) % count, keyboard: true });
-      else if (event.key === "Enter" && item !== null) {
-        const slot = ARCS[ring.kind][item];
-        if (slot && lineOf(slot, ring.context)?.enabled) chooseItem(item);
+      else if (step) {
+        cancelArcIntent();
+        pointItemByKeyboard(item === null ? (step > 0 ? 0 : count - 1) : (item + step + count) % count);
+      } else if (event.key === "Enter" && item !== null) {
+        const slot = arc.slots[item];
+        if (slot && lineOf(slot, arc.context)?.enabled) chooseItem(item, { keyboard: true });
       } else return;
       event.preventDefault();
       event.stopPropagation();
@@ -161,8 +165,8 @@ export function installRadial(win: Window): () => void {
       cancelArcIntent();
       updateRadial({ hovered: ring.hovered === null ? (turn > 0 ? 0 : count - 1) : (ring.hovered + turn + count) % count, keyboard: true });
     } else if (event.key === "Enter" && ring.hovered !== null) {
-      if (ring.hovered === moreSlotOf(ring.kind)) {
-        openArc({ keyboard: true });
+      if (opensArc({ slot: ring.hovered })) {
+        openArc({ from: { slot: ring.hovered }, keyboard: true });
       } else {
         // A greyed one does nothing, and the Enter goes nowhere else either.
         const slot = RINGS[ring.kind][ring.hovered];

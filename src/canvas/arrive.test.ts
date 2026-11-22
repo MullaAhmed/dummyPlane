@@ -370,7 +370,7 @@ describe("revealNode", () => {
   });
 
   it("centres it in the work area, clear of an occupied lane", () => {
-    laneStore.setState({ occupants: ["edit"] });
+    laneStore.setState({ occupants: ["agents"] });
     withScene({ ...at100, scrollX: -5000 });
     expect(revealNode("batman")).toBe(true);
     expect(scrollToContent.mock.calls[0][1].canvasOffsets).toEqual(workArea(true));

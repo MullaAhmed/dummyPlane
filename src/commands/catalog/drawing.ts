@@ -67,7 +67,7 @@ export function selectionLocked(): boolean {
 const withSelection = (ctx: CommandContext) => inProject(ctx) && selectedIds().length > 0;
 
 /** The elements to act on: the ring's (Excalidraw has not committed its press yet), else Excalidraw's own. */
-const selectionOf = (ctx: CommandContext): readonly string[] => ctx.selectionIds ?? selectedIds();
+export const selectionOf = (ctx: CommandContext): readonly string[] => ctx.selectionIds ?? selectedIds();
 const groupingFor = (ctx: CommandContext) => groupingOf(canvasStore.getState().api?.getSceneElements() ?? [], selectionOf(ctx));
 function ungroupingFor(ctx: CommandContext) {
   const api = canvasStore.getState().api;

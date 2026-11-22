@@ -266,7 +266,7 @@ it("keeps the essentials on its row and the rest behind « ⋯ »: Review, Resta
   const onClose = vi.fn();
   const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} onDuplicate={onDuplicate} onClose={onClose} />);
   const labels = [...view.host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
-  // The agent, Remote Control, Edit (its panel, in the right lane), the menu, Close: no more. The model router is in the foot, beside Link.
+  // The agent, Remote Control, Edit (its panel, beside the node), the menu, Close: no more. The model router is in the foot, beside Link.
   expect(labels).toEqual(["Agent", expect.stringContaining("Remote Control"), expect.stringMatching(/^Edit /), "More actions", "Close"]);
   const items = await openMore(view.host);
   expect(textOf(items())).toEqual(["Review changes", "Minimize", "Duplicate", "Quick note", "Resume the session", "New session", "Latest in the folder", "Stop the process"]);

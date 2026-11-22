@@ -1,16 +1,14 @@
 import { useState } from "react";
-import { requestUi, useUiRequest } from "@/commands/uiRequests";
+import { useUiRequest } from "@/commands/uiRequests";
 import { DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useMessages } from "@/i18n";
 import type { AgentId } from "@/ipc/pty";
-import { uiStore } from "@/store/ui";
 import { AgentPickRows } from "./AgentPickRows";
-import { agentsStore, isAvailable, loadedAgents, useAgents } from "./agentsStore";
-import { AGENT_ORDER, AGENTS, defaultAgent } from "./catalog";
-import { defaultLaunchOptions } from "./launchAgent";
+import { agentsStore, loadedAgents, useAgents } from "./agentsStore";
+import { defaultAgent } from "./catalog";
 import { agentsMessages } from "./messages";
+import { launchOtherAgent, noAgentFound, otherAgentsOf } from "./otherAgents";
 import { PointMenu } from "./PointMenu";
-import { launchAt } from "./quickActions";
 import type { Point } from "./terminals";
 
 interface Asked {
@@ -21,9 +19,10 @@ interface Asked {
 }
 
 /**
- * The list of agents an "Other agent…" offers (the canvas ring's wedge and the palette's), at the point asked for, in the
- * same menu as the layouts of "Arrange as…" (./PointMenu.tsx): the agents found on this machine, and no more (an agent
- * that is not installed is not listed: the ＋ menu and the palette's "Install …" offer it). The default agent, the one of
+ * The list of agents the palette's "Other agent…" offers, at the point asked for, in the same menu as the layouts of
+ * "Arrange as…" (./PointMenu.tsx): the agents found on this machine, and no more (./otherAgents.ts; an agent that is not
+ * installed is not listed: the ＋ menu and the palette's "Install …" offer it). The canvas ring's "Other agent" opens
+ * the same agents as an arc of its own (src/radial/petals.ts). The default agent, the one of
  * "New console", is ticked and under the keyboard first. Up and Down move, Enter or a click launches the agent where the
  * ring was pressed, Escape closes and starts nothing. The Shell is the ring's and the palette's own; a Custom command and
  * Ollama, which need a command or a model first, go on in the ＋ menu's own view for them. On a machine where no agent's
@@ -49,22 +48,17 @@ export function OtherAgentMenu() {
     return true;
   });
 
-  const listed = AGENT_ORDER.filter((id) => id !== "shell" && isAvailable(agents, id));
+  const listed = otherAgentsOf(agents);
   const fallback = defaultAgent(agents);
 
   const pick = (agent: AgentId) => {
     const place = asked?.place;
     setAsked(null);
-    // Their form or their models first, in the ＋ menu's view for them (what the palette's custom agent and Ollama open).
-    if (agent === "custom" || agent === "ollama") requestUi({ kind: "agentMenu", view: agent === "custom" ? "options" : "ollama", at: place });
-    else if (place) launchAt(agent, place);
-    // From the palette: the agent follows the pointer until the canvas is clicked.
-    else uiStore.getState().setPlacing({ agent, options: defaultLaunchOptions() });
+    launchOtherAgent(agent, place);
   };
 
-  // No agent of a program was found: a machine with no CLI still has its Shell and a Custom command (always "available"),
-  // and that is all this list would hold, with nothing to say where to get the others.
-  const none = listed.every((id) => AGENTS[id].binary === "");
+  // No agent of a program was found: the Custom command is all this list would hold.
+  const none = noAgentFound(listed);
 
   return (
     <PointMenu at={asked?.at ?? null} label={t.label} onClose={() => setAsked(null)} className="w-60 p-1" anchorProps={{ "data-other-agent-anchor": "" }}>

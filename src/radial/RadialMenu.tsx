@@ -1,5 +1,5 @@
 import { useEffect, useState, type MouseEvent, type PointerEvent } from "react";
-import { X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { paletteStore } from "@/commands/paletteState";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -7,7 +7,7 @@ import { projectsStore } from "@/store/projects";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
 import type { Point } from "@/agents/terminals";
-import { cancelArcIntent, pointTo } from "./arc";
+import { cancelArcIntent, pointItemByKeyboard, pointTo } from "./arc";
 import { chooseItem, chooseSlot } from "./choose";
 import { radialMessages } from "./messages";
 import {
@@ -27,8 +27,8 @@ import {
   wedgePath,
   type Pointing,
 } from "./gesture";
-import { closeRadial, radialStore, updateRadial, useRadial } from "./radialState";
-import { arcLines, ringLines, wedgeCountOf, type RingLine } from "./rings";
+import { closeRadial, radialStore, updateRadial, useRadial, type OpenArc } from "./radialState";
+import { lineOf, ringLines, wedgeCountOf, type RingLine } from "./rings";
 
 /** The ring closes when its context goes: another workspace or project, a dialog, the palette. */
 function closeOnLeave() {
@@ -49,7 +49,7 @@ const keepKeyboard = (event: PointerEvent) => event.preventDefault();
 
 /** Half the side of a ring wedge's box: the wheel, the pointed wedge's move and its hairline. */
 const BOX = OUTER_RADIUS + POP + 2;
-/** The same for a wedge of the More arc. */
+/** The same for a wedge of an arc. */
 const ARC_BOX = ARC_OUTER + POP + 2;
 
 /** What the pointer points at, by its place on the wheel and the open arc. */
@@ -59,7 +59,7 @@ function pointingUnder(event: { clientX: number; clientY: number }): Pointing {
   return pointingAt(ring.center, { x: event.clientX, y: event.clientY }, wedgeCountOf(ring.kind), ring.arc ?? null);
 }
 
-/** With the mouse, after a click: the wedge pointed at follows the pointer, and resting on More opens its arc. A slide's is install.ts's. */
+/** With the mouse, after a click: the wedge pointed at follows the pointer, and resting on a wedge with an arc opens it. A slide's is install.ts's. */
 function follow(event: PointerEvent) {
   const { ring } = radialStore.getState();
   if (!ring) return;
@@ -67,7 +67,12 @@ function follow(event: PointerEvent) {
   if (ring.keyboard) updateRadial({ keyboard: false });
   if (ring.pressed) return;
   const { slot, item } = pointingUnder(event);
-  pointTo(slot, item);
+  pointTo(slot, item, { x: event.clientX, y: event.clientY });
+}
+
+/** Which arc is open, as a key: its wedge on the ring, then the wedges it opened from (More's Arrange: `7.4`). A new arc enters anew. */
+function arcKey(arc: OpenArc): string {
+  return arc.parent ? `${arcKey(arc.parent.arc)}.${arc.parent.item}` : `${arc.slot}`;
 }
 
 /** The pointer left the wheel: nothing is pointed at, an open arc stays open. */
@@ -93,7 +98,7 @@ interface WedgeProps {
   pressed: boolean;
   /** Data attributes that say which wedge it is. */
   data: Record<string, string | number>;
-  /** The More wedge: whether its arc is open. */
+  /** A wedge with an arc: whether its arc is open. */
   expanded?: boolean;
   onFocus: () => void;
   onBlur: () => void;
@@ -101,9 +106,10 @@ interface WedgeProps {
 }
 
 /**
- * One command of the wheel or of its More arc. A real button, for the keyboard and assistive
+ * One command of the wheel or of an arc. A real button, for the keyboard and assistive
  * technology, but not for the mouse: the hit areas above it take the pointer, so the wedge
- * pointed at may move out without its edge flickering.
+ * pointed at may move out without its edge flickering. The one marked among its arc's (the saved
+ * layout, the default agent) carries a tick by its icon, as its list ticks it, and says so in the hub.
  */
 function Wedge({ line, path, label, pop, box, pointed, pressed, data, expanded, onFocus, onBlur, onClick }: WedgeProps) {
   const lit = pointed && line.enabled;
@@ -114,7 +120,7 @@ function Wedge({ line, path, label, pop, box, pointed, pressed, data, expanded, 
       {...data}
       aria-label={line.label}
       aria-disabled={!line.enabled}
-      aria-description={line.reason ?? undefined}
+      aria-description={line.reason ?? line.note ?? undefined}
       aria-expanded={expanded}
       className={cn(
         "group pointer-events-none absolute outline-none transition-[translate,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none [[data-keyboard]_&]:transition-none",
@@ -151,7 +157,10 @@ function Wedge({ line, path, label, pop, box, pointed, pressed, data, expanded, 
         )}
         style={{ left: box + label.x, top: box + label.y }}
       >
-        <line.Icon className={cn("size-4", !lit && (line.danger ? "text-dp-danger" : "text-dp-text-2"))} />
+        <span className="relative">
+          <line.Icon className={cn("size-4", !lit && (line.danger ? "text-dp-danger" : "text-dp-text-2"))} />
+          {line.marked && <Check aria-hidden data-radial-marked className="absolute top-0 -right-3.5 size-3" />}
+        </span>
         {/* A name longer than any of today's wraps rather than crossing the wedge's edge. */}
         <span className="block w-max max-w-18 text-center text-xs leading-4 font-medium text-balance">{line.short}</span>
       </span>
@@ -159,7 +168,7 @@ function Wedge({ line, path, label, pop, box, pointed, pressed, data, expanded, 
   );
 }
 
-/** The ring of the right click, a wheel of wedges around a hub, and the arc its More opens. */
+/** The ring of the right click, a wheel of wedges around a hub, and the arc a wedge opens (More, Arrange, Other agent). */
 export function RadialMenu() {
   const ring = useRadial((s) => s.ring);
   const t = useMessages(radialMessages);
@@ -176,16 +185,16 @@ export function RadialMenu() {
   if (!ring) return null;
   const lines = ringLines(ring.kind, ring.context);
   const arc = ring.arc ?? null;
-  const items = arc ? arcLines(ring.kind, ring.context) : [];
+  const items = arc ? arc.slots.map((slot) => lineOf(slot, arc.context)) : [];
   const item = arc ? (ring.item ?? null) : null;
   const pointed = item !== null ? items[item] : ring.hovered !== null ? lines[ring.hovered] : null;
   const keyOf = ({ slot, item: at }: Pointing) => (at !== null ? `a${at}` : slot !== null ? `r${slot}` : null);
-  /** A click runs the wedge it points at, a gap and the slack around included; More opens its arc; elsewhere, it closes. */
+  /** A click runs the wedge it points at, a gap and the slack around included; a wedge with an arc opens it; elsewhere, it closes. */
   const choose = (event: MouseEvent) => {
     setPressed(null);
     const at = pointingUnder(event);
     if (at.item !== null) {
-      if (items[at.item]?.enabled) chooseItem(at.item);
+      if (items[at.item]?.enabled) chooseItem(at.item, { at: { x: event.clientX, y: event.clientY } });
     } else if (at.slot !== null) {
       if (lines[at.slot]?.enabled) chooseSlot(at.slot);
     } else closeRadial();
@@ -221,10 +230,11 @@ export function RadialMenu() {
             pointed={ring.hovered === slot}
             pressed={pressed === `r${slot}`}
             data={{ "data-radial-slot": slot, ...(line.more ? { "data-radial-more": "" } : {}) }}
-            expanded={line.more ? arc !== null : undefined}
+            expanded={line.opens ? arc?.slot === slot : undefined}
             onFocus={() => {
-              // Back on the ring from the arc: the arc closes, unless it is More's own.
-              updateRadial(line.more ? { hovered: slot, keyboard: true, item: null } : { hovered: slot, keyboard: true, arc: null, item: null });
+              // Back on the ring from the arc: the arc closes, unless it is this wedge's own.
+              const open = radialStore.getState().ring?.arc;
+              updateRadial(open?.slot === slot ? { hovered: slot, keyboard: true, item: null } : { hovered: slot, keyboard: true, arc: null, item: null });
             }}
             onBlur={() => radialStore.getState().ring?.hovered === slot && !radialStore.getState().ring?.arc && updateRadial({ hovered: null })}
             onClick={() => chooseSlot(slot)}
@@ -232,10 +242,11 @@ export function RadialMenu() {
         ) : null,
       )}
       {arc && (
-        // The arc fans out from More: it grows from the ring's center, a fade alone when motion is reduced, at once from the keyboard.
+        // The arc fans out from its wedge: it grows from the ring's center, a fade alone when motion is reduced, at once from the keyboard.
         <div
+          key={arcKey(arc)}
           role="group"
-          aria-label={t.more}
+          aria-label={arc.label}
           data-radial-arc
           // Read from how it opened, not from the keyboard of the moment: dropping `data-instant` later would replay the entrance.
           data-instant={ring.arcInstant ? "" : undefined}
@@ -253,9 +264,11 @@ export function RadialMenu() {
                 pointed={item === index}
                 pressed={pressed === `a${index}`}
                 data={{ "data-radial-item": index }}
-                onFocus={() => updateRadial({ item: index, keyboard: true })}
+                expanded={line.opens ? false : undefined}
+                onFocus={() => pointItemByKeyboard(index)}
                 onBlur={() => radialStore.getState().ring?.item === index && updateRadial({ item: null })}
-                onClick={() => chooseItem(index)}
+                // Only the keyboard or assistive technology clicks a wedge itself: an arc it opens is the keyboard's.
+                onClick={() => chooseItem(index, { keyboard: true })}
               />
             ) : null,
           )}
@@ -295,10 +308,10 @@ export function RadialMenu() {
         style={{ left: 0, top: 0, width: 2 * HUB_RADIUS, height: 2 * HUB_RADIUS }}
       >
         {pointed ? (
-          // The full name of the wedge pointed at, and why it cannot run. The button keeps its own name: it closes the menu.
+          // The full name of the wedge pointed at, and why it cannot run (or its note: the saved layout). The button keeps its own name: it closes the menu.
           <span aria-hidden className="flex flex-col items-center gap-1 px-1 text-center">
             <span className="line-clamp-2 text-(length:--text-ui) leading-4 font-medium text-balance text-dp-text">{pointed.label}</span>
-            {pointed.reason && <span className="line-clamp-2 text-xs text-balance text-dp-text-3">{sentence(pointed.reason)}</span>}
+            {(pointed.reason ?? pointed.note) && <span className="line-clamp-2 text-xs text-balance text-dp-text-3">{sentence(pointed.reason ?? pointed.note!)}</span>}
           </span>
         ) : (
           <X className="size-4" />

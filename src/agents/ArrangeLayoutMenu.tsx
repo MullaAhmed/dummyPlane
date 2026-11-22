@@ -17,9 +17,10 @@ interface Asked {
 }
 
 /**
- * The list of layouts an "Arrange as…" offers (the palette's Arrange as… and Arrange the group as…; the rings' Arrange wedges
- * arrange at once in the saved layout and never open it): the seven of the
- * Settings, the saved one ticked and under the keyboard, at the point asked for. Up and Down move, Enter or a click
+ * The list of layouts an "Arrange as…" offers (the palette's Arrange as… and Arrange the group as…): the seven of the
+ * Settings, the saved one ticked and under the keyboard, at the point asked for. The rings' Arrange wedges offer the same
+ * seven as an arc of their own (src/radial/petals.ts), the saved one marked, and a pick there arranges as one here does:
+ * picked for the whole canvas, the layout becomes the setting too; for a group or a selection, it is used once. Up and Down move, Enter or a click
  * picks and arranges (./arrangeAs.ts), Escape closes and moves nothing. It is a PointMenu, like "Other agent…" (./OtherAgentMenu.tsx).
  */
 export function ArrangeLayoutMenu() {
