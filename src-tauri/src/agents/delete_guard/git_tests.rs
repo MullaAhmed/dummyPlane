@@ -459,7 +459,7 @@ fn repository() -> Option<(tempfile::TempDir, PathBuf)> {
             .ok()?;
         out.status.success().then_some(())
     };
-    let parent = tempfile::tempdir().ok()?;
+    let parent = crate::mission::real_temp_dir();
     let project = parent.path().join("proj");
     std::fs::create_dir(&project).ok()?;
     run(&project, &["init", "-q", "-b", "main"])?;

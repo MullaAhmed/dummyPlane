@@ -492,6 +492,7 @@ pub fn wsl_distro_installed() -> bool {
 
 /// Docker Desktop registers its own distributions (`docker-desktop`,
 /// `docker-desktop-data`): they run its engine, they are no shell to work in.
+#[cfg(any(windows, test))]
 pub fn shell_distro(name: &str) -> bool {
     !name.to_ascii_lowercase().starts_with("docker-desktop")
 }

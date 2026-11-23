@@ -2181,6 +2181,15 @@ fn merge_target(mission: &Path, target: &str, head: &str) -> Result<LandOutcome,
     }
 }
 
+/// A temporary folder for a test's repository, named as git names it: Windows may give the temporary folder in its
+/// short 8.3 form (`C:\Users\RUNNER~1\...` on GitHub's runners) and macOS through its `/var` link, while git answers
+/// with the real path. A path a test builds from the folder must be the one the code reads from git.
+#[cfg(test)]
+pub(crate) fn real_temp_dir() -> tempfile::TempDir {
+    let base = dunce::canonicalize(std::env::temp_dir()).unwrap();
+    tempfile::tempdir_in(base).unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use std::process::Command;
@@ -2213,7 +2222,7 @@ mod tests {
         if Command::new("git").arg("--version").output().is_err() {
             return None; // git is not installed on this machine
         }
-        let parent = tempfile::tempdir().unwrap();
+        let parent = real_temp_dir();
         let proj = parent.path().join("proj");
         std::fs::create_dir(&proj).unwrap();
         run(&proj, &["init", "-q", "-b", "main"]);
@@ -2234,7 +2243,7 @@ mod tests {
         if Command::new("git").arg("--version").output().is_err() {
             return None;
         }
-        let parent = tempfile::tempdir().unwrap();
+        let parent = real_temp_dir();
         let proj = parent.path().join("proj");
         std::fs::create_dir(&proj).unwrap();
         run(&proj, &["init", "-q", "-b", "main"]);

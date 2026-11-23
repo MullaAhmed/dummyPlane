@@ -46,6 +46,7 @@ panic = "unwind"
 strip = true
 
 [dev-dependencies]
+dunce = "1"
 tempfile = "3"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]

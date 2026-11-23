@@ -930,6 +930,7 @@ dependencies = [
 name = "dummyplane"
 version = "0.3.0"
 dependencies = [
+ "dunce",
  "log",
  "portable-pty",
  "rusqlite",
