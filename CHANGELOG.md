@@ -8,6 +8,8 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-23
+
 ### Added
 
 - **The model router keeps costly models for thinking, and routine work runs cheaper.** Before, a task rated `high` or `extreme` put its whole sub-agent on Opus or Fable, which then wrote the files, ran the tests and verified everything itself on that model. An agent's `spawn_agent` now takes an optional `kind`: `write` (files from a settled plan, mechanical edits, boilerplate) and `verify` (tests, lint, search sweeps, a verification pass) open at `medium` at most, a higher level lowered and the answer saying so; `plan`, or no kind, keeps the level given. A sub-agent the router opens at `high` or `extreme` is told, before its task, that its model is for planning, design, hard debugging and the final review, and to hand the routine work to sub-agents at `low` or `medium`, one per separable chunk, doing a small edit or a refused spawn's work itself. Every agent's instructions say the same: rate the part handed over, not the project. A level given without `kind` opens on the same model as before, a model named with the router off stands, and a Fleet's `spawn_agent` has no `kind`.
